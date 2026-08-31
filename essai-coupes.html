@@ -1797,7 +1797,7 @@ function ffRemplir(zone){
     corps.innerHTML = '\u{1F91D} Chez la F\u00e9d\u00e9ration : <b>'+duels.length+' rencontre'+(duels.length>1?'s':'')+'</b>'
       + ' \u2014 '+esc(nom)+' '+v+'V '+n+'N '+d+'D'
       + ' \u00b7 derni\u00e8re le '+ffJour(der.date)+' ('+der.home_score+'\u2013'+der.away_score+')'
-      + '<button type="button" class="fff-plus">d\u00e9tail</button>';
+      + ' <button type="button" class="fff-plus">d\u00e9tail</button>';
     detail.innerHTML = '<table>'+duels.map(x=>
       '<tr><td class="fff-dt">'+ffJour(x.date)+'</td><td>'+esc((x.home&&x.home.short_name)||'?')+'</td>'
       +'<td class="fff-sc">'+x.home_score+' \u2013 '+x.away_score+'</td>'
@@ -1828,6 +1828,18 @@ function brancherFff(){
     }, {rootMargin:'200px'});
   }
   document.querySelectorAll('[data-fff]').forEach(z=>ffObserver.observe(z));
+  // Filet : certains navigateurs ne declenchent pas l'observateur sur un onglet
+  // jamais affiche. Deux secondes plus tard, on remplit ce qui est a l'ecran.
+  setTimeout(()=>{
+    document.querySelectorAll('[data-fff]').forEach(z=>{
+      const r=z.getBoundingClientRect();
+      if(r.bottom>0 && r.top<(window.innerHeight||800)){
+        if(ffObserver) ffObserver.unobserve(z);
+        z.removeAttribute('data-fff');
+        ffRemplir(z);
+      }
+    });
+  }, 2000);
 }
 
 function htmlFaceAFace(m){
