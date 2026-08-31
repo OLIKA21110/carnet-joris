@@ -1,5 +1,4 @@
-# Test jetable : les pages de la FFF sont-elles lisibles depuis un serveur GitHub ?
-# À supprimer une fois la réponse obtenue.
+# Test jetable, phase 2 : cartographier l'API ouverte api-dofa.fff.fr.
 name: Diagnostic FFF
 
 on:
@@ -14,57 +13,64 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Interroger la FFF de plusieurs façons
+      - name: Cartographier l'API
         run: |
           set +e
-          UA_NAV="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
-          PAGE="https://epreuves.fff.fr/competition/engagement/439339-u15-d1/phase/1/1/classement"
-          R=_diagnostic-fff.txt
-          : > $R
+          B="https://api-dofa.fff.fr"
+          D=_diagnostic-fff
+          rm -rf $D; mkdir -p $D
+          R=$D/00-resume.txt; : > $R
 
-          dire(){ echo "$@" | tee -a $R; }
-
-          dire "===== Diagnostic FFF du $(date -u '+%Y-%m-%d %H:%M UTC') ====="
-          dire ""
-
-          essai(){   # $1=libelle  $2=url  $3=ua
-            local code taille f=$(mktemp)
-            if [ -n "$3" ]; then
-              code=$(curl -sS -m 25 -A "$3" -o "$f" -w "%{http_code}" "$2" 2>>$R)
-            else
-              code=$(curl -sS -m 25 -o "$f" -w "%{http_code}" "$2" 2>>$R)
+          sonde(){  # $1 = nom de fichier, $2 = chemin
+            local f="$D/$1.json"
+            local code=$(curl -sS -m 30 -H "Accept: application/ld+json" -o "$f" -w "%{http_code}" "$B$2")
+            local taille=$(wc -c < "$f")
+            printf '%-42s HTTP %s  %8s o\n' "$2" "$code" "$taille" >> $R
+            if [ "$code" != "200" ] || [ "$taille" -lt 40 ]; then rm -f "$f"; fi
+            # on ne garde pas des fichiers geants dans le depot
+            if [ -f "$f" ] && [ "$taille" -gt 300000 ]; then
+              head -c 300000 "$f" > "$f.tronque"; mv "$f.tronque" "$f"
+              echo "    (tronque a 300 Ko)" >> $R
             fi
-            taille=$(wc -c < "$f")
-            dire "--- $1"
-            dire "    HTTP $code, $taille octets"
-            # les noms d'equipes sont-ils dans le HTML brut ?
-            for mot in CHEMINOTS GEVREY QUETIGHY QUETIGNY MARSANNAY; do
-              n=$(grep -o -i "$mot" "$f" | wc -l)
-              [ "$n" -gt 0 ] && dire "    trouve '$mot' x$n"
-            done
-            grep -qi "<app-root\|ng-version\|main-[a-z0-9]*\.js" "$f" && dire "    (coquille Angular detectee)"
-            dire "    debut : $(head -c 180 "$f" | tr '\n' ' ' | tr -s ' ')"
-            dire ""
-            rm -f "$f"
           }
 
-          essai "Page classement, curl nu"            "$PAGE" ""
-          essai "Page classement, avec UA navigateur" "$PAGE" "$UA_NAV"
+          echo "===== Cartographie api-dofa.fff.fr du $(date -u '+%Y-%m-%d %H:%M UTC') =====" >> $R
+          echo "" >> $R
 
-          for api in \
-            "https://api-dofa.fff.fr/api/compets/439339/phases/1/poules/1/classement_journees" \
-            "https://api-dofa.fff.fr/api/compets/439339" \
-            "https://epreuves.fff.fr/api/data/matches?cpNo=439339&phNo=1&gpNo=1" ; do
-            essai "API : $api" "$api" "$UA_NAV"
-          done
+          # 1. le point d'entree : il liste toutes les collections disponibles
+          sonde "01-entrypoint"      "/api"
+          sonde "02-docs"            "/api/docs.jsonld"
 
-          dire "===== fin ====="
-          echo "::group::rapport"; cat $R; echo "::endgroup::"
+          # 2. l'arborescence d'une competition connue (U15 D1 district 21, saison 2025/2026)
+          sonde "10-compet"          "/api/compets/439339"
+          sonde "11-phases"          "/api/compets/439339/phases"
+          sonde "12-poules"          "/api/compets/439339/phases/1/poules"
+          sonde "13-classement"      "/api/compets/439339/phases/1/poules/1/classement_journees"
+          sonde "14-matchs"          "/api/compets/439339/phases/1/poules/1/matchs"
+          sonde "15-rencontres"      "/api/compets/439339/phases/1/poules/1/rencontres"
+          sonde "16-equipes"         "/api/compets/439339/phases/1/poules/1/equipes"
+          sonde "17-calendrier"      "/api/compets/439339/calendrier"
 
-      - name: Déposer le rapport
+          # 3. peut-on LISTER les competitions ? c'est la question a 1000 euros :
+          #    si oui, la table des cpNo se construit toute seule.
+          sonde "20-compets"              "/api/compets"
+          sonde "21-compets-cdg28"        "/api/compets?cdg.cg_no=28"
+          sonde "22-compets-cdg28-saison" "/api/compets?cdg.cg_no=28&season=2025"
+          sonde "23-compets-saison"       "/api/compets?season=2024"
+          sonde "24-cdgs"                 "/api/cdgs"
+          sonde "25-cdg28"                "/api/cdgs/28"
+          sonde "26-cdg28-compets"        "/api/cdgs/28/compets"
+
+          echo "" >> $R
+          echo "===== fichiers conserves =====" >> $R
+          ls -la $D >> $R
+          cat $R
+
+      - name: Déposer les résultats
         run: |
           git config user.name  "Diagnostic"
           git config user.email "actions@github.com"
-          git add _diagnostic-fff.txt
-          git diff --staged --quiet || git commit -m "Rapport de diagnostic FFF"
+          rm -f _diagnostic-fff.txt
+          git add -A _diagnostic-fff _diagnostic-fff.txt
+          git diff --staged --quiet || git commit -m "Cartographie de l'API FFF"
           git push
