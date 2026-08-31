@@ -1,32 +1,36 @@
-===== Cartographie api-dofa.fff.fr du 2026-08-31 12:15 UTC =====
+===== Phase 3 du 2026-08-31 12:31 UTC =====
 
-/api                                       HTTP 404       181 o
-/api/docs.jsonld                           HTTP 404       194 o
-/api/compets/439339                        HTTP 200       632 o
-/api/compets/439339/phases                 HTTP 200       893 o
-/api/compets/439339/phases/1/poules        HTTP 200      1422 o
-/api/compets/439339/phases/1/poules/1/classement_journees HTTP 200     10952 o
-/api/compets/439339/phases/1/poules/1/matchs HTTP 200    123448 o
-/api/compets/439339/phases/1/poules/1/rencontres HTTP 404       232 o
-/api/compets/439339/phases/1/poules/1/equipes HTTP 404       229 o
-/api/compets/439339/calendrier             HTTP 404       210 o
-/api/compets                               HTTP 400       134 o
-/api/compets?cdg.cg_no=28                  HTTP 503       939 o
-/api/compets?cdg.cg_no=28&season=2025      HTTP 503       939 o
-/api/compets?season=2024                   HTTP 503       939 o
-/api/cdgs                                  HTTP 200     22198 o
-/api/cdgs/28                               HTTP 200       158 o
-/api/cdgs/28/compets                       HTTP 404       200 o
+/api/clubs/10955                               HTTP 200     17319 o
+/api/clubs/10955/equipes                       HTTP 200     12538 o
+/api/clubs/10955/engagements                   HTTP 401         0 o
+/api/clubs/10955/competitions                  HTTP 404       209 o
+/api/clubs/10955/matchs                        HTTP 200    112455 o
+/api/equipes?club.cl_no=10955                  HTTP 503       939 o
+/api/engagements?club.cl_no=10955              HTTP 200     10382 o
+/api/compets?cdg=28                            HTTP 503       939 o
+/api/compets?cdg=%2Fapi%2Fcdgs%2F28            HTTP 503       939 o
+/api/compets?cp_cod=021                        HTTP 503       939 o
+/api/compets?season=2025&cdg=28                HTTP 503       939 o
+/api/compets?page=1                            HTTP 400       134 o
+/api/compets/443467                            HTTP 200       448 o
+/api/compets/443467/phases                     HTTP 200       716 o
+/api/compets/439339/phases/2/poules/1/matchs   HTTP 200    122884 o
 
-===== fichiers conserves =====
-total 188
-drwxr-xr-x 2 runner runner   4096 Aug 31 12:17 .
-drwxr-xr-x 6 runner runner   4096 Aug 31 12:15 ..
--rw-r--r-- 1 runner runner   1212 Aug 31 12:17 00-resume.txt
--rw-r--r-- 1 runner runner    632 Aug 31 12:15 10-compet.json
--rw-r--r-- 1 runner runner    893 Aug 31 12:15 11-phases.json
--rw-r--r-- 1 runner runner   1422 Aug 31 12:15 12-poules.json
--rw-r--r-- 1 runner runner  10952 Aug 31 12:15 13-classement.json
--rw-r--r-- 1 runner runner 123448 Aug 31 12:15 14-matchs.json
--rw-r--r-- 1 runner runner  22198 Aug 31 12:17 24-cdgs.json
--rw-r--r-- 1 runner runner    158 Aug 31 12:17 25-cdg28.json
+total 480
+drwxr-xr-x 2 runner runner   4096 Aug 31 12:34 .
+drwxr-xr-x 6 runner runner   4096 Aug 31 12:31 ..
+-rw-r--r-- 1 runner runner   1066 Aug 31 12:34 00-resume.txt
+-rw-r--r-- 1 runner runner    632 Aug 31 12:31 10-compet.json
+-rw-r--r-- 1 runner runner    893 Aug 31 12:31 11-phases.json
+-rw-r--r-- 1 runner runner   1422 Aug 31 12:31 12-poules.json
+-rw-r--r-- 1 runner runner  10952 Aug 31 12:31 13-classement.json
+-rw-r--r-- 1 runner runner 123448 Aug 31 12:31 14-matchs.json
+-rw-r--r-- 1 runner runner  22198 Aug 31 12:31 24-cdgs.json
+-rw-r--r-- 1 runner runner    158 Aug 31 12:31 25-cdg28.json
+-rw-r--r-- 1 runner runner  17319 Aug 31 12:31 30-club.json
+-rw-r--r-- 1 runner runner  12538 Aug 31 12:31 31-club-equipes.json
+-rw-r--r-- 1 runner runner 112455 Aug 31 12:31 34-club-matchs.json
+-rw-r--r-- 1 runner runner  10382 Aug 31 12:32 36-engagements-filtre.json
+-rw-r--r-- 1 runner runner    448 Aug 31 12:34 50-coupe.json
+-rw-r--r-- 1 runner runner    716 Aug 31 12:34 51-coupe-phases.json
+-rw-r--r-- 1 runner runner 122884 Aug 31 12:34 60-printemps-matchs.json
