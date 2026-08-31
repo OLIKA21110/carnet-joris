@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon journal — Le carnet de Joris (v1.0)</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{ --rouge:#C8102E; --noir:#111418; --or:#C8A24B; --craie:#F5F3F0; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--noir);color:#222}
+  .wrap{max-width:900px;margin:0 auto;padding:14px}
+  header{background:linear-gradient(120deg,var(--rouge),#8d0b20);border-radius:16px;padding:16px 20px;color:#fff;position:relative;overflow:hidden}
+  header .badge{position:absolute;top:14px;left:20px;background:#fff;color:var(--noir);font-weight:900;letter-spacing:2px;border-radius:8px;padding:6px 12px;font-size:.85rem}
+  header h1{margin:8px 0 2px 96px;font-size:1.5rem;letter-spacing:1px}
+  header .sub{margin-left:96px;font-size:.75rem;text-transform:uppercase;letter-spacing:3px;opacity:.85}
+  header .home{display:inline-block;margin-top:10px;background:rgba(255,255,255,.9);color:var(--noir);text-decoration:none;font-weight:bold;border-radius:20px;padding:5px 14px;font-size:.85rem}
+  header .stripes{position:absolute;bottom:0;left:0;right:0;height:5px;display:flex}
+  header .stripes i{flex:1}
+  header .stripes i:nth-child(1){background:var(--rouge)}
+  header .stripes i:nth-child(2){background:var(--noir)}
+  header .stripes i:nth-child(3){background:#fff}
+  .vbadge{font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+  #syncStatus{font-size:.78rem;border-radius:20px;padding:5px 12px;background:var(--craie);color:#666}
+  #syncStatus.ok{background:#e6f4ea;color:#1a7a1a}
+  #syncStatus.warn{background:#fdecea;color:var(--rouge)}
+  .toolbar button{border:none;border-radius:20px;padding:7px 14px;font-family:inherit;font-weight:bold;font-size:.85rem;cursor:pointer;background:var(--craie);color:var(--noir)}
+  .toolbar button:hover{background:#e8e4de}
+
+  .card{background:var(--craie);border-radius:16px;padding:18px;margin-bottom:14px}
+  .card h2{margin:0 0 4px;color:var(--rouge);font-size:1.2rem}
+  .hint{color:#777;font-size:.85rem;margin:2px 0 12px;line-height:1.5}
+
+  /* ---- choix du jour ---- */
+  .jour-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:12px}
+  .jour-fleche{border:1px solid #dcd9d4;background:#fff;border-radius:10px;width:38px;height:38px;font-size:1.1rem;cursor:pointer;flex:none}
+  .jour-fleche:hover{background:#fdf7e8;border-color:var(--or)}
+  .jour-fleche:disabled{opacity:.3;cursor:default}
+  .jour-nom{font-weight:800;font-size:1rem;color:var(--noir);text-align:center;min-width:210px;flex:1}
+  .jour-nom small{display:block;font-weight:normal;font-size:.72rem;color:#999;letter-spacing:.4px;text-transform:uppercase}
+  .jour-cal{border:1px solid #dcd9d4;background:#fff;border-radius:10px;height:38px;padding:0 12px;font-size:1rem;cursor:pointer;flex:none}
+  .jour-cal:hover{background:#fdf7e8;border-color:var(--or)}
+  .jour-auj{border:none;background:var(--craie);border-radius:10px;height:38px;padding:0 14px;font-family:inherit;font-size:.8rem;font-weight:bold;cursor:pointer;flex:none}
+  .jour-auj:hover{background:#e8e4de}
+
+  /* ---- les deux moments ---- */
+  .moment{background:#fff;border-radius:12px;padding:14px;margin-bottom:11px}
+  .moment h3{margin:0 0 3px;font-size:.98rem;color:var(--noir);display:flex;align-items:center;gap:7px}
+  .moment .quand{font-size:.72rem;color:#aaa;font-weight:normal;letter-spacing:.3px}
+  .moment textarea{width:100%;border:1.5px solid #e4e1dc;border-radius:10px;padding:11px 13px;font-family:inherit;font-size:.92rem;line-height:1.6;resize:vertical;min-height:120px;background:#fdfdfc}
+  .moment textarea:focus{outline:none;border-color:var(--rouge);background:#fff}
+  .moment.avant{box-shadow:inset 4px 0 0 var(--or)}
+  .moment.apres{box-shadow:inset 4px 0 0 #2ea043}
+  .compteur-mots{font-size:.7rem;color:#bbb;text-align:right;margin-top:4px}
+
+  /* ---- réglage : quelles zones ---- */
+  .reglage{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:11px}
+  .reglage .rg-lab{font-size:.7rem;color:#999;font-weight:bold;letter-spacing:.4px;text-transform:uppercase}
+  .rg-b{border:1px solid #dcd9d4;background:#fff;color:#666;border-radius:14px;padding:5px 13px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer}
+  .rg-b:hover{border-color:var(--or);background:#fffdf6}
+  .rg-b.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .cache-note{background:#fffdf6;border:1px solid var(--or);border-radius:10px;padding:9px 12px;font-size:.8rem;color:#8a6d1f;margin-bottom:11px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .cache-note button{border:none;background:var(--or);color:#fff;border-radius:8px;padding:4px 11px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer}
+  /* ---- matchs proposés ---- */
+  .mj{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:11px}
+  .mj h3{margin:0 0 8px;font-size:.95rem;color:var(--noir)}
+  .mj-groupe{font-size:.68rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase;margin:9px 0 5px}
+  .mj-groupe:first-of-type{margin-top:0}
+  /* toute la ligne est cliquable : viser un petit bouton au doigt n'est pas evident */
+  .mj-carte{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:#fbfaf8;border-radius:10px;padding:8px 11px;margin-bottom:5px;cursor:pointer;border:1px solid transparent}
+  .mj-carte:hover{background:#fffdf6;border-color:var(--or)}
+  .mj-astuce{font-size:.72rem;color:#aaa;margin:-2px 0 8px}
+  .mj-effacer{border:1px solid #f0d4d4;background:#fff;color:#c0392b;border-radius:12px;padding:4px 9px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;flex:none}
+  .mj-effacer:hover{background:#fdeaea;border-color:#e0a0a0}
+  .moment-tete{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px}
+  .moment-tete h3{margin:0}
+  .zone-effacer{margin-left:auto;border:1px solid #e6e2dc;background:#fff;color:#a99c8c;border-radius:12px;padding:3px 10px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer}
+  .zone-effacer:hover{background:#fdeaea;border-color:#e0a0a0;color:#c0392b}
+  .mj-h{font-weight:800;font-size:.82rem;min-width:44px;flex:none;color:var(--noir)}
+  .mj-h.vide{color:#ccc;font-weight:normal}
+  .mj-eq{flex:1;min-width:150px;font-size:.85rem;font-weight:bold}
+  .mj-vs{color:#bbb;font-weight:normal;font-size:.76rem}
+  .mj-ctx{flex-basis:100%;font-size:.68rem;color:#aaa}
+  .mj-score{font-size:.78rem;font-weight:800;color:#666;background:var(--craie);border-radius:8px;padding:2px 9px;flex:none}
+  .mj-b{border:1px solid #dcd9d4;background:#fff;border-radius:12px;padding:4px 10px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;flex:none}
+  .mj-b:hover{border-color:var(--or);background:#fffdf6}
+  .mj-vide{font-size:.8rem;color:#999;padding:4px 2px}
+  /* ---- idées pour écrire ---- */
+  .idees{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px}
+  .idee{border:1px dashed #d9d4cb;background:#fff;color:#8a6d1f;border-radius:12px;padding:3px 10px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer}
+  .idee:hover{background:#fffdf6;border-color:var(--or)}
+  /* ---- liste des jours écrits ---- */
+  .jours-liste{display:flex;flex-direction:column;gap:5px}
+  /* sans ca, display:flex l'emporte sur l'attribut hidden et la liste reste visible */
+  .jours-liste[hidden],.cahier[hidden],.fiches[hidden]{display:none}
+  .jl{display:flex;align-items:center;gap:10px;background:#fff;border-radius:10px;padding:9px 12px;cursor:pointer;border:1px solid transparent;text-align:left;font-family:inherit;width:100%}
+  .jl:hover{border-color:var(--or);background:#fffdf6}
+  .jl.actif{border-color:var(--rouge);background:#fff7f3}
+  .jl-date{font-weight:bold;font-size:.85rem;min-width:150px;flex:none}
+  .jl-apercu{flex:1;min-width:0;font-size:.78rem;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .jl-pastilles{flex:none;font-size:.72rem;letter-spacing:2px}
+  .vide{background:#fff;border-radius:12px;padding:20px;text-align:center;color:#888;font-size:.86rem;line-height:1.6}
+
+  /* ---- vue lecture : le journal comme un cahier ---- */
+  .vues{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+  .vue-b{border:1px solid #dcd9d4;background:#fff;color:#666;border-radius:14px;padding:5px 13px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer}
+  .vue-b:hover{border-color:var(--or);background:#fffdf6}
+  .vue-b.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .vue-chiffres{margin-left:auto;font-size:.74rem;color:#999}
+  .cahier{background:#fffdf9;border-radius:12px;padding:4px 0}
+  .cahier-mois{font-size:.72rem;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#b9b2a6;
+    padding:16px 20px 6px;border-bottom:1px solid #efe9dd;margin-bottom:2px}
+  .cahier-mois:first-child{padding-top:10px}
+  .entree{padding:14px 20px 16px 24px;border-left:3px solid var(--rouge);margin:10px 14px 14px}
+  .entree + .entree{border-top:1px dashed #eee4d4;padding-top:18px}
+  .entree-tete{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .entree-date{font-size:1.02rem;font-weight:800;color:var(--rouge)}
+  .entree-mod{border:none;background:transparent;color:#b3aca0;font-family:inherit;font-size:.74rem;cursor:pointer;text-decoration:underline}
+  .entree-mod:hover{color:var(--rouge)}
+  .bloc{margin-bottom:12px}
+  .bloc:last-child{margin-bottom:0}
+  .bloc-titre{font-size:.7rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:#a99c85;margin-bottom:4px}
+  .bloc-texte{font-family:Georgia,"Times New Roman",serif;font-size:1rem;line-height:1.75;color:#2b2b2b;white-space:pre-wrap;word-wrap:break-word}
+  .bloc-texte .match{display:block;font-family:"Segoe UI",system-ui,sans-serif;font-size:.82rem;font-weight:bold;
+    color:#7a6a4a;background:#fdf8ec;border-radius:8px;padding:5px 10px;margin:3px 0 7px}
+  /* ---- une feuille par match ---- */
+  .fiches{display:flex;flex-direction:column;gap:16px}
+  .fiche{background:#fff;border-radius:12px;padding:20px 22px;box-shadow:0 2px 10px rgba(0,0,0,.07);border-top:4px solid var(--rouge)}
+  .fiche-tete{margin-bottom:12px}
+  .fiche-titre{font-size:1.08rem;font-weight:800;color:var(--noir);line-height:1.35}
+  .fiche-sous{font-size:.76rem;color:#9c9384;margin-top:3px}
+  .fiche-jour{font-size:.72rem;font-weight:bold;letter-spacing:1px;text-transform:uppercase;color:var(--rouge);margin-bottom:5px}
+  .fiche .bloc{margin-bottom:12px}
+  .fiche .bloc:last-child{margin-bottom:0}
+  .fiche-notes{border-top-color:var(--or)}
+  .fiche.vise{box-shadow:0 0 0 3px var(--or),0 2px 10px rgba(0,0,0,.07)}
+  .mj-fiche{border:1px solid #dcd9d4;background:#fff;color:#666;border-radius:12px;padding:4px 10px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;flex:none}
+  .mj-fiche:hover{border-color:var(--or);background:#fffdf6}
+  @media print{
+    .fiche{break-inside:avoid;box-shadow:none;border:1px solid #ddd}
+    .fiches .fiche{break-after:page}
+    .fiches .fiche:last-child{break-after:auto}
+    body{background:#fff}
+    .toolbar,.jour-bar,.mj,.moment,.reglage,.vues,#cacheNote,header .home,footer{display:none!important}
+    .card{background:#fff;padding:0}
+    .cahier{background:#fff}
+    .entree{break-inside:avoid}
+  }
+
+  /* ---- calendrier maison (même principe que dans les carnets) ---- */
+  .cal-pop{position:absolute;z-index:9999;background:#fff;border:2px solid var(--or);border-radius:12px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.28);width:252px;font-family:inherit}
+  .cal-head{display:flex;align-items:center;gap:5px;margin-bottom:8px}
+  .cal-head select{flex:1;min-width:0;border:1px solid #d4d4da;border-radius:6px;padding:4px 3px;font-family:inherit;font-size:.82rem;background:#fff}
+  .cal-nav{border:none;background:var(--craie);border-radius:6px;width:26px;height:26px;font-weight:bold;font-size:1rem;cursor:pointer;flex:none}
+  .cal-nav:hover{background:#e8e4de}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .cal-dow{text-align:center;font-size:.68rem;color:#999;font-weight:bold;padding:2px 0}
+  .cal-day{border:none;background:#fff;border-radius:6px;padding:7px 0;font-family:inherit;font-size:.83rem;cursor:pointer;color:#222;position:relative}
+  .cal-day:hover{background:var(--craie)}
+  .cal-day.today{box-shadow:inset 0 0 0 2px var(--or)}
+  .cal-day.sel{background:var(--rouge);color:#fff;font-weight:bold}
+  .cal-day.ecrit::after{content:"";position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:var(--or)}
+  .cal-day.sel.ecrit::after{background:#fff}
+  .cal-foot{display:flex;gap:6px;margin-top:9px}
+  .cal-foot button{flex:1;border:none;border-radius:8px;padding:6px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer;background:var(--craie);color:var(--noir)}
+  .cal-foot button:hover{background:#e8e4de}
+
+  footer{text-align:center;color:#888;font-size:.78rem;padding:18px 0}
+  @media(max-width:520px){
+    header h1{margin-left:0;margin-top:44px}
+    header .sub{margin-left:0}
+    .jour-nom{min-width:0;flex-basis:100%;order:-1;margin-bottom:6px}
+    .jl-date{min-width:0}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">DFCO</span>
+    <h1>MON JOURNAL <span class="vbadge">version 23 août · aller à la fiche ✓</span></h1>
+    <div class="sub">Aux couleurs des Rouges de Dijon</div>
+    <a class="home" href="index.html">↩ Accueil</a>
+    <div class="stripes"><i></i><i></i><i></i></div>
+  </header>
+
+  <div class="toolbar">
+    <span id="syncStatus">…</span>
+    <button id="btnExport">↓ Exporter</button>
+    <button id="btnImport">↑ Importer</button>
+    <input type="file" id="fileImport" accept="application/json" style="display:none">
+  </div>
+
+  <div class="card">
+    <h2>📔 Mon journal</h2>
+    <p class="hint">Le soir avant un match, raconte les enjeux : ce qui se joue, ce que tu espères.
+      Le lendemain matin, reviens écrire le résultat et ce que tu en penses.
+      Si tu préfères n'en écrire qu'un seul, choisis ci-dessous.</p>
+
+    <div class="jour-bar">
+      <button class="jour-fleche" id="jourPrev" title="Jour précédent">‹</button>
+      <div class="jour-nom" id="jourNom">…</div>
+      <button class="jour-fleche" id="jourNext" title="Jour suivant">›</button>
+      <button class="jour-cal" id="jourCal" title="Choisir un jour dans le calendrier">📅</button>
+      <button class="jour-auj" id="jourAuj">Aujourd'hui</button>
+    </div>
+
+    <div class="reglage" id="reglageZones"></div>
+    <div class="mj" id="matchsJour"></div>
+    <div id="cacheNote"></div>
+
+    <div class="moment avant">
+      <div class="moment-tete">
+        <h3>⚡ Avant le match <span class="quand">les enjeux</span></h3>
+        <button class="zone-effacer" data-vider="avant">✕ Tout effacer</button>
+      </div>
+      <div class="idees" data-pour="avant"></div>
+      <textarea id="txtAvant" placeholder="Ce soir, Dijon reçoit… Ce qui se joue, ce que j'espère…"></textarea>
+      <div class="compteur-mots" id="motsAvant"></div>
+    </div>
+
+    <div class="moment apres">
+      <div class="moment-tete">
+        <h3>✅ Le lendemain <span class="quand">les résultats</span></h3>
+        <button class="zone-effacer" data-vider="apres">✕ Tout effacer</button>
+      </div>
+      <div class="idees" data-pour="apres"></div>
+      <textarea id="txtApres" placeholder="Le résultat, ce que j'ai pensé du match…"></textarea>
+      <div class="compteur-mots" id="motsApres"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📖 Mon journal de la saison</h2>
+    <p class="hint" id="listeHint">Clique sur une journée pour la relire ou la compléter.</p>
+    <div class="vues">
+      <button class="vue-b" id="vueLire">📖 Par jour</button>
+      <button class="vue-b" id="vueFiches">📄 Par match</button>
+      <button class="vue-b" id="vueListe">🗓️ Liste</button>
+      <button class="vue-b" id="vueImprimer">🖨️ Imprimer</button>
+      <span class="vue-chiffres" id="vueChiffres"></span>
+    </div>
+    <div id="joursListe" class="jours-liste"></div>
+    <div id="cahier" class="cahier" hidden></div>
+    <div id="fiches" class="fiches" hidden></div>
+  </div>
+
+  <footer>Le carnet de Joris · Mon journal · version 1.0 · ⚽</footer>
+</div>
+
+<script>
+/* ===================== Réglages ===================== */
+const SUPABASE_URL = "https://hoyxgmmbngrjigjqptnr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_y9KhYDWM2zyYFC_wtbBhlQ_BcqV9CR9";
+const SYNC_ENABLED = true;
+const JOURNAL_ID  = "journal_joris";
+const STORE_KEY   = "journal_joris_v1";
+
+/* Identifiant de cet onglet. Chaque envoi en est tamponné (_src) et tout écho portant
+   notre propre marque est ignoré : sans ça, quand deux envois s'enchaînent, l'écho du
+   premier revient alors qu'on ne mémorise que le dernier, il passe pour une modification
+   venue d'un autre appareil, et l'ancienne version efface ce que Joris vient d'écrire.
+   C'est le bug qui avait fait disparaître des lettres dans « Mes équipes ». */
+const CLIENT_ID = Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+
+let sb=null, pushTimer=null, lastRemoteStamp=0, applyingRemote=false;
+let dernierEnvoi="", lastSaved="", journalLu=false;
+
+/* journal = { "2026-08-19": {avant:"…", apres:"…"} } */
+let journal = charger();
+let jourCourant = aujourdhui();
+
+/* ===================== Utilitaires ===================== */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function pad2(n){ return n<10 ? '0'+n : ''+n; }
+function cleDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function aujourdhui(){ return cleDate(new Date()); }
+function dateDeCle(c){ const d=new Date(c+'T12:00:00'); return isNaN(d.getTime()) ? new Date() : d; }
+function decaler(cle, n){ const d=dateDeCle(cle); d.setDate(d.getDate()+n); return cleDate(d); }
+
+const JOURS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+function jourEnToutesLettres(cle){
+  const d=dateDeCle(cle);
+  const j=JOURS[d.getDay()];
+  return j.charAt(0).toUpperCase()+j.slice(1)+' '+d.getDate()+' '+MOIS[d.getMonth()]+' '+d.getFullYear();
+}
+/* « aujourd'hui », « hier », « demain » : plus parlant qu'une date sèche */
+function repereRelatif(cle){
+  const a=aujourdhui();
+  if(cle===a) return "aujourd'hui";
+  if(cle===decaler(a,-1)) return "hier";
+  if(cle===decaler(a,1)) return "demain";
+  return "";
+}
+function compterMots(t){
+  const n=(t||'').trim().split(/\s+/).filter(Boolean).length;
+  return n ? (n+' mot'+(n>1?'s':'')) : '';
+}
+
+/* ===================== Rangement ===================== */
+function charger(){
+  try{
+    const brut=localStorage.getItem(STORE_KEY);
+    if(brut){ const o=JSON.parse(brut); if(o && typeof o==='object') return nettoyer(o); }
+  }catch(e){}
+  return {};
+}
+/* On ne garde que des jours valides avec deux textes : une donnée abîmée ne doit pas
+   faire planter la page au chargement. */
+function nettoyer(o){
+  const out={};
+  Object.keys(o||{}).forEach(k=>{
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(k)) return;
+    const e=o[k]||{};
+    const avant=typeof e.avant==='string'?e.avant:'';
+    const apres=typeof e.apres==='string'?e.apres:'';
+    if(avant.trim()||apres.trim()) out[k]={avant,apres};
+  });
+  return out;
+}
+function save(){
+  const texte=JSON.stringify(journal);
+  if(texte===lastSaved) return;
+  lastSaved=texte;
+  localStorage.setItem(STORE_KEY, texte);
+  if(!applyingRemote) pousserVersCloud();
+}
+function entree(cle){
+  return journal[cle] || {avant:"", apres:""};
+}
+function ecrire(cle, champ, valeur){
+  if(!journal[cle]) journal[cle]={avant:"",apres:""};
+  journal[cle][champ]=valeur;
+  // une journée entièrement vide ne mérite pas de rester dans la liste
+  if(!journal[cle].avant.trim() && !journal[cle].apres.trim()) delete journal[cle];
+  save();
+}
+
+/* ===================== Affichage ===================== */
+function afficherJour(){
+  const e=entree(jourCourant);
+  const rep=repereRelatif(jourCourant);
+  document.getElementById('jourNom').innerHTML =
+    esc(jourEnToutesLettres(jourCourant)) + (rep?`<small>${esc(rep)}</small>`:'<small>&nbsp;</small>');
+  const a=document.getElementById('txtAvant'), b=document.getElementById('txtApres');
+  // on ne réécrit pas un champ que Joris est en train de remplir : le curseur sauterait
+  if(document.activeElement!==a) a.value=e.avant;
+  if(document.activeElement!==b) b.value=e.apres;
+  majCompteurs();
+  // on n'écrit pas dans le futur au-delà de demain : le journal raconte, il ne prédit pas
+  document.getElementById('jourNext').disabled = jourCourant >= decaler(aujourdhui(), 1);
+  afficherMatchs();
+  appliquerZones();
+  afficherNoteCachee();
+  construireListe();
+}
+function majCompteurs(){
+  document.getElementById('motsAvant').textContent=compterMots(document.getElementById('txtAvant').value);
+  document.getElementById('motsApres').textContent=compterMots(document.getElementById('txtApres').value);
+}
+function apercu(e){
+  const t=(e.avant||'').trim() || (e.apres||'').trim();
+  return t.replace(/\s+/g,' ').slice(0,90);
+}
+function construireListe(){
+  const box=document.getElementById('joursListe');
+  const cles=Object.keys(journal).sort().reverse();
+  construireCahier();
+  construireFiches();
+  appliquerVue();
+  if(!cles.length){
+    box.innerHTML=`<div class="vide">Ton journal est encore vide.<br>
+      Choisis un jour et raconte les enjeux du prochain match !</div>`;
+    return;
+  }
+  box.innerHTML=cles.map(c=>{
+    const e=journal[c];
+    const pastilles=(e.avant.trim()?'⚡':'') + (e.apres.trim()?'✅':'');
+    return `<button class="jl ${c===jourCourant?'actif':''}" data-jour="${c}">
+      <span class="jl-date">${esc(jourEnToutesLettres(c))}</span>
+      <span class="jl-apercu">${esc(apercu(e))}</span>
+      <span class="jl-pastilles">${pastilles}</span>
+    </button>`;
+  }).join("");
+  box.querySelectorAll('[data-jour]').forEach(b=>b.addEventListener('click',()=>{
+    jourCourant=b.dataset.jour; afficherJour();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+}
+
+/* ===================== La vue lecture =====================
+   La liste sert a naviguer, elle ne se lit pas. Ici on remet les journees bout a bout,
+   groupees par mois, la plus recente en haut : ce que Joris a ecrit devient vraiment
+   un journal. Texte en serif, comme un cahier ; les lignes de match inserees depuis
+   les carnets (elles commencent par un pictogramme) sont mises en evidence. */
+const MOIS_MAJ=["Janvier","F\u00e9vrier","Mars","Avril","Mai","Juin","Juillet","Ao\u00fbt",
+                "Septembre","Octobre","Novembre","D\u00e9cembre"];
+let vue = localStorage.getItem("journal_joris_vue") || "liste";
+
+function htmlTexte(t){
+  // Une ligne qui commence par ⚡ ou ✅ vient d'un match : on la detache du recit.
+  // Les lignes de recit qui se suivent sont regroupees, sinon le retour a la ligne
+  // s'ajoutait au bloc et laissait une ligne vide en dessous.
+  let html='', paquet=[];
+  const vider=()=>{ if(paquet.length){ html+=esc(paquet.join('\n')); paquet=[]; } };
+  (t||'').split('\n').forEach(l=>{
+    const x=l.trim();
+    if(!x) return;
+    if(x.charAt(0)==='\u26a1' || x.charAt(0)==='\u2705'){
+      vider();
+      html+=`<span class="match">${esc(x)}</span>`;
+    }else paquet.push(x);
+  });
+  vider();
+  return html;
+}
+function compterMatchs(){
+  let n=0;
+  Object.values(journal).forEach(e=>{
+    (e.avant+'\n'+e.apres).split('\n').forEach(l=>{
+      const s=l.trim();
+      if(s.charAt(0)==='\u26a1' || s.charAt(0)==='\u2705') n++;
+    });
+  });
+  return n;
+}
+function construireCahier(){
+  const box=document.getElementById('cahier');
+  const cles=Object.keys(journal).sort().reverse();
+  if(!cles.length){
+    box.innerHTML=`<div class="vide">Ton journal est encore vide.<br>
+      Choisis un jour et raconte les enjeux du prochain match !</div>`;
+    return;
+  }
+  let html='', moisCourant='';
+  cles.forEach(c=>{
+    const d=dateDeCle(c);
+    const mois=MOIS_MAJ[d.getMonth()]+' '+d.getFullYear();
+    if(mois!==moisCourant){ moisCourant=mois; html+=`<div class="cahier-mois">${esc(mois)}</div>`; }
+    const e=journal[c];
+    let blocs='';
+    if(e.avant.trim()) blocs+=`<div class="bloc"><div class="bloc-titre">\u26a1 Avant le match</div>
+      <div class="bloc-texte">${htmlTexte(e.avant)}</div></div>`;
+    if(e.apres.trim()) blocs+=`<div class="bloc"><div class="bloc-titre">\u2705 Le lendemain</div>
+      <div class="bloc-texte">${htmlTexte(e.apres)}</div></div>`;
+    html+=`<article class="entree">
+      <div class="entree-tete">
+        <span class="entree-date">${esc(jourEnToutesLettres(c))}</span>
+        <button class="entree-mod" data-modifier="${c}">modifier</button>
+      </div>${blocs}
+    </article>`;
+  });
+  box.innerHTML=html;
+  box.querySelectorAll('[data-modifier]').forEach(b=>b.addEventListener('click',()=>{
+    jourCourant=b.dataset.modifier; afficherJour();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+}
+/* ===================== Une feuille par match =====================
+   Le texte de Joris est deja structure : une ligne de match, puis ce qu'il en dit.
+   On decoupe donc chaque journee en morceaux, on rattache chaque morceau au match
+   dont parle sa ligne d'en-tete, et on rassemble sur une meme feuille les enjeux
+   ecrits la veille et le resultat ecrit le lendemain. Ce qui n'est rattache a aucun
+   match reste sur une feuille « Notes du jour ». */
+function cleDuMatch(ligne){
+  const trouve = matchs.find(m=>ligneDeCeMatch(ligne, m));
+  if(trouve) return {cle: trouve.dom+'|'+trouve.ext, titre: trouve.dom+' re\u00e7oit '+trouve.ext,
+                     sous: trouve.contexte + (trouve.lieu?' \u00b7 '+trouve.lieu:'')};
+  // match inconnu des carnets (efface depuis, autre saison...) : la ligne fait office de titre
+  const t=ligne.trim().replace(/^[\u26a1\u2705]\s*/,'');
+  return {cle:'libre:'+t, titre:t, sous:''};
+}
+function decouper(texte){
+  const morceaux=[]; let courant=null;
+  (texte||'').split('\n').forEach(l=>{
+    const x=l.trim();
+    if(!x) return;
+    if(x.charAt(0)==='\u26a1' || x.charAt(0)==='\u2705'){
+      const info=cleDuMatch(x);
+      courant={info, entete:x, lignes:[]};
+      morceaux.push(courant);
+    }else{
+      if(!courant){ courant={info:null, entete:null, lignes:[]}; morceaux.push(courant); }
+      courant.lignes.push(x);
+    }
+  });
+  return morceaux;
+}
+/* Amene Joris a la feuille de ce match, dans la vue « Par match ». On vise en priorite
+   la feuille du jour affiche : un meme match peut avoir ete racontre sur plusieurs jours. */
+function allerALaFiche(m){
+  vue='fiches'; localStorage.setItem("journal_joris_vue", vue);
+  construireFiches(); appliquerVue();
+  const cle=m.dom+'|'+m.ext;
+  const toutes=[...document.querySelectorAll('.fiche[data-cle]')].filter(f=>f.dataset.cle===cle);
+  if(!toutes.length) return;
+  const cible = toutes.find(f=>f.dataset.jour===jourCourant) || toutes[0];
+  cible.scrollIntoView({behavior:'smooth', block:'center'});
+  cible.classList.add('vise');
+  setTimeout(()=>cible.classList.remove('vise'), 2200);
+}
+function construireFiches(){
+  const box=document.getElementById('fiches');
+  const cles=Object.keys(journal).sort().reverse();
+  if(!cles.length){
+    box.innerHTML=`<div class="vide">Ton journal est encore vide.<br>
+      Choisis un jour et raconte les enjeux du prochain match !</div>`;
+    return;
+  }
+  let html='';
+  cles.forEach(c=>{
+    const e=journal[c];
+    const parMatch=new Map(); const notes={avant:[], apres:[]};
+    ['avant','apres'].forEach(champ=>{
+      decouper(e[champ]).forEach(mo=>{
+        if(!mo.info){ notes[champ].push(...mo.lignes); return; }
+        if(!parMatch.has(mo.info.cle)) parMatch.set(mo.info.cle, {info:mo.info, avant:[], apres:[]});
+        const f=parMatch.get(mo.info.cle);
+        f[champ].push({entete:mo.entete, lignes:mo.lignes});
+      });
+    });
+    const jour=`<div class="fiche-jour">${esc(jourEnToutesLettres(c))}</div>`;
+    parMatch.forEach(f=>{
+      let blocs='';
+      [['avant','\u26a1 Avant le match'],['apres','\u2705 Le lendemain']].forEach(([k,t])=>{
+        if(!f[k].length) return;
+        const corps=f[k].map(p=>`<span class="match">${esc(p.entete)}</span>`+esc(p.lignes.join('\n'))).join('\n');
+        blocs+=`<div class="bloc"><div class="bloc-titre">${t}</div>
+          <div class="bloc-texte">${corps}</div></div>`;
+      });
+      html+=`<article class="fiche" data-cle="${esc(f.info.cle)}" data-jour="${c}">${jour}
+        <div class="fiche-tete">
+          <div class="fiche-titre">${esc(f.info.titre)}</div>
+          ${f.info.sous?`<div class="fiche-sous">${esc(f.info.sous)}</div>`:''}
+        </div>${blocs}
+        <div class="entree-tete"><button class="entree-mod" data-modifier="${c}">modifier cette journ\u00e9e</button></div>
+      </article>`;
+    });
+    if(notes.avant.length || notes.apres.length){
+      let blocs='';
+      [['avant','\u26a1 Avant le match'],['apres','\u2705 Le lendemain']].forEach(([k,t])=>{
+        if(!notes[k].length) return;
+        blocs+=`<div class="bloc"><div class="bloc-titre">${t}</div>
+          <div class="bloc-texte">${esc(notes[k].join('\n'))}</div></div>`;
+      });
+      html+=`<article class="fiche fiche-notes">${jour}
+        <div class="fiche-tete"><div class="fiche-titre">Notes du jour</div></div>${blocs}
+        <div class="entree-tete"><button class="entree-mod" data-modifier="${c}">modifier cette journ\u00e9e</button></div>
+      </article>`;
+    }
+  });
+  box.innerHTML=html;
+  box.querySelectorAll('[data-modifier]').forEach(b=>b.addEventListener('click',()=>{
+    jourCourant=b.dataset.modifier; afficherJour();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }));
+}
+function appliquerVue(){
+  document.getElementById('joursListe').hidden = vue!=='liste';
+  document.getElementById('cahier').hidden     = vue!=='lire';
+  document.getElementById('fiches').hidden     = vue!=='fiches';
+  document.getElementById('vueListe').classList.toggle('on', vue==='liste');
+  document.getElementById('vueLire').classList.toggle('on', vue==='lire');
+  document.getElementById('vueFiches').classList.toggle('on', vue==='fiches');
+  document.getElementById('listeHint').textContent =
+      vue==='lire'   ? "Tes journ\u00e9es mises bout \u00e0 bout, de la plus r\u00e9cente \u00e0 la plus ancienne."
+    : vue==='fiches' ? "Une feuille par match : les enjeux et le r\u00e9sultat au m\u00eame endroit."
+    :                  "Clique sur une journ\u00e9e pour la relire ou la compl\u00e9ter.";
+  const nj=Object.keys(journal).length, nm=compterMatchs();
+  document.getElementById('vueChiffres').textContent = nj
+    ? `${nj} journ\u00e9e${nj>1?'s':''} \u00b7 ${nm} match${nm>1?'s':''} racont\u00e9${nm>1?'s':''}`
+    : '';
+}
+
+/* ===================== Calendrier maison =====================
+   Chrome n'ouvre pas son calendrier natif de façon fiable : on dessine le nôtre,
+   comme dans les deux carnets. Les jours déjà écrits portent un point doré. */
+function fermerCal(){
+  const o=document.querySelector('.cal-pop'); if(o) o.remove();
+  document.removeEventListener('click',fermerCalAuto);
+}
+function fermerCalAuto(e){
+  if(!e.target.closest('.cal-pop') && !e.target.closest('#jourCal')) fermerCal();
+}
+function ouvrirCal(btn){
+  fermerCal();
+  const pop=document.createElement('div');
+  pop.className='cal-pop';
+  document.body.appendChild(pop);
+  pop.addEventListener('click', e=>e.stopPropagation());
+
+  const dep=dateDeCle(jourCourant);
+  let annee=dep.getFullYear(), mois=dep.getMonth();
+
+  function dessiner(){
+    const auj=aujourdhui();
+    let ans='';
+    for(let a=annee-6;a<=annee+6;a++) ans+='<option value="'+a+'"'+(a===annee?' selected':'')+'>'+a+'</option>';
+    let h='<div class="cal-head">'
+      + '<button type="button" class="cal-nav" data-prev>&lsaquo;</button>'
+      + '<select class="cal-mois">'+MOIS.map((m,i)=>'<option value="'+i+'"'+(i===mois?' selected':'')+'>'+m+'</option>').join('')+'</select>'
+      + '<select class="cal-annee">'+ans+'</select>'
+      + '<button type="button" class="cal-nav" data-next>&rsaquo;</button>'
+      + '</div><div class="cal-grid">'
+      + ["L","M","M","J","V","S","D"].map(j=>'<div class="cal-dow">'+j+'</div>').join('');
+    const decal=(new Date(annee,mois,1).getDay()+6)%7;
+    const nb=new Date(annee,mois+1,0).getDate();
+    for(let i=0;i<decal;i++) h+='<div></div>';
+    for(let d=1;d<=nb;d++){
+      const cle=annee+'-'+pad2(mois+1)+'-'+pad2(d);
+      let cls='cal-day';
+      if(cle===jourCourant) cls+=' sel';
+      if(cle===auj) cls+=' today';
+      if(journal[cle]) cls+=' ecrit';
+      h+='<button type="button" class="'+cls+'" data-val="'+cle+'">'+d+'</button>';
+    }
+    h+='</div><div class="cal-foot"><button type="button" data-auj>Aujourd\'hui</button></div>';
+    pop.innerHTML=h;
+
+    pop.querySelector('[data-prev]').addEventListener('click',()=>{ mois--; if(mois<0){mois=11;annee--;} dessiner(); });
+    pop.querySelector('[data-next]').addEventListener('click',()=>{ mois++; if(mois>11){mois=0;annee++;} dessiner(); });
+    pop.querySelector('.cal-mois').addEventListener('change',e=>{ mois=+e.target.value; dessiner(); });
+    pop.querySelector('.cal-annee').addEventListener('change',e=>{ annee=+e.target.value; dessiner(); });
+    pop.querySelectorAll('.cal-day').forEach(b=>b.addEventListener('click',()=>{
+      jourCourant=b.dataset.val; fermerCal(); afficherJour();
+    }));
+    pop.querySelector('[data-auj]').addEventListener('click',()=>{
+      jourCourant=aujourdhui(); fermerCal(); afficherJour();
+    });
+  }
+  dessiner();
+
+  const r=btn.getBoundingClientRect();
+  const larg=pop.offsetWidth, haut=pop.offsetHeight;
+  let g=r.left+window.scrollX, t=r.bottom+window.scrollY+6;
+  const maxG=window.scrollX+document.documentElement.clientWidth-larg-8;
+  if(g>maxG) g=maxG;
+  if(g<window.scrollX+8) g=window.scrollX+8;
+  if(r.bottom+haut+10>document.documentElement.clientHeight && r.top-haut-6>0) t=r.top+window.scrollY-haut-6;
+  pop.style.left=g+'px'; pop.style.top=t+'px';
+  setTimeout(()=>document.addEventListener('click',fermerCalAuto),0);
+}
+
+/* ===================== Ce que Joris veut écrire =====================
+   Certains jours il ne veut peut-être qu'un seul des deux moments. Le réglage est
+   propre à l'appareil (pas de synchro) : c'est un confort d'affichage, pas une donnée.
+   Les textes déjà écrits ne sont JAMAIS effacés par ce réglage — seulement masqués,
+   et le carnet prévient quand une journée cache du texte. */
+const ZONES_KEY = "journal_joris_zones";
+const ZONES = [["deux","\u26a1 Avant et \u2705 apr\u00e8s"],["avant","\u26a1 Seulement avant"],["apres","\u2705 Seulement apr\u00e8s"]];
+let zones = localStorage.getItem(ZONES_KEY) || "deux";
+if(!ZONES.some(z=>z[0]===zones)) zones="deux";
+
+function voitAvant(){ return zones==="deux" || zones==="avant"; }
+function voitApres(){ return zones==="deux" || zones==="apres"; }
+
+function afficherReglage(){
+  const box=document.getElementById('reglageZones');
+  box.innerHTML=`<span class="rg-lab">J'\u00e9cris</span>`
+    + ZONES.map(([v,l])=>`<button class="rg-b ${zones===v?'on':''}" data-zone="${v}">${l}</button>`).join("");
+  box.querySelectorAll('[data-zone]').forEach(b=>b.addEventListener('click',()=>{
+    zones=b.dataset.zone;
+    localStorage.setItem(ZONES_KEY, zones);
+    afficherReglage(); appliquerZones(); afficherJour();
+  }));
+}
+function appliquerZones(){
+  document.querySelector('.moment.avant').style.display = voitAvant() ? '' : 'none';
+  document.querySelector('.moment.apres').style.display = voitApres() ? '' : 'none';
+  // les boutons d'insertion d'un moment masqué n'auraient nulle part où écrire
+  document.querySelectorAll('[data-ins="avant"]').forEach(b=>b.style.display = voitAvant()?'':'none');
+  document.querySelectorAll('[data-ins="apres"]').forEach(b=>b.style.display = voitApres()?'':'none');
+}
+/* Prévient si la journée affichée contient du texte dans une partie masquée : sans ça,
+   Joris pourrait croire que son texte a disparu. */
+function afficherNoteCachee(){
+  const box=document.getElementById('cacheNote');
+  const e=entree(jourCourant);
+  const caches=[];
+  if(!voitAvant() && e.avant.trim()) caches.push(["avant","\u26a1 Avant le match"]);
+  if(!voitApres() && e.apres.trim()) caches.push(["apres","\u2705 Le lendemain"]);
+  if(!caches.length){ box.innerHTML=''; return; }
+  box.innerHTML=caches.map(([v,l])=>`<div class="cache-note">
+      \u2709\ufe0f Cette journ\u00e9e a aussi du texte dans \u00ab ${l} \u00bb, qui est masqu\u00e9.
+      <button data-montrer="${v}">Le montrer</button>
+    </div>`).join("");
+  box.querySelectorAll('[data-montrer]').forEach(b=>b.addEventListener('click',()=>{
+    zones="deux"; localStorage.setItem(ZONES_KEY, zones);
+    afficherReglage(); appliquerZones(); afficherJour();
+  }));
+}
+
+/* ===================== Les matchs des carnets =====================
+   Le journal va lire les deux carnets pour proposer a Joris les matchs du jour,
+   de la veille et du lendemain. Il n'ecrit JAMAIS dedans : lecture seule. */
+const CHAMP_ID  = "champ_district_2627";
+const COUPES_ID = "coupes_district_2627";
+const SAISON_DEFAUT = "2026-2027";
+let matchs = [];   // {date, heure, dom, ext, lieu, contexte, score}
+
+function lireCarnet(data, s){
+  if(!data) return;
+  (data.divisions||[]).forEach(d=>(d.poules||[]).forEach(p=>{
+    const plusieurs=(d.poules||[]).length>1;
+    (p.matchs||[]).forEach(m=>{
+      if(!m.dom||!m.ext) return;
+      const dt=(data.dates||{})[m.id]||{};
+      if(!dt.date) return;
+      const sc=(data.scores||{})[m.id]||{};
+      const lieu=[sc.stade, sc.ville].filter(Boolean).join(', ');
+      const ctx=[d.nom||'Championnat', plusieurs?(p.nom||''):'', m.j?('J'+m.j):''].filter(Boolean).join(' \u00b7 ');
+      matchs.push({date:dt.date, heure:dt.time||"", dom:m.dom, ext:m.ext, lieu,
+        contexte:ctx + (s&&s!==SAISON_DEFAUT?(' \u00b7 '+s):''),
+        score:(sc.h!==undefined&&sc.h!==''&&sc.a!==undefined&&sc.a!=='')?(sc.h+' - '+sc.a):""});
+    });
+  }));
+  (data.coupes||[]).forEach(c=>(c.tours||[]).forEach(t=>(t.matchs||[]).forEach(m=>{
+    if(!m.dom||!m.ext) return;
+    const dt=(data.dates||{})[m.id]||{};
+    const sc=(data.scores||{})[m.id]||{};
+    const base=[c.nom||'Coupe', t.nom||''].filter(Boolean).join(' \u00b7 ');
+    if(dt.date){
+      matchs.push({date:dt.date, heure:dt.time||"", dom:m.dom, ext:m.ext,
+        lieu:[m.stade,m.ville].filter(Boolean).join(', '),
+        contexte:base + (m.ar?' \u00b7 match aller':''),
+        score:(sc.h!==undefined&&sc.h!==''&&sc.a!==undefined&&sc.a!=='')?(sc.h+' - '+sc.a):""});
+    }
+    if(m.ar && dt.rdate){
+      matchs.push({date:dt.rdate, heure:dt.rtime||"", dom:m.ext, ext:m.dom,
+        lieu:[m.rstade,m.rville].filter(Boolean).join(', '),
+        contexte:base+' \u00b7 match retour',
+        score:(sc.rext!==undefined&&sc.rext!==''&&sc.rdom!==undefined&&sc.rdom!=='')?(sc.rext+' - '+sc.rdom):""});
+    }
+  })));
+}
+async function chargerMatchs(){
+  if(!sb) return;
+  matchs=[];
+  for(const base of [CHAMP_ID, COUPES_ID]){
+    let saisons=[SAISON_DEFAUT];
+    try{
+      const {data}=await sb.from('carnet').select('data').eq('id', base+':saisons').maybeSingle();
+      if(data && data.data && Array.isArray(data.data.liste)) saisons=data.data.liste;
+    }catch(e){}
+    if(!saisons.includes(SAISON_DEFAUT)) saisons.push(SAISON_DEFAUT);
+    for(const s of saisons){
+      const ligne = (s===SAISON_DEFAUT) ? base : base+':'+s;
+      try{
+        const {data}=await sb.from('carnet').select('data').eq('id',ligne).maybeSingle();
+        lireCarnet(data && data.data, s);
+      }catch(e){}
+    }
+  }
+  matchs.sort((a,b)=>(a.date+(a.heure||'99:99')).localeCompare(b.date+(b.heure||'99:99')));
+  afficherMatchs();
+  // les fiches ont besoin des matchs pour rattacher chaque morceau de texte :
+  // elles ont ete construites avant la lecture des carnets, on les refait
+  construireFiches(); appliquerVue();
+}
+function matchsDu(cle){ return matchs.filter(m=>m.date===cle); }
+
+/* Insere du texte a l'endroit du curseur, ou a la fin. */
+function inserer(idZone, texte){
+  const el=document.getElementById(idZone);
+  const champ = idZone==='txtAvant' ? 'avant' : 'apres';
+  const v=el.value;
+  const pos = (document.activeElement===el) ? el.selectionStart : v.length;
+  const avantTexte = v.slice(0,pos);
+  const sep = (!avantTexte || /\n$/.test(avantTexte)) ? '' : '\n';
+  const neuf = avantTexte + sep + texte + v.slice(pos);
+  el.value=neuf;
+  const curseur=(avantTexte+sep+texte).length;
+  el.focus(); el.setSelectionRange(curseur,curseur);
+  ecrire(jourCourant, champ, neuf);
+  // on redessine les cartes : le bouton « effacer » n'apparait que si le match est ecrit
+  majCompteurs(); afficherMatchs(); afficherNoteCachee(); construireListe();
+}
+function ligneEnjeux(m){
+  const bouts=[];
+  if(m.heure) bouts.push(m.heure);
+  bouts.push(m.dom+' re\u00e7oit '+m.ext);
+  if(m.lieu) bouts.push('\u00e0 '+m.lieu);
+  return '\u26a1 '+bouts.join(' \u2014 ')+' ('+m.contexte+')\n';
+}
+function ligneResultat(m){
+  return '\u2705 '+m.dom+' '+(m.score||'? - ?')+' '+m.ext+' ('+m.contexte+')\n';
+}
+/* Ou va le match si Joris clique sur la ligne entiere ?
+   Un match deja joue (score connu, ou match de la veille) part dans les resultats,
+   sinon dans les enjeux. Et jamais dans une zone masquee par le reglage. */
+function zoneNaturelle(m, groupe){
+  let cible = (m.score || groupe==='veille') ? 'apres' : 'avant';
+  if(cible==='apres' && !voitApres()) cible='avant';
+  if(cible==='avant' && !voitAvant()) cible='apres';
+  return cible;
+}
+/* Une ligne de match deja ecrite dans le journal ? On la reconnait a son pictogramme
+   de debut et aux deux noms d'equipes : Joris peut avoir modifie le reste de la ligne,
+   ca marche quand meme. */
+function ligneDeCeMatch(l, m){
+  const x=l.trim();
+  if(!(x.charAt(0)==='\u26a1' || x.charAt(0)==='\u2705')) return false;
+  return x.indexOf(m.dom)>=0 && x.indexOf(m.ext)>=0;
+}
+function matchDejaEcrit(m){
+  const e=entree(jourCourant);
+  return (e.avant+'\n'+e.apres).split('\n').some(l=>ligneDeCeMatch(l,m));
+}
+/* Retire du jour affiche toutes les lignes qui parlent de ce match. Le reste du texte
+   de Joris n'est pas touche. */
+function retirerMatch(m){
+  const e=entree(jourCourant);
+  ['avant','apres'].forEach(champ=>{
+    const garde=(e[champ]||'').split('\n').filter(l=>!ligneDeCeMatch(l,m));
+    const neuf=garde.join('\n').replace(/\n{3,}/g,'\n\n').replace(/^\n+/,'');
+    if(neuf!==(e[champ]||'')){
+      ecrire(jourCourant, champ, neuf);
+      const el=document.getElementById(champ==='avant'?'txtAvant':'txtApres');
+      el.value=neuf;
+    }
+  });
+  majCompteurs(); afficherMatchs(); afficherNoteCachee(); construireListe();
+}
+function carteMatch(m, i, groupe){
+  const cible=zoneNaturelle(m, groupe);
+  const quoi = cible==='avant' ? 'les enjeux' : 'les r\u00e9sultats';
+  return `<div class="mj-carte" data-ligne="${i}" data-cible="${cible}" title="Cliquer pour \u00e9crire ce match dans ${quoi}">
+    <span class="mj-h ${m.heure?'':'vide'}">${m.heure?esc(m.heure):'\u2014'}</span>
+    <span class="mj-eq">${esc(m.dom)} <span class="mj-vs">re\u00e7oit</span> ${esc(m.ext)}</span>
+    ${m.score?`<span class="mj-score">${esc(m.score)}</span>`:''}
+    <button class="mj-b" data-ins="avant" data-i="${i}">\u26a1 dans les enjeux</button>
+    <button class="mj-b" data-ins="apres" data-i="${i}">\u2705 dans les r\u00e9sultats</button>
+    ${matchDejaEcrit(m)?`<button class="mj-fiche" data-fiche="${i}" title="Voir tout ce que j'ai \u00e9crit sur ce match">📄 sa fiche</button>
+    <button class="mj-effacer" data-eff="${i}" title="Enlever ce match de la journ\u00e9e">\u2715 effacer</button>`:''}
+    <span class="mj-ctx">${esc(m.contexte)}${m.lieu?' \u00b7 '+esc(m.lieu):''}</span>
+  </div>`;
+}
+function afficherMatchs(){
+  const box=document.getElementById('matchsJour');
+  const groupes=[
+    ["Ce jour-l\u00e0", matchsDu(jourCourant)],
+    ["Le lendemain", matchsDu(decaler(jourCourant,1))],
+    ["La veille", matchsDu(decaler(jourCourant,-1))]
+  ].filter(g=>g[1].length);
+  if(!groupes.length){
+    box.innerHTML=`<h3>\u26bd Les matchs de tes carnets</h3>
+      <div class="mj-vide">Aucun match dat\u00e9 autour de ce jour. Mets une date sur tes matchs
+      dans le championnat ou les coupes, et ils appara\u00eetront ici.</div>`;
+    return;
+  }
+  // index global pour retrouver le match au clic
+  let idx=[], html=`<h3>\u26bd Les matchs de tes carnets</h3>
+    <p class="mj-astuce">Clique sur un match pour l'\u00e9crire dans ton journal.</p>`;
+  groupes.forEach(([titre, liste])=>{
+    html+=`<div class="mj-groupe">${titre}</div>`;
+    const groupe = titre.indexOf('veille')>=0 ? 'veille' : (titre.indexOf('lendemain')>=0 ? 'lendemain' : 'jour');
+    liste.forEach(m=>{ html+=carteMatch(m, idx.length, groupe); idx.push(m); });
+  });
+  box.innerHTML=html;
+  const ecrireMatch=(m, cible)=>{
+    if(cible==='avant') inserer('txtAvant', ligneEnjeux(m));
+    else inserer('txtApres', ligneResultat(m));
+  };
+  box.querySelectorAll('[data-ins]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();   // sinon la ligne entiere s'ecrirait aussi
+    const m=idx[+b.dataset.i]; if(!m) return;
+    ecrireMatch(m, b.dataset.ins);
+  }));
+  box.querySelectorAll('[data-fiche]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const m=idx[+b.dataset.fiche]; if(!m) return;
+    allerALaFiche(m);
+  }));
+  box.querySelectorAll('[data-eff]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    const m=idx[+b.dataset.eff]; if(!m) return;
+    retirerMatch(m);
+  }));
+  box.querySelectorAll('.mj-carte').forEach(c=>c.addEventListener('click',()=>{
+    const m=idx[+c.dataset.ligne]; if(!m) return;
+    ecrireMatch(m, c.dataset.cible);
+  }));
+}
+
+/* ===================== Idées pour démarrer ===================== */
+/* Les amorces collent au district : la feuille de match n'y donne pas les noms des
+   buteurs, donc pas d'idee du genre « le joueur a suivre » ou « mon homme du match ».
+   On reste sur ce que Joris peut vraiment observer et raconter. */
+const IDEES = {
+  avant: [["Ce qui se joue","Ce qui se joue : "],
+          ["Mon pronostic","Mon pronostic : "],
+          ["Ce que je crains","Ce que je crains : "],
+          ["Comment je le sens","Comment je le sens : "]],
+  apres: [["Le r\u00e9sultat","Le r\u00e9sultat : "],
+          ["Le moment du match","Le moment du match : "],
+          ["Ce qui a fait la diff\u00e9rence","Ce qui a fait la diff\u00e9rence : "],
+          ["Ce que j'en retiens","Ce que j'en retiens : "]]
+};
+function afficherIdees(){
+  document.querySelectorAll('.idees').forEach(z=>{
+    const pour=z.dataset.pour;
+    z.innerHTML=IDEES[pour].map((p,i)=>`<button class="idee" data-idee="${pour}" data-i="${i}">+ ${esc(p[0])}</button>`).join("");
+    z.querySelectorAll('[data-idee]').forEach(b=>b.addEventListener('click',()=>{
+      inserer(pour==='avant'?'txtAvant':'txtApres', IDEES[pour][+b.dataset.i][1]);
+    }));
+  });
+}
+
+/* ===================== Synchro ===================== */
+function setSync(txt, cls){
+  const e=document.getElementById('syncStatus');
+  e.textContent=txt; e.className=cls||"";
+}
+function pousserVersCloud(){
+  if(!sb || !journalLu) return;
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(async()=>{
+    try{
+      setSync("↑ envoi…");
+      const envoi={jours:journal, _src:CLIENT_ID};
+      dernierEnvoi=JSON.stringify(envoi);
+      const {error}=await sb.from('carnet').upsert({id:JOURNAL_ID,data:envoi,updated_at:new Date().toISOString()});
+      if(error) throw error;
+      setSync("☁ synchronisé","ok");
+    }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
+  },700);
+}
+/* Joris est-il en train d'écrire ? Si oui, on ne remplace surtout pas son texte. */
+function enTrainDEcrire(){
+  const a=document.activeElement;
+  return !!(a && (a.tagName==='TEXTAREA' || a.tagName==='INPUT'));
+}
+let majEnAttente=null;
+function appliquerMajEnAttente(){
+  if(!majEnAttente || enTrainDEcrire()) return;
+  journal=nettoyer(majEnAttente.jours);
+  lastSaved=JSON.stringify(journal);
+  localStorage.setItem(STORE_KEY,lastSaved);
+  majEnAttente=null;
+  afficherJour();
+}
+setInterval(appliquerMajEnAttente, 1500);
+document.addEventListener('focusout',()=>setTimeout(appliquerMajEnAttente,300));
+
+async function initSync(){
+  if(!SYNC_ENABLED || typeof supabase==="undefined"){ setSync("⚠ synchro indisponible (hors ligne)","warn"); return; }
+  try{
+    sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',JOURNAL_ID).maybeSingle();
+    if(error) throw error;
+    journalLu=true;   // pas d'écriture avant une lecture réussie
+    if(data && data.data && data.data.jours){
+      const distant=nettoyer(data.data.jours);
+      const stamp=data.updated_at?new Date(data.updated_at).getTime():0;
+      if(!Object.keys(journal).length || stamp>lastRemoteStamp){
+        applyingRemote=true;
+        journal=distant; lastRemoteStamp=stamp;
+        lastSaved=JSON.stringify(journal);
+        localStorage.setItem(STORE_KEY,lastSaved);
+        afficherJour();
+        applyingRemote=false;
+      }
+    }
+    setSync("☁ synchronisé","ok");
+    chargerMatchs();   // lecture seule des deux carnets
+
+    sb.channel('journal-live').on('postgres_changes',
+      {event:'*',schema:'public',table:'carnet',filter:`id=eq.${JOURNAL_ID}`},
+      (p)=>{
+        if(!p.new || !p.new.data || !p.new.data.jours) return;
+        const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
+        if(stamp<=lastRemoteStamp) return;
+        if(p.new.data._src===CLIENT_ID){ lastRemoteStamp=stamp; return; }   // notre propre écho
+        const recu=JSON.stringify(p.new.data);
+        if(recu===dernierEnvoi){ lastRemoteStamp=stamp; return; }
+        lastRemoteStamp=stamp;
+        if(enTrainDEcrire()){ majEnAttente=p.new.data; return; }
+        applyingRemote=true;
+        journal=nettoyer(p.new.data.jours);
+        lastSaved=JSON.stringify(journal);
+        localStorage.setItem(STORE_KEY,lastSaved);
+        afficherJour();
+        applyingRemote=false;
+      }).subscribe();
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
+}
+
+/* ===================== Branchements ===================== */
+document.getElementById('jourPrev').addEventListener('click',()=>{ jourCourant=decaler(jourCourant,-1); afficherJour(); });
+document.getElementById('jourNext').addEventListener('click',()=>{ jourCourant=decaler(jourCourant,1); afficherJour(); });
+document.getElementById('jourAuj').addEventListener('click',()=>{ jourCourant=aujourdhui(); afficherJour(); });
+document.getElementById('jourCal').addEventListener('click',e=>{ e.stopPropagation(); ouvrirCal(e.currentTarget); });
+
+['txtAvant','txtApres'].forEach(id=>{
+  const champ=id==='txtAvant'?'avant':'apres';
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{
+    ecrire(jourCourant, champ, el.value);
+    majCompteurs();
+    construireListe();   // l'aperçu suit la frappe, sans toucher aux zones de texte
+  });
+});
+
+document.getElementById('btnExport').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify({app:"journal_joris",version:1,exportedAt:new Date().toISOString(),jours:journal},null,1)],{type:"application/json"});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='journal-joris-'+aujourdhui()+'.json';
+  a.click();
+});
+document.getElementById('btnImport').addEventListener('click',()=>document.getElementById('fileImport').click());
+document.getElementById('fileImport').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      const src=nettoyer(d.jours || d);
+      if(!Object.keys(src).length){ alert("Ce fichier ne contient aucune journée."); return; }
+      // on complète sans jamais écraser : les textes en place sont conservés
+      let neufs=0, completes=0;
+      Object.keys(src).forEach(c=>{
+        if(!journal[c]){ journal[c]={avant:src[c].avant,apres:src[c].apres}; neufs++; return; }
+        let touche=false;
+        ['avant','apres'].forEach(k=>{
+          if(!journal[c][k].trim() && src[c][k].trim()){ journal[c][k]=src[c][k]; touche=true; }
+        });
+        if(touche) completes++;
+      });
+      save(); afficherJour();
+      alert(`Import réussi !\n\n${neufs} journée(s) ajoutée(s)\n${completes} journée(s) complétée(s)`);
+    }catch(err){ alert("Fichier illisible."); }
+    e.target.value="";
+  };
+  r.readAsText(f);
+});
+
+document.getElementById('vueLire').addEventListener('click',()=>{
+  vue='lire'; localStorage.setItem("journal_joris_vue",vue); appliquerVue();
+});
+document.getElementById('vueFiches').addEventListener('click',()=>{
+  vue='fiches'; localStorage.setItem("journal_joris_vue",vue); appliquerVue();
+});
+document.getElementById('vueListe').addEventListener('click',()=>{
+  vue='liste'; localStorage.setItem("journal_joris_vue",vue); appliquerVue();
+});
+document.getElementById('vueImprimer').addEventListener('click',()=>{
+  // on imprime la vue lisible en cours ; par jour si on etait sur la liste
+  if(vue==='liste'){ vue='lire'; localStorage.setItem("journal_joris_vue",vue); appliquerVue(); }
+  setTimeout(()=>window.print(),150);
+});
+document.querySelectorAll('[data-vider]').forEach(b=>b.addEventListener('click',()=>{
+  const champ=b.dataset.vider;
+  const el=document.getElementById(champ==='avant'?'txtAvant':'txtApres');
+  if(!el.value.trim()) return;
+  const nom = champ==='avant' ? "\u26a1 Avant le match" : "\u2705 Le lendemain";
+  if(!confirm(`Effacer tout le texte de \u00ab ${nom} \u00bb pour ce jour ?\n\nLes autres journ\u00e9es ne sont pas touch\u00e9es.`)) return;
+  el.value="";
+  ecrire(jourCourant, champ, "");
+  majCompteurs(); afficherMatchs(); afficherNoteCachee(); construireListe();
+}));
+afficherIdees();
+afficherReglage();
+afficherJour();
+initSync();
+</script>
+</body>
+</html>

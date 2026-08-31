@@ -1,0 +1,3059 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coupes de district 2026-2027 — Le carnet de Joris (v1.0)</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{ --rouge:#C8102E; --noir:#111418; --or:#C8A24B; --craie:#F5F3F0; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--noir);color:#222}
+  .wrap{max-width:1000px;margin:0 auto;padding:14px}
+  header{background:linear-gradient(120deg,var(--rouge),#8d0b20);border-radius:16px;padding:16px 20px;color:#fff;position:relative;overflow:hidden}
+  header .badge{position:absolute;top:14px;left:20px;background:#fff;color:var(--noir);font-weight:900;letter-spacing:2px;border-radius:8px;padding:6px 12px;font-size:.85rem}
+  header h1{margin:8px 0 2px 96px;font-size:1.5rem;letter-spacing:1px}
+  header .sub{margin-left:96px;font-size:.75rem;text-transform:uppercase;letter-spacing:3px;opacity:.85}
+  header .home{display:inline-block;margin-top:10px;background:rgba(255,255,255,.9);color:var(--noir);text-decoration:none;font-weight:bold;border-radius:20px;padding:5px 14px;font-size:.85rem}
+  header .stripes{position:absolute;bottom:0;left:0;right:0;height:5px;display:flex}
+  header .stripes i{flex:1}
+  header .stripes i:nth-child(1){background:var(--rouge)}
+  header .stripes i:nth-child(2){background:var(--noir)}
+  header .stripes i:nth-child(3){background:#fff}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+  .toolbar button{border:none;border-radius:20px;padding:7px 14px;font-family:inherit;font-weight:bold;font-size:.85rem;cursor:pointer;background:var(--craie);color:var(--noir)}
+  .toolbar button:hover{background:#e8e4de}
+  #syncStatus{font-size:.78rem;border-radius:20px;padding:5px 12px;background:var(--craie);color:#666}
+  #syncStatus.ok{background:#e6f4ea;color:#1a7a1a}
+  #syncStatus.warn{background:#fdecea;color:var(--rouge)}
+
+  .divtabs{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+  .divtabs button{border:none;border-radius:20px;padding:8px 16px;font-family:inherit;font-weight:bold;font-size:.9rem;cursor:pointer;background:#fff;color:var(--noir)}
+  .divtabs button.active{background:var(--rouge);color:#fff}
+  .divtabs button.add{background:var(--or);color:var(--noir)}
+  .divtabs button.coupe{background:#fff;color:#8a6d3b}
+  .divtabs button.coupe.active{background:#8a6d3b;color:#fff}
+  .tabsep{width:100%;height:0}
+  .match .team.win{color:#1a7a1a}
+  .match .delm{margin-left:4px}
+  /* deux boutons colles : on choisit foot OU handball, plutot qu'une bascule dont
+     on ne savait pas si elle montrait l'etat actuel ou l'action a faire */
+  .chip-duo{display:inline-flex;gap:0;border-radius:14px;overflow:hidden;border:1px solid #e2ded8}
+  .chip-duo .chip{border-radius:0;border:none;margin:0}
+  .chip-duo .chip+.chip{border-left:1px solid #e2ded8}
+  .pr-choix{display:inline-flex;gap:5px;flex-wrap:wrap}
+  /* les noms de clubs de handball sont longs (« BILLERE HANDBALL PAU PYRENEES ») :
+     on laisse le bouton s'elargir et le texte passer a la ligne plutot que de couper */
+  .pr-b{border:1px solid #dcd9d4;background:#fff;color:#666;border-radius:14px;padding:4px 12px;font-family:inherit;font-size:.76rem;font-weight:bold;cursor:pointer;max-width:100%;white-space:normal;text-align:center;line-height:1.25}
+  .pr-b:hover{border-color:var(--or);background:#fffdf6}
+  .pr-b.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .ar-line{flex-basis:100%;display:flex;gap:8px;align-items:center;justify-content:center;margin-top:5px}
+  .ar-btn{border:1px solid #dcd9d4;background:#fff;color:#777;border-radius:14px;padding:3px 11px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer}
+  .ar-btn:hover{border-color:var(--or);background:#fffdf6}
+  .ar-btn.on{background:var(--or);border-color:var(--or);color:#fff}
+  .ar-retour{flex-basis:100%;display:flex;gap:7px;align-items:center;justify-content:center;margin-top:5px;flex-wrap:wrap}
+  .ar-tag{font-size:.7rem;font-weight:bold;color:#8a6d1f;background:#fffdf6;border:1px solid var(--or);border-radius:10px;padding:2px 8px}
+  .ar-retour input.sc{width:58px}
+  .ar-cumul{font-size:.75rem;color:#666;font-weight:bold}
+  .manche{font-size:.66rem;font-weight:bold;color:#8a6d1f;background:#fffdf6;border:1px solid var(--or);border-radius:10px;padding:0 8px;display:flex;align-items:center;flex:none;letter-spacing:.4px}
+  .ar-cumul b{color:var(--noir)}
+  .tab-line{flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:center;margin-top:5px;font-size:.78rem;color:#666}
+  .tab-line .tb-lab{font-weight:bold;color:#333}
+  .tab-line input{width:46px;text-align:center;border:1px solid #dcd9d4;border-radius:6px;padding:3px 2px;font-family:inherit;font-size:.8rem;font-weight:bold}
+  .tab-line input:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .vainq-line{flex-basis:100%;text-align:center;margin-top:6px;font-size:.82rem;color:#1a7a1a;background:rgba(26,122,26,.08);border-radius:8px;padding:4px}
+  .suggestions{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center}
+  .suggestions .sg-lab{font-size:.75rem;color:#888;width:100%}
+  .suggestions .sg-vide{font-size:.85rem;color:#c8102e;width:100%;padding:8px 0}
+  .suggestions .sg{border:1px solid #d4d4da;background:#fff;border-radius:14px;padding:4px 10px;font-family:inherit;font-size:.78rem;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+  .sg-catfiltre{display:flex;gap:4px;flex-wrap:wrap;margin:6px 0;align-items:center}
+  .pick-flabel{font-size:.68rem;color:#888;font-weight:bold;margin-right:4px}
+  .pick-reset{display:inline-block;margin-left:6px;border:1.5px solid var(--rouge);background:#fff;color:var(--rouge);border-radius:12px;padding:2px 10px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer}
+  .pick-reset:hover{background:var(--rouge);color:#fff}
+  .sg-liste{display:flex;gap:5px;flex-wrap:wrap;max-height:180px;overflow-y:auto}
+  .pcf{border:1.5px solid #ddd;background:#fafafa;color:#888;border-radius:12px;padding:3px 9px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer}
+  .pcf.on{background:#1a73e8;border-color:#1a73e8;color:#fff}
+  .pick-cats{display:inline-flex;gap:2px}
+  .pick-cats .pc{background:#eef;color:#3a3a8a;border-radius:5px;padding:0 4px;font-size:.62rem;font-weight:bold}
+  .suggestions .sg:hover{background:var(--or);border-color:var(--or)}
+
+  .card{background:var(--craie);border-radius:16px;padding:16px;margin-bottom:14px}
+  .card h2{margin:0 0 4px;color:var(--rouge);font-size:1.2rem}
+  .hint{color:#777;font-size:.85rem;margin:2px 0 12px}
+
+  .poule-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .poule-head h3{margin:0;font-size:1.05rem;color:var(--noir)}
+  .mini{border:none;border-radius:16px;padding:5px 11px;font-family:inherit;font-weight:bold;font-size:.78rem;cursor:pointer;background:#fff;color:var(--noir)}
+  .mini:hover{background:#eee}
+  .mini.danger{background:#fdecea;color:var(--rouge)}
+  .mini.gold{background:var(--or);color:var(--noir)}
+
+  /* Boutons d'activation des champs */
+  .fieldbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;background:#fff;border-radius:12px;padding:8px 10px;margin-bottom:10px}
+  .fieldbar .fb-lab{font-size:.78rem;font-weight:bold;color:#666;margin-right:2px}
+  .fieldbar .chip{border:1.5px solid #ddd;background:#fafafa;color:#888;border-radius:18px;padding:5px 12px;font-family:inherit;font-size:.8rem;font-weight:bold;cursor:pointer}
+  .fieldbar .chip.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+
+  .subtabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .subtabs button{border:none;border-radius:16px;padding:6px 12px;font-family:inherit;font-weight:bold;font-size:.8rem;cursor:pointer;background:#fff;color:#555}
+  .subtabs button.active{background:var(--noir);color:#fff}
+
+  .match{background:#fff;border-radius:12px;padding:10px;margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center}
+  .match .team{font-weight:bold;min-width:180px;text-align:center;font-size:1.02rem;display:inline-flex;align-items:center;gap:5px;justify-content:center;cursor:pointer;border-radius:8px;padding:3px 6px}
+  .match .team:hover{background:#faf0f2}
+  .edit-team{color:#c8a24b;font-size:.8rem;opacity:.6}
+  .match .team:hover .edit-team{opacity:1}
+  .nom-lignes{display:inline-flex;flex-direction:column;min-width:0;text-align:left}
+  .nom-club{font-weight:bold;font-size:.98rem;white-space:normal;line-height:1.2}
+  .nom-sub{font-size:.72rem;color:#1a73e8;font-weight:bold}
+  .saisonbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:center;margin:0 auto 10px;max-width:1100px;padding:0 12px}
+  .saisonbar .sb-lab{font-size:.7rem;color:#fff;opacity:.65;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
+  .sb-b{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;border-radius:14px;padding:4px 13px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer}
+  .sb-b:hover{background:rgba(255,255,255,.25)}
+  .sb-b.on{background:#fff;color:var(--rouge);border-color:#fff}
+  .sb-add{border:1px dashed rgba(255,255,255,.5);background:transparent;color:#fff;border-radius:14px;padding:4px 11px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer}
+  .sb-add:hover{background:rgba(255,255,255,.15)}
+  .sb-archive{font-size:.68rem;color:#fff;opacity:.6;background:rgba(0,0,0,.18);border-radius:10px;padding:2px 9px}
+  .tour-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+  .tour-nom{font-weight:800;font-size:1rem;color:var(--noir);min-width:150px;text-align:center;line-height:1.25}
+  .tour-nom small{display:block;font-weight:normal;font-size:.72rem;color:#999;letter-spacing:.4px;text-transform:uppercase}
+  .tour-tous{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin-top:9px;padding-top:9px;border-top:1px solid #e8e4dd}
+  .tt{border:1px solid #dcd9d4;background:#fff;color:#777;border-radius:14px;padding:4px 11px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer}
+  .tt:hover{border-color:var(--or);background:#fffdf6}
+  .tt.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .ordre-fl{border:none;background:var(--craie);border-radius:8px;width:30px;height:26px;font-size:.85rem;cursor:pointer;padding:0;color:#666;font-family:inherit}
+  .ordre-fl:hover:not(:disabled){background:#e8e4de;color:var(--noir)}
+  .ordre-fl:disabled{opacity:.25;cursor:default}
+  .forme{flex-basis:100%;display:flex;flex-direction:column;gap:4px;background:#fbfaf8;border-radius:10px;
+    padding:6px 11px;margin-top:5px;font-size:.74rem;color:#777}
+  .forme-l{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+  .forme-eq{font-weight:800;color:var(--noir);max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .forme-suite{display:flex;gap:3px;flex:none}
+  .fp{width:19px;height:19px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;
+    font-size:.66rem;font-weight:800;color:#fff}
+  .fp.V{background:#2ea043}
+  .fp.N{background:#b9b2a6}
+  .fp.D{background:#c0392b}
+  .forme-serie{font-weight:bold;color:#666}
+  .forme-vide{color:#bbb;font-style:italic}
+  .forme-titre{font-size:.68rem;font-weight:bold;letter-spacing:.4px;text-transform:uppercase;color:#a99c85}
+  .forme-titre small{font-weight:normal;text-transform:none;letter-spacing:0;color:#c2b9a8}
+  .ac-vide{background:#fff;border-radius:12px;padding:22px 16px;text-align:center;color:#888;font-size:.86rem;line-height:1.6}
+  .ac-titre{margin:0 0 3px;color:var(--rouge);font-size:1.05rem}
+  .ac-sous{font-size:.75rem;color:#999;margin:0 0 10px}
+  .ac-tour{font-size:.72rem;font-weight:bold;letter-spacing:.6px;text-transform:uppercase;color:#a99c85;margin:12px 0 5px}
+  .ac-m{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:#fbfaf8;border-radius:9px;padding:7px 11px;margin-bottom:4px;font-size:.85rem}
+  .ac-eq{flex:1;min-width:170px}
+  .ac-eq b{color:var(--noir)}
+  .ac-sc{font-weight:800;color:var(--noir);background:#fff;border:1px solid #e6e2dc;border-radius:8px;padding:2px 9px;flex:none}
+  .ac-q{font-size:.75rem;color:#1a7a1a;font-weight:bold;flex:none}
+  .ac-att{font-size:.75rem;color:#bbb;flex:none}
+  .ac-rappel{background:#fffdf6;border:1px solid var(--or);border-radius:10px;padding:9px 12px;font-size:.8rem;color:#8a6d1f;margin-bottom:12px}
+  .h2h{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
+    background:#fbfaf8;border-radius:10px;padding:6px 11px;margin-top:5px;font-size:.75rem;color:#777}
+  .h2h-bilan{font-weight:800;color:var(--noir)}
+  .h2h-r{background:#fff;border:1px solid #e6e2dc;border-radius:8px;padding:2px 8px;white-space:nowrap}
+  .h2h-r b{color:var(--noir)}
+  .h2h-r.v{border-color:#bfe3c6}
+  .h2h-r.d{border-color:#f0cfcf}
+  .h2h-r small{color:#aaa}
+  .h2h-plus{color:#aaa}
+  .av-filtres{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .av-ligne{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px}
+  .av-ligne:last-child{margin-bottom:0}
+  .av-lab{font-size:.7rem;color:#999;font-weight:bold;letter-spacing:.4px;text-transform:uppercase;min-width:88px}
+  .av-b{border:1px solid #dcd9d4;background:#fff;color:#666;border-radius:14px;padding:4px 11px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer}
+  .av-b:hover{border-color:var(--or);background:#fffdf6}
+  .av-b.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .av-jour{font-size:.8rem;font-weight:800;color:var(--rouge);margin:14px 0 5px}
+  .av-jour:first-child{margin-top:0}
+  .av-carte{background:#fff;border-radius:10px;padding:9px 12px;margin-bottom:5px;display:flex;gap:11px;align-items:center;flex-wrap:wrap}
+  .av-h{font-size:.9rem;font-weight:800;color:var(--noir);min-width:46px;flex:none}
+  .av-h.vide{color:#ccc;font-weight:normal}
+  .av-eq{flex:1;min-width:180px;font-size:.88rem;font-weight:bold;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .av-vs{color:#bbb;font-weight:normal;font-size:.78rem}
+  .av-info{display:flex;flex-direction:column;gap:1px;font-size:.72rem;color:#888;flex:none;max-width:230px}
+  .av-info b{color:#555;font-weight:bold}
+  .av-ctx{font-size:.66rem;color:#aaa;letter-spacing:.3px;flex-basis:100%}
+  .av-score{font-size:.78rem;font-weight:800;color:#888;background:var(--craie);border-radius:8px;padding:2px 9px;flex:none}
+  .av-fav{color:var(--or)}
+  .av-go{border:1px solid #dcd9d4;background:#fff;color:#999;border-radius:14px;padding:4px 10px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;flex:none;white-space:nowrap}
+  .av-go:hover{border-color:var(--or);background:#fffdf6;color:#8a6d1f}
+  .av-carte.choisi{background:#fffdf6;box-shadow:inset 4px 0 0 var(--or)}
+  .av-carte.choisi .av-go{background:var(--or);border-color:var(--or);color:#fff}
+  .av-compte{font-size:.72rem;color:#8a6d1f;font-weight:bold;margin-left:auto}
+  .av-vide{background:#fff;border-radius:12px;padding:22px 16px;text-align:center;color:#888;font-size:.85rem;line-height:1.6}
+  .nom-dept{font-size:.68rem;color:#999;font-weight:bold;letter-spacing:.3px}
+  .match .team-col{display:inline-flex;flex-direction:column;align-items:center;gap:3px;min-width:190px}
+  .inv{border:none;background:#eef;color:#3a3a8a;border-radius:8px;width:30px;height:30px;font-size:1rem;cursor:pointer;font-weight:bold}
+  .inv:hover{background:#dde}
+  .match-fav{background:linear-gradient(90deg,rgba(200,162,75,.14),rgba(200,162,75,.05));border:1px solid rgba(200,162,75,.5)}
+  .fav-reminder{background:#fffaf0;border:1px solid var(--or);border-radius:12px;padding:12px 16px;margin-bottom:14px}
+  .baton-form{display:grid;grid-template-columns:1.6fr 1fr 1fr .8fr auto;gap:8px;margin-top:12px}
+  .baton-form input,.baton-form select{border:1.5px solid #d4d4da;border-radius:8px;padding:8px 9px;font-family:inherit;font-size:.85rem;background:#fff;min-width:0}
+  .baton-form input:focus,.baton-form select:focus{outline:none;border-color:var(--rouge)}
+  .baton-table{width:100%;border-collapse:collapse;margin-top:14px;background:#fff;border-radius:10px;overflow:hidden}
+  .baton-table thead th{background:var(--noir);color:#fff;font-size:.74rem;text-transform:uppercase;letter-spacing:.5px;padding:9px 10px;text-align:left}
+  .baton-table tbody td{padding:9px 10px;border-top:1px solid #eee;font-size:.9rem}
+  .baton-table tbody tr:hover{background:#faf7f2}
+  .medaille{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;flex:none;border:2px solid rgba(0,0,0,.15)}
+  .m-bronze{background:#cd7f32;color:#fff}.m-argent{background:#c0c0c0;color:#333}.m-or{background:#e5c04b;color:#5a4600}
+  .m-vermeil{background:#b03a2e;color:#fff}.m-grandor{background:linear-gradient(135deg,#e5c04b,#fff3c0);color:#5a4600}.m-autre{background:#dcd9d4;color:#555}
+  .pastille{display:inline-flex;align-items:center;gap:6px;font-weight:bold}
+  .row-del{border:none;background:#fdecea;color:var(--rouge);border-radius:12px;padding:4px 9px;font-weight:bold;cursor:pointer;font-size:.78rem}
+  @media(max-width:620px){ .baton-form{grid-template-columns:1fr 1fr} .baton-form #batAdd{grid-column:1/-1} }
+  .fav-reminder .fr-title{font-weight:800;color:#9a6c00;margin-bottom:8px;font-size:.95rem}
+  .fav-reminder .fr-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px solid #f0e6cc;flex-wrap:wrap}
+  .fav-reminder .fr-item:first-of-type{border-top:none}
+  .fav-reminder .fr-match{font-weight:bold;color:var(--noir);display:inline-flex;align-items:center;gap:4px}
+  .fav-reminder .fr-when{font-size:.8rem;color:#9a6c00}
+  .stats-wrap{display:grid;gap:12px}
+  .stat-card{background:#fff;border-radius:12px;padding:12px 14px}
+  .stat-card h4{margin:0 0 8px;color:var(--rouge);font-size:.95rem}
+  .stat-liste{display:flex;flex-direction:column;gap:4px}
+  .stat-row{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:8px}
+  .stat-row:nth-child(odd){background:var(--craie)}
+  .sr-rank{font-weight:800;color:#999;width:20px;text-align:center;flex:none}
+  .sr-nom{flex:1;font-weight:bold;font-size:.85rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sr-val{font-weight:800;color:var(--noir);font-size:.82rem;white-space:nowrap}
+  .div-in{width:78px;text-align:center;border:1px solid #dcd9d4;border-radius:6px;padding:2px 4px;font-family:inherit;font-size:.72rem;color:#666}
+  .div-in:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .lieu-in{width:200px;max-width:42vw;text-align:left;border:1px solid #dcd9d4;border-radius:6px;padding:4px 8px;font-family:inherit;font-size:.8rem;color:#333;margin-top:2px}
+  .lieu-in:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .lieu-btn{border:1px solid #dcd9d4;background:#fff;border-radius:6px;min-height:30px;padding:0 9px;font-size:.95rem;line-height:1;cursor:pointer;flex:none}
+  .lieu-btn:hover{background:#fdf7e8;border-color:var(--or)}
+  .lieu-opt{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;border:none;background:#fff;border-radius:8px;padding:7px 9px;font-family:inherit;text-align:left;cursor:pointer}
+  .lieu-opt:hover{background:var(--craie)}
+  .lieu-opt b{font-size:.85rem;color:var(--noir)}
+  .lieu-opt span{font-size:.72rem;color:#888}
+  .lieux-vide{font-size:.78rem;color:#888;text-align:center;padding:6px 2px;line-height:1.55}
+  .lieu-cp{width:100px;text-align:center}
+  /* ville et stade au large : les noms de stade sont souvent longs. Les bornes en vw
+     evitent que la ligne deborde sur telephone. */
+  .lieu-in[data-c="ville"],.lieu-in[data-c="rville"]{width:250px;max-width:46vw}
+  .lieu-in[data-c="stade"],.lieu-in[data-c="rstade"]{width:330px;max-width:58vw}
+  .lieu-line{flex-basis:100%;display:flex;gap:10px;justify-content:center;margin-top:4px;flex-wrap:wrap}
+  .lieu-row{display:inline-flex;align-items:center;gap:3px}
+  .lieu-ic{font-size:.8rem}
+  .res-div{background:#eef;color:#3a3a8a;border-radius:8px;padding:0 6px;font-size:.68rem;font-weight:bold}
+  /* 42px suffisaient au football (un chiffre), pas au handball ou les scores sont
+     a deux chiffres : 30-25 etait a l'etroit. Meme chose pour les pronos, les
+     cartons et les penalites. */
+  .match input.sc{width:58px;text-align:center;border:1.5px solid #d4d4da;border-radius:8px;padding:6px 2px;font-family:inherit;font-size:1rem;font-weight:bold}
+  .match input.sc:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .match .sep{color:#999}
+  /* wrap : sur telephone la date, l'heure et leurs deux boutons ne tiennent pas
+     sur une seule ligne et debordaient de la carte du match */
+  .date-line{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:4px}
+  .date-line input{border:1px solid #dcd9d4;border-radius:6px;padding:5px 8px;font-family:inherit;font-size:.85rem;min-height:32px;cursor:pointer}
+  .date-line input[type="date"]{width:150px}
+  .date-line input[type="time"]{width:110px}
+  .date-line input:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  /* les selecteurs natifs de Chrome ne s'ouvrent pas de facon fiable (ni sur PC ni
+     sur Android) : on masque leurs icones et on les remplace par nos deux boutons,
+     qui ouvrent un calendrier et une horloge maison */
+  .date-line input::-webkit-calendar-picker-indicator{display:none}
+  .date-line .cal-btn,.date-line .hr-btn{border:1px solid #dcd9d4;background:#fff;border-radius:6px;min-height:32px;padding:0 10px;font-size:1rem;line-height:1;cursor:pointer;flex:none}
+  .date-line .cal-btn:hover,.date-line .hr-btn:hover{background:#fdf7e8;border-color:var(--or)}
+  .cal-pop .hr-lab{font-size:.7rem;color:#999;font-weight:bold;letter-spacing:.6px;margin:0 0 5px}
+  .cal-pop .hr-lab+.hr-grid{margin-bottom:9px}
+  .cal-pop .hr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:3px}
+  .cal-pop{position:absolute;z-index:9999;background:#fff;border:2px solid var(--or);border-radius:12px;padding:10px;box-shadow:0 10px 28px rgba(0,0,0,.28);width:252px;font-family:inherit}
+  .cal-head{display:flex;align-items:center;gap:5px;margin-bottom:8px}
+  .cal-head select{flex:1;min-width:0;border:1px solid #d4d4da;border-radius:6px;padding:4px 3px;font-family:inherit;font-size:.82rem;background:#fff}
+  .cal-nav{border:none;background:var(--craie);border-radius:6px;width:26px;height:26px;font-weight:bold;font-size:1rem;cursor:pointer;flex:none}
+  .cal-nav:hover{background:#e8e4de}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .cal-dow{text-align:center;font-size:.68rem;color:#999;font-weight:bold;padding:2px 0}
+  .cal-day{border:none;background:#fff;border-radius:6px;padding:7px 0;font-family:inherit;font-size:.83rem;cursor:pointer;color:#222}
+  .cal-day:hover{background:var(--craie)}
+  .cal-day.today{box-shadow:inset 0 0 0 2px var(--or)}
+  .cal-day.sel{background:var(--rouge);color:#fff;font-weight:bold}
+  .cal-foot{display:flex;gap:6px;margin-top:9px}
+  .cal-foot button{flex:1;border:none;border-radius:8px;padding:6px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer;background:var(--craie);color:var(--noir)}
+  .cal-foot button:hover{background:#e8e4de}
+  .buts-line{flex-basis:100%;margin-top:5px}
+  .buts-line input{width:100%;border:1px dashed #cfcfd4;border-radius:8px;padding:6px 8px;font-family:inherit;font-size:.84rem}
+  .buts-line input:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .cartons-line,.pf-line{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;align-items:center;justify-content:center;margin-top:5px;font-size:.78rem;color:#666}
+  .cartons-line .ct-side,.pf-line .pf-side{font-weight:bold;color:#333}
+  .cartons-line .ct,.pf-line .pf{display:inline-flex;align-items:center;gap:3px}
+  .cartons-line input,.pf-line input[type=number]{width:46px;text-align:center;border:1px solid #dcd9d4;border-radius:6px;padding:3px 2px;font-family:inherit;font-size:.78rem}
+  .cartons-line input:focus,.pf-line input[type=number]:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .pf-line .pf-check{width:16px;height:16px;accent-color:var(--rouge);cursor:pointer}
+  .ct-sep{color:#bbb;margin:0 4px}
+
+  table.rank{width:100%;border-collapse:collapse;font-size:.88rem;background:#fff;border-radius:10px;overflow:hidden}
+  table.rank th{background:var(--noir);color:#fff;padding:7px 5px;font-size:.72rem;text-transform:uppercase}
+  table.rank td{padding:7px 5px;border-bottom:1px solid #f0f0f0;text-align:center}
+  table.rank td.club{text-align:left;font-weight:bold}
+  table.rank td.pts{font-weight:900;color:var(--rouge)}
+  table.rank tr.c1{background:rgba(200,162,75,.18)}
+  table.rank tr.rel{background:rgba(200,16,46,.10)}
+  table.rank tr.row-fav{background:rgba(200,162,75,.32)}
+  table.rank .club.clickable{cursor:pointer;text-decoration:underline dotted #bbb}
+  table.rank .club.clickable:hover{color:var(--rouge)}
+  .pen-col{color:var(--rouge);font-weight:bold}
+  .forf-col{color:#b06a00;font-weight:bold}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px;font-size:.75rem;color:#666}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+
+  .empty{background:#fff;border:2px dashed #ddd;border-radius:12px;padding:24px;text-align:center;color:#888}
+  .empty strong{display:block;color:var(--noir);margin-bottom:6px;font-size:1rem}
+
+  .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
+  .modal-back[hidden]{display:none}
+  .modal{background:var(--craie);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:88vh;overflow:auto;position:relative}
+  .modal h2{margin:0 0 8px;color:var(--rouge)}
+  .modal-x{position:absolute;top:10px;right:10px;border:none;background:#ddd;border-radius:50%;width:28px;height:28px;cursor:pointer;font-weight:bold}
+  .modal label{display:block;font-size:.82rem;font-weight:bold;color:#555;margin:10px 0 3px}
+  .modal input[type=text],.modal textarea,.modal select{width:100%;border:1.5px solid #d4d4da;border-radius:8px;padding:8px;font-family:inherit;font-size:.9rem}
+  .modal textarea{min-height:150px;resize:vertical}
+  .act{border:none;border-radius:20px;padding:8px 16px;font-family:inherit;font-weight:bold;cursor:pointer;background:var(--rouge);color:#fff}
+  .act.grey{background:#888}
+
+  .choix-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  @media(max-width:520px){ .choix-grid{grid-template-columns:1fr} }
+  .choix{display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center;background:#fff;border:2px solid #e3e3e8;border-radius:14px;padding:16px 12px;font-family:inherit;cursor:pointer}
+  .choix:hover{border-color:var(--rouge);background:#fff7f3}
+  .choix .ch-ic{font-size:2.2rem;line-height:1}
+  .choix strong{font-size:1rem;color:var(--noir)}
+  .choix .ch-desc{font-size:.78rem;color:#777;line-height:1.35}
+
+  .prono-line{flex-basis:100%;display:flex;gap:6px;align-items:center;justify-content:center;margin-top:5px;font-size:.78rem;color:#666;flex-wrap:wrap}
+  .prono-line .pr-lab{font-weight:bold;color:#6b3fa0}
+  .prono-line input.prin{width:52px;text-align:center;border:1.5px solid #d8cfe8;border-radius:6px;padding:3px 2px;font-family:inherit;font-size:.8rem;font-weight:bold}
+  .prono-line input.prin:focus{outline:none;border-color:#6b3fa0;background:#faf7ff}
+  .pr-ok{color:#1a7a1a;font-weight:bold}
+  .pr-bon{color:#1a73e8;font-weight:bold}
+  .pr-ko{color:#999}
+  .vq-mot{color:#8a6d3b;font-weight:normal;font-size:.78rem}
+
+  .res-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){ .res-grid{grid-template-columns:1fr} }
+  .res-col{background:#fff;border-radius:10px;padding:8px}
+  .res-titre{font-weight:800;font-size:.85rem;margin-bottom:6px;display:flex;align-items:center;gap:6px}
+  .res-titre.ok{color:#1a7a1a}
+  .res-titre.ko{color:var(--rouge)}
+  .res-nb{background:#eee;color:#666;border-radius:10px;padding:1px 7px;font-size:.72rem}
+  .res-item{padding:5px 7px;border-radius:7px;font-size:.86rem;margin-bottom:3px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .res-item.ok{background:rgba(26,122,26,.09)}
+  .res-item.ko{background:rgba(200,16,46,.07);color:#777;text-decoration:line-through}
+  .res-item.wait{background:#f4f4f6;color:#777}
+  .res-sc{font-weight:bold;color:#555;font-size:.8rem;white-space:nowrap}
+  .res-tab{color:#8a6d3b;font-weight:normal}
+  .res-attente{margin-top:10px;background:#fff;border-radius:10px;padding:8px;font-size:.85rem}
+  .res-attente strong{display:block;color:#777;margin-bottom:5px;font-size:.82rem}
+
+  .lg{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;vertical-align:middle;margin-right:5px;flex:none}
+  .lg-txt{color:#fff;font-weight:800;letter-spacing:-.5px}
+  img.lg{object-fit:contain;background:#fff;border:1px solid #eee}
+  .logo-info{flex:1;display:flex;flex-direction:column;gap:3px;min-width:0}
+  .logo-ville{border:1px solid #e4e4e8;border-radius:6px;padding:3px 6px;font-family:inherit;font-size:.75rem;color:#666;width:100%}
+  .logo-ville:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .lg-libre{color:#aaa;font-weight:normal;font-size:.72rem}
+  .eq-add{display:flex;gap:6px;margin-bottom:10px}
+  .eq-add input{flex:1;border:1.5px solid #d4d4da;border-radius:8px;padding:7px 9px;font-family:inherit;font-size:.85rem}
+  .eq-add input:focus{outline:none;border-color:var(--rouge)}
+  .logo-row{display:flex;align-items:center;gap:8px;background:#fff;border-radius:8px;padding:7px 9px;margin-bottom:5px}
+  .logo-prev{flex:none;display:flex}
+  .logo-nom{flex:1;font-size:.88rem;font-weight:bold}
+  .favs-search{width:100%;box-sizing:border-box;border:1px solid #dcd9d4;border-radius:8px;padding:8px 11px;font-family:inherit;font-size:.85rem;margin-bottom:9px}
+  .favs-search:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .favs-vide{font-size:.82rem;color:#888;padding:8px 2px;margin:0}
+  .favs-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}
+  .badge-progress{text-align:center;margin-bottom:18px}
+  .bp-count{font-size:2.2rem;font-weight:800;color:var(--rouge);line-height:1}
+  .bp-lab{font-size:.8rem;color:#888;margin-top:2px}
+  .bp-bar{height:12px;background:#e6e3df;border-radius:7px;overflow:hidden;margin:10px auto 0;max-width:300px}
+  .bp-fill{height:100%;background:linear-gradient(90deg,var(--or),var(--rouge));border-radius:7px;transition:width .4s}
+  .badges-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+  .badges-grid .badge{text-align:center;padding:14px 10px;border-radius:14px;border:2px solid #eee}
+  .badges-grid .badge.on{background:linear-gradient(160deg,#fffaf0,#fff);border-color:var(--or);box-shadow:0 4px 12px rgba(200,162,75,.25)}
+  .badges-grid .badge.off{background:#f5f5f5;opacity:.65}
+  .badges-grid .badge .b-ic{font-size:2.2rem;line-height:1;margin-bottom:6px}
+  .badges-grid .badge .b-titre{font-weight:800;font-size:.95rem;color:var(--noir)}
+  .badges-grid .badge.off .b-titre{color:#999}
+  .badges-grid .badge .b-desc{font-size:.78rem;color:#777;margin-top:3px}
+  .favs-list label{display:flex;align-items:center;gap:6px;background:#fff;border-radius:8px;padding:6px 8px;font-size:.84rem;font-weight:normal;color:#333;margin:0;cursor:pointer}
+
+  .sc-list{background:#fff;border-radius:10px;overflow:hidden}
+  .sc-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:.88rem}
+  .sc-item .sc-pos{font-weight:bold;color:#999;width:24px}
+  .sc-item .sc-name{flex:1;font-weight:bold}
+  .sc-item .sc-team{color:#888;font-size:.8rem}
+  .sc-item .sc-goals{font-weight:900;color:var(--rouge)}
+
+  .ts-win{background:rgba(26,122,26,.08)}
+  .ts-loss{background:rgba(200,16,46,.07)}
+  .ts-draw{background:rgba(150,150,150,.08)}
+
+  footer{text-align:center;color:#777;font-size:.78rem;padding:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">DFCO</span>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 30 août · vue croisée ✓</span></h1>
+    <div class="sub">Aux couleurs des Rouges de Dijon</div>
+    <a class="home" href="index.html">↩ Accueil</a>
+    <div class="stripes"><i></i><i></i><i></i></div>
+  </header>
+
+  <div class="toolbar">
+    <span id="syncStatus">…</span>
+    <button id="btnFavs">⭐ Mes équipes</button>
+    <button id="btnLogos">🎽 Logos</button>
+    <button id="btnBadges">🏅 Médailles</button>
+    <button id="btnSync">☁ Synchro &amp; sauvegardes</button>
+    <button id="btnExport">↓ Exporter</button>
+    <button id="btnImport">↑ Importer</button>
+    <input type="file" id="fileImport" accept="application/json" hidden>
+    <button id="btnReset">Tout effacer</button>
+  </div>
+
+  <div class="saisonbar" id="saisonBar"></div>
+  <nav class="divtabs" id="divTabs"></nav>
+
+  <div id="favReminder" class="fav-reminder" hidden></div>
+
+  <div id="divBody"></div>
+
+  <footer>Le carnet de Joris · Coupes de district <span data-saison-titre>2026-2027</span> · version 1.0 · ⚽</footer>
+</div>
+
+<!-- Modale : nommer une coupe -->
+<div class="modal-back" id="divModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="divClose">✕</button>
+    <h2 id="divModalTitle">Nouvelle coupe</h2>
+    <p class="hint" id="divModalHint">Comment s'appelle cette coupe ?</p>
+    <label for="divName">Nom de la coupe</label>
+    <input type="text" id="divName" placeholder="ex. Coupe de Bourgogne" maxlength="80">
+    <div style="margin-top:14px;text-align:right">
+      <button class="act grey" id="divCancel">Annuler</button>
+      <button class="act" id="divSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : ajouter/renommer un tour -->
+<div class="modal-back" id="tourModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="tourClose">✕</button>
+    <h2 id="tourModalTitle">Nouveau tour</h2>
+    <p class="hint">Comment s'appelle ce tour ?</p>
+    <label for="tourName">Nom du tour</label>
+    <input type="text" id="tourName" placeholder="ex. 16es de finale" maxlength="60">
+    <div class="suggestions" id="tourSuggest"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="act grey" id="tourCancel">Annuler</button>
+      <button class="act" id="tourSave">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : ajouter un match de coupe -->
+<div class="modal-back" id="matchModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="matchClose">✕</button>
+    <h2>Ajouter un match</h2>
+    <p class="hint">Le club écrit en premier reçoit (il joue chez lui).</p>
+    <label for="matchDom">Équipe qui reçoit</label>
+    <input type="text" id="matchDom" placeholder="ex. Dijon ASPTT" maxlength="60" autocomplete="off">
+    <div class="suggestions" id="domSuggest"></div>
+    <label for="matchExt">Équipe qui se déplace</label>
+    <input type="text" id="matchExt" placeholder="ex. Fontaine-lès-Dijon" maxlength="60" autocomplete="off">
+    <div class="suggestions" id="extSuggest"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="act grey" id="matchCancel">Annuler</button>
+      <button class="act" id="matchSave">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : bibliothèque des équipes -->
+<div class="modal-back" id="logosModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="logosClose">✕</button>
+    <h2>🎽 Mes équipes et leurs logos</h2>
+    <p class="hint">Cette liste est partagée entre le championnat et les coupes : un logo mis ici se retrouve partout. Chaque équipe a une pastille avec ses initiales, remplace-la par son vrai logo si tu l'as.</p>
+    <div class="eq-add">
+      <input type="text" id="eqNouvelle" placeholder="Ajouter une équipe (ex. Chenôve)" maxlength="60">
+      <button class="mini gold" id="eqAdd">+ Ajouter</button>
+    </div>
+    <div id="logosList"></div>
+    <input type="file" id="fileLogo" accept="image/*" hidden>
+    <div style="margin-top:12px;text-align:right">
+      <button class="act" id="logosDone">Terminé</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : favoris -->
+<div class="modal-back" id="badgesModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="badgesClose">✕</button>
+    <h2>🏅 Mes médailles</h2>
+    <p class="hint">Débloque des médailles en suivant tes coupes. Il y en a 12 à collectionner !</p>
+    <div id="badgeProgress" class="badge-progress"></div>
+    <div id="badgesBox" class="badges-grid"></div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="act" id="badgesDone">Terminé</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="favsModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="favsClose">✕</button>
+    <h2>⭐ Mes équipes à suivre</h2>
+    <p class="hint">Coche les équipes que tu veux suivre. Elles seront surlignées.</p>
+    <input id="favsSearch" class="favs-search" placeholder="🔎 chercher une équipe…" autocomplete="off">
+    <div id="favsList" class="favs-list"></div>
+    <div style="margin-top:12px;text-align:right">
+      <button class="act grey" id="favsClear">Tout décocher</button>
+      <button class="act" id="favsDone">Terminé</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modale : synchro -->
+<div class="modal-back" id="syncModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="syncClose">✕</button>
+    <h2>☁ Synchro &amp; sauvegardes</h2>
+    <p class="hint">Ton carnet des coupes se synchronise tout seul entre l'ordinateur et le téléphone.</p>
+    <div id="syncInfo" class="hint"></div>
+  </div>
+</div>
+
+
+<script>
+/* ===== Synchro Supabase ===== */
+const SUPABASE_URL = "https://hoyxgmmbngrjigjqptnr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_y9KhYDWM2zyYFC_wtbBhlQ_BcqV9CR9";
+const CARNET_ID_BASE = "coupes_district_2627";
+const STORE_KEY_BASE = "coupes_district_2627_joris_v1";
+const SYNC_ENABLED = true;
+const AUTRE_CARNET_ID = "champ_district_2627";   // pour l'historique des confrontations
+
+/* ===== Saisons =====
+   Chaque saison a son propre espace de rangement : une cle localStorage et une ligne
+   Supabase distinctes. Le reste du carnet ne change pas d'un iota, il travaille
+   toujours sur `state` ; changer de saison revient a recharger `state` depuis un
+   autre tiroir.
+   La saison d'origine garde EXACTEMENT les anciens identifiants : les donnees deja
+   en place ne bougent pas et n'ont aucune migration a subir. */
+const SAISON_DEFAUT = "2026-2027";
+const SAISONS_KEY   = STORE_KEY_BASE + ":saisons";      // la liste, sur cet appareil
+const SAISONS_ROW   = CARNET_ID_BASE + ":saisons";      // la liste, dans le cloud
+const SAISON_ACTIVE_KEY = STORE_KEY_BASE + ":saison-active";
+
+let saisons = [];
+let saisonCourante = SAISON_DEFAUT;
+let CARNET_ID = CARNET_ID_BASE;
+let STORE_KEY = STORE_KEY_BASE;
+
+function cleLocale(s){ return s===SAISON_DEFAUT ? STORE_KEY_BASE : STORE_KEY_BASE+":"+s; }
+function ligneCloud(s){ return s===SAISON_DEFAUT ? CARNET_ID_BASE : CARNET_ID_BASE+":"+s; }
+function appliquerCles(){
+  CARNET_ID = ligneCloud(saisonCourante);
+  STORE_KEY = cleLocale(saisonCourante);
+}
+/* Une saison ressemble a « 2026-2027 ». On accepte aussi « 2026 » tout court. */
+function saisonValide(s){ return /^\d{4}(-\d{4})?$/.test((s||'').trim()); }
+function trierSaisons(l){ return [...new Set(l)].sort().reverse(); }   // la plus recente en tete
+function chargerSaisons(){
+  let l=[];
+  try{ l=JSON.parse(localStorage.getItem(SAISONS_KEY))||[]; }catch(e){}
+  if(!Array.isArray(l)) l=[];
+  if(!l.includes(SAISON_DEFAUT)) l.push(SAISON_DEFAUT);
+  saisons=trierSaisons(l);
+  const active=localStorage.getItem(SAISON_ACTIVE_KEY);
+  saisonCourante = (active && saisons.includes(active)) ? active : SAISON_DEFAUT;
+  appliquerCles();
+}
+function enregistrerSaisons(){
+  localStorage.setItem(SAISONS_KEY, JSON.stringify(saisons));
+  localStorage.setItem(SAISON_ACTIVE_KEY, saisonCourante);
+  if(sb){
+    sb.from('carnet').upsert({id:SAISONS_ROW, data:{liste:saisons, _src:CLIENT_ID},
+      updated_at:new Date().toISOString()}).then(()=>{},()=>{});
+  }
+}
+/* La liste des saisons se met en commun entre appareils : on garde l'union, comme ca
+   une saison creee sur le telephone n'est jamais perdue par l'ordinateur. */
+async function fusionnerSaisonsCloud(){
+  if(!sb) return;
+  try{
+    const {data}=await sb.from('carnet').select('data').eq('id',SAISONS_ROW).maybeSingle();
+    const distantes = (data && data.data && Array.isArray(data.data.liste)) ? data.data.liste : [];
+    const avant=JSON.stringify(saisons);
+    saisons=trierSaisons([...saisons, ...distantes.filter(saisonValide)]);
+    if(JSON.stringify(saisons)!==avant){ enregistrerSaisons(); dessinerSaisons(); }
+    else if(!distantes.length) enregistrerSaisons();
+  }catch(e){}
+}
+/* Envoie tout de suite l'etat courant, sans attendre le debounce. Indispensable avant
+   de changer de saison : sinon l'envoi differe partirait dans le mauvais tiroir. */
+async function pousserMaintenant(){
+  clearTimeout(pushTimer);
+  if(!sb) return;
+  try{
+    const envoi=Object.assign({},state,{_src:CLIENT_ID});
+    dernierEnvoi=JSON.stringify(envoi);
+    await sb.from('carnet').upsert({id:CARNET_ID,data:envoi,updated_at:new Date().toISOString()});
+  }catch(e){}
+}
+async function changerSaison(s){
+  if(s===saisonCourante) return;
+  setSync("\u2195 changement de saison\u2026");
+  await pousserMaintenant();                     // on met l'ancienne saison a l'abri
+  localStorage.setItem(cleLocale(saisonCourante), JSON.stringify(state));
+
+  saisonCourante=s; appliquerCles();
+  localStorage.setItem(SAISON_ACTIVE_KEY, saisonCourante);
+  lastRemoteStamp=0;
+  applyingRemote=true;
+  state=load();
+  lastSaved=JSON.stringify(state);
+  applyingRemote=false;
+  curOnglet=null;
+  dessinerSaisons(); majTitreSaison(); buildDivTabs(); buildBody();
+  await rebrancherCanal();                       // on ecoute desormais l'autre ligne
+  await tirerDuCloud();                          // et on va chercher ce qu'elle contient
+}
+function dessinerSaisons(){
+  const bar=document.getElementById('saisonBar');
+  if(!bar) return;
+  bar.innerHTML = `<span class="sb-lab">Saison</span>`
+    + saisons.map(s=>`<button class="sb-b ${s===saisonCourante?'on':''}" data-saison="${esc(s)}">${esc(s)}</button>`).join("")
+    + `<button class="sb-add" id="btnNouvelleSaison">+ Nouvelle saison</button>`
+    + (saisonCourante!==saisons[0] ? `<span class="sb-archive">tu regardes une saison pass\u00e9e</span>` : '');
+  bar.querySelectorAll('[data-saison]').forEach(b=>b.addEventListener('click',()=>changerSaison(b.dataset.saison)));
+  document.getElementById('btnNouvelleSaison').addEventListener('click',nouvelleSaison);
+}
+function nouvelleSaison(){
+  const derniere=saisons[0]||SAISON_DEFAUT;
+  const an=parseInt(derniere.slice(0,4),10);
+  const propose = isNaN(an) ? "" : `${an+1}-${an+2}`;
+  const s=(prompt("Nom de la nouvelle saison ?\n\n(par exemple 2027-2028)", propose)||'').trim();
+  if(!s) return;
+  if(!saisonValide(s)){ alert("\u00c9cris la saison sous la forme 2027-2028."); return; }
+  if(saisons.includes(s)){ alert("Cette saison existe d\u00e9j\u00e0."); changerSaison(s); return; }
+  saisons=trierSaisons([...saisons, s]);
+  enregistrerSaisons();
+  changerSaison(s);
+}
+function majTitreSaison(){
+  document.querySelectorAll('[data-saison-titre]').forEach(e=>e.textContent=saisonCourante);
+}
+
+let sb=null, pushTimer=null, lastRemoteStamp=0, applyingRemote=false;
+
+/* ===== Utilitaires ===== */
+function esc(s){return (s||"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function num(v){ return v!==undefined && v!=="" && v!==null && !isNaN(+v); }
+function uid(){ return Math.random().toString(36).slice(2,9); }
+
+/* ===== État =====
+   state = {
+     divisions: [ {id, nom, poules:[ {id, nom, equipes:[], champs:{buts,cartons,pen,forf}, matchs:[{id,j,dom,ext}] } ]} ],
+     coupes: [ {id, nom, champs:{buts,cartons,tab}, tours:[ {id, nom, matchs:[{id,dom,ext}] } ]} ],
+     scores: { matchId: {h,a,buts,cjh,crh,cja,cra,penh,pena,forfh,forfa,tabh,taba} },
+     dates:  { matchId: {date,time} },
+     favs: []
+   }
+*/
+const CHAMPS_DEFAUT = {buts:true, cartons:true, pen:false, forf:false};
+const CHAMPS_COUPE_DEFAUT = {buts:true, cartons:true, tab:true, pf:false, pronos:false};
+const COUPES_DEFAUT = [
+  {nom:"Coupe de France"},
+  {nom:"Coupe de Côte-d'Or"},
+  {nom:"Coupe de Côte-d'Or complémentaire"}
+];
+const TOURS_SUGGERES = ["1er tour","2e tour","3e tour","4e tour","5e tour","6e tour",
+  "32es de finale","16es de finale","8es de finale","Quarts de finale","Demi-finales","Finale"];
+chargerSaisons();   // fixe STORE_KEY / CARNET_ID avant tout chargement
+let state = load();
+let curOnglet = null;  // "div:<id>" ou "coupe:<id>"
+let curVue = {};     // pouleId -> "matchs" | "classement" | "buteurs" | "fairplay"
+let curTour = {};    // coupeId -> index du tour affiche
+let curJournee = {}; // pouleId -> numéro de journée affichée
+
+function normalize(s){
+  const st = {
+    coupes: Array.isArray(s.coupes) ? s.coupes : null,
+    scores: s.scores || {},
+    pronos: s.pronos || {},
+    dates: s.dates || {},
+    favs: Array.isArray(s.favs) ? s.favs : [],
+    aVoir: s.aVoir || {},         // matchs que Joris a decide d'aller voir
+    batons: Array.isArray(s.batons) ? s.batons : []
+  };
+  // les 3 coupes sont créées d'office la première fois
+  if(st.coupes===null){
+    st.coupes = COUPES_DEFAUT.map(c=>({id:uid(),nom:c.nom,champs:Object.assign({},CHAMPS_COUPE_DEFAUT),tours:[]}));
+  }
+  st.coupes.forEach(c=>{
+    if(!c.id) c.id = uid();
+    if(!Array.isArray(c.tours)) c.tours = [];
+    c.champs = Object.assign({}, CHAMPS_COUPE_DEFAUT, c.champs||{});
+    c.tours.forEach(t=>{
+      if(!t.id) t.id = uid();
+      if(!Array.isArray(t.matchs)) t.matchs = [];
+    });
+  });
+  return st;
+}
+function load(){
+  try{ const s=JSON.parse(localStorage.getItem(STORE_KEY)); if(s) return normalize(s); }catch(e){}
+  return normalize({});
+}
+let saveTimer=null, lastSaved=JSON.stringify(state);
+function save(){
+  if(lastSaved!==JSON.stringify(state)){
+    lastSaved=JSON.stringify(state);
+    localStorage.setItem(STORE_KEY,lastSaved);
+    if(!applyingRemote) pushToCloud();
+  }
+}
+
+/* ===== Recherche d'objets ===== */
+function getCoupe(id){ return state.coupes.find(c=>c.id===id); }
+function getTour(tid){
+  for(const c of state.coupes){ const t=c.tours.find(x=>x.id===tid); if(t) return t; }
+  return null;
+}
+function coupeDuTour(tid){ return state.coupes.find(c=>c.tours.some(t=>t.id===tid)); }
+function equipesDuCarnet(){
+  const set=new Set();
+  state.coupes.forEach(c=>c.tours.forEach(t=>t.matchs.forEach(m=>{
+    if(m.dom) set.add(m.dom); if(m.ext) set.add(m.ext);
+  })));
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+function isFav(t){ return (state.favs||[]).includes(t); }
+
+/* ===== Onglets (divisions + coupes) ===== */
+/* ===== Les bâtons de district ===== */
+function classeBaton(b){
+  const t=(b||"").toLowerCase();
+  if(t.includes("bronze")) return "m-bronze";
+  if(t.includes("argent")) return "m-argent";
+  if(t.includes("grand")) return "m-grandor";
+  if(t.includes("vermeil")) return "m-vermeil";
+  if(t.includes("or")) return "m-or";
+  return "m-autre";
+}
+function iconeBaton(b){
+  const t=(b||"").toLowerCase();
+  if(t.includes("bronze")) return "🥉";
+  if(t.includes("argent")) return "🥈";
+  if(t.includes("grand")) return "🏅";
+  if(t.includes("vermeil")) return "🎖️";
+  if(t.includes("or")) return "🥇";
+  return "🎖️";
+}
+function rangBaton(b){
+  const t=(b||"").toLowerCase();
+  if(t.includes("grand")) return 5;
+  if(t.includes("vermeil")) return 4;
+  if(t.includes("or")) return 3;
+  if(t.includes("argent")) return 2;
+  if(t.includes("bronze")) return 1;
+  return 0;
+}
+function htmlBatons(){
+  if(!Array.isArray(state.batons)) state.batons=[];
+  const items=state.batons.slice().sort((a,b)=>
+    rangBaton(b.baton)-rangBaton(a.baton) || (b.annee||0)-(a.annee||0) || (a.nom||"").localeCompare(b.nom||""));
+  let html=`<div class="card">
+    <h2>🎖️ La remise des bâtons</h2>
+    <p class="hint">Note qui a reçu quel bâton de district. Cette liste est propre aux coupes.</p>
+    <div class="baton-form">
+      <input type="text" id="batNom" placeholder="Nom de la personne" maxlength="60">
+      <select id="batType">
+        <option value="Bronze">🥉 Bronze</option>
+        <option value="Argent">🥈 Argent</option>
+        <option value="Or">🥇 Or</option>
+        <option value="Vermeil">🎖️ Vermeil</option>
+        <option value="Grand Or">🏅 Grand Or</option>
+        <option value="Autre">Autre…</option>
+      </select>
+      <input type="text" id="batAutre" placeholder="nom du bâton" maxlength="40" style="display:none">
+      <input type="number" id="batAnnee" placeholder="année" min="1950" max="2100">
+      <button class="mini gold" id="batAdd">+ Ajouter</button>
+    </div>`;
+  if(!items.length){
+    html+=`<div class="empty" style="margin-top:12px"><strong>Aucun bâton noté</strong>Ajoute la première distinction ci-dessus.</div>`;
+  }else{
+    html+=`<table class="baton-table"><thead><tr><th>Personne</th><th>Bâton</th><th>Année</th><th></th></tr></thead><tbody>`+
+      items.map(x=>`<tr>
+        <td><strong>${esc(x.nom||"—")}</strong></td>
+        <td><span class="pastille"><span class="medaille ${classeBaton(x.baton)}">${iconeBaton(x.baton)}</span>${esc(x.baton||"")}</span></td>
+        <td>${x.annee||"—"}</td>
+        <td><button class="row-del" data-delbat="${x.id}">✕</button></td>
+      </tr>`).join("")+`</tbody></table>`;
+  }
+  html+=`</div>`;
+  return html;
+}
+function brancherBatons(){
+  const sel=document.getElementById('batType');
+  if(sel) sel.addEventListener('change',()=>{
+    document.getElementById('batAutre').style.display = sel.value==='Autre' ? 'inline-block' : 'none';
+  });
+  const add=document.getElementById('batAdd');
+  if(add) add.addEventListener('click',()=>{
+    const nom=document.getElementById('batNom').value.trim();
+    let baton=document.getElementById('batType').value;
+    if(baton==='Autre'){ baton=document.getElementById('batAutre').value.trim(); if(!baton){ alert("Écris le nom du bâton."); return; } }
+    const annee=parseInt(document.getElementById('batAnnee').value)||null;
+    if(!nom){ alert("Écris le nom de la personne."); return; }
+    if(!Array.isArray(state.batons)) state.batons=[];
+    state.batons.push({id:uid(), nom, baton, annee});
+    save(); buildBody();
+  });
+  const nom=document.getElementById('batNom');
+  if(nom) nom.addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('batAdd').click(); });
+  document.querySelectorAll('[data-delbat]').forEach(b=>b.addEventListener('click',()=>{
+    const x=state.batons.find(e=>e.id===b.dataset.delbat);
+    if(x && confirm(`Enlever ${x.nom} (${x.baton}) de la liste ?`)){
+      state.batons=state.batons.filter(e=>e.id!==b.dataset.delbat);
+      save(); buildBody();
+    }
+  }));
+}
+
+function buildDivTabs(){
+  const nav=document.getElementById('divTabs');
+  let html="";
+  state.coupes.forEach(c=>{
+    html+=`<button class="coupe ${curOnglet==='coupe:'+c.id?'active':''}" data-go="coupe:${c.id}">🏆 ${esc(c.nom)}</button>`;
+  });
+  html+=`<button class="${curOnglet==='avoir'?'active':''}" data-go="avoir">📅 À voir</button>`;
+  html+=`<button class="${curOnglet==='autre'?'active':''}" data-go="autre">📊 Les classements</button>`;
+  html+=`<button class="add" id="btnAddDiv">+ Ajouter une coupe</button>`;
+  nav.innerHTML=html;
+  nav.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>{
+    curOnglet=b.dataset.go; buildDivTabs(); buildBody();
+  }));
+  document.getElementById('btnAddDiv').addEventListener('click',()=>ouvrirCoupeModal(null));
+}
+
+/* ===== Corps ===== */
+function buildBody(){
+  const a=document.activeElement;
+  let cle=null, selStart=null, selEnd=null;
+  if(a && (a.tagName==='INPUT'||a.tagName==='TEXTAREA') && (a.dataset.id||a.dataset.c||a.dataset.side)){
+    cle=`${a.className}|${a.dataset.id||''}|${a.dataset.c||''}|${a.dataset.side||''}`;
+    try{ selStart=a.selectionStart; selEnd=a.selectionEnd; }catch(e){}
+  }
+  buildBodyInterne();
+  if(cle){
+    const [cls,did,dc,dside]=cle.split('|');
+    const sel=`.${cls.trim().split(/\s+/).join('.')}`
+      +(did?`[data-id="${did}"]`:'')+(dc?`[data-c="${dc}"]`:'')+(dside?`[data-side="${dside}"]`:'');
+    const el=document.querySelector(sel);
+    if(el){ el.focus(); try{ if(selStart!=null) el.setSelectionRange(selStart,selEnd); }catch(e){} }
+  }
+}
+function buildBodyInterne(){
+  majHistoLocal();   // le face a face doit refleter les scores tapes a l'instant
+  buildFavReminder();
+  if(curOnglet==='autre'){
+    document.getElementById('divBody').innerHTML=htmlAutreCarnet();
+    return;
+  }
+  if(curOnglet==='avoir'){
+    const box=document.getElementById('divBody');
+    box.innerHTML=htmlAVoir();
+    brancherAVoir(box);
+    return;
+  }
+  if(curOnglet==='batons') curOnglet=null; // les bâtons ne sont plus dans la coupe
+  if(!curOnglet && state.coupes.length) curOnglet='coupe:'+state.coupes[0].id;
+  if(!curOnglet){
+    document.getElementById('divBody').innerHTML=`<div class="card"><div class="empty">
+      <strong>Aucune coupe</strong>Ajoute une coupe avec le bouton doré.</div></div>`;
+    return;
+  }
+  buildCoupe(curOnglet.slice(6));
+}
+
+/* ===== Encart : prochains matchs de coupe des favoris ===== */
+function buildFavReminder(){
+  const box=document.getElementById('favReminder'); if(!box) return;
+  const favs=(state.favs||[]);
+  if(!favs.length){ box.hidden=true; return; }
+  const aVenir=[], joues=[];
+  state.coupes.forEach(c=>c.tours.forEach(t=>t.matchs.forEach(m=>{
+    if(!m.dom||!m.ext) return;
+    if(!favs.includes(m.dom)&&!favs.includes(m.ext)) return;
+    const sc=state.scores[m.id];
+    const estJoue = sc && num(sc.h) && num(sc.a);
+    const info={dom:m.dom, ext:m.ext, coupe:c.nom, tour:t.nom,
+                h:estJoue?+sc.h:null, a:estJoue?+sc.a:null};
+    (estJoue?joues:aVenir).push(info);
+  })));
+  if(!aVenir.length && !joues.length){ box.hidden=true; return; }
+  box.hidden=false;
+  if(aVenir.length){
+    box.innerHTML=`<div class="fr-title">⭐ Prochains matchs de tes équipes</div>`+
+      aVenir.slice(0,6).map(it=>`<div class="fr-item">
+        <span class="fr-match">${htmlLogo(it.dom,18)}${esc(it.dom)} - ${esc(it.ext)}${htmlLogo(it.ext,18)}</span>
+        <span class="fr-when">${esc(it.coupe)} · ${esc(it.tour)}</span></div>`).join("");
+  } else {
+    box.innerHTML=`<div class="fr-title">⭐ Derniers résultats de tes équipes</div>`+
+      joues.slice(-6).reverse().map(it=>`<div class="fr-item">
+        <span class="fr-match">${htmlLogo(it.dom,18)}${esc(it.dom)} <strong>${it.h} - ${it.a}</strong> ${esc(it.ext)}${htmlLogo(it.ext,18)}</span>
+        <span class="fr-when">${esc(it.coupe)} · ${esc(it.tour)}</span></div>`).join("");
+  }
+}
+
+/* ===== Onglet Stats d'une coupe : bilan par équipe ===== */
+function htmlStatsCoupe(c){
+  const eq={}; // nom -> {j,g,bp,bc}
+  c.tours.forEach(t=>t.matchs.forEach(m=>{
+    const sc=state.scores[m.id]; if(!sc||!num(sc.h)||!num(sc.a)) return;
+    [[m.dom,+sc.h,+sc.a],[m.ext,+sc.a,+sc.h]].forEach(([nom,bp,bc])=>{
+      if(!nom) return;
+      if(!eq[nom]) eq[nom]={j:0,g:0,bp:0,bc:0};
+      eq[nom].j++; eq[nom].bp+=bp; eq[nom].bc+=bc;
+      if(vainqueurCoupe(m,c)===nom) eq[nom].g++;
+    });
+  }));
+  const noms=Object.keys(eq);
+  if(!noms.length) return `<div class="card"><div class="empty">Joue des matchs pour voir les stats.</div></div>`;
+  const parVict=[...noms].sort((a,b)=>eq[b].g-eq[a].g || eq[b].bp-eq[a].bp || a.localeCompare(b));
+  const parButs=[...noms].sort((a,b)=>eq[b].bp-eq[a].bp || a.localeCompare(b));
+
+  let html=`<div class="card"><div class="stats-wrap">`;
+  html+=`<div class="stat-card"><h4>🏆 Meilleurs parcours (victoires)</h4><div class="stat-liste">`+
+    parVict.slice(0,8).map((n,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(n,20)}<span class="sr-nom">${esc(n)}</span><span class="sr-val">${eq[n].g} v. · ${eq[n].j} m.</span></div>`).join("")+
+    `</div></div>`;
+  html+=`<div class="stat-card"><h4>⚔️ Meilleures attaques</h4><div class="stat-liste">`+
+    parButs.slice(0,8).map((n,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(n,20)}<span class="sr-nom">${esc(n)}</span><span class="sr-val">${eq[n].bp} buts</span></div>`).join("")+
+    `</div></div>`;
+  html+=`</div></div>`;
+  return html;
+}
+
+/* ===== Rendu d'une coupe ===== */
+function buildCoupe(cid){
+  const c=getCoupe(cid); const box=document.getElementById('divBody');
+  if(!c){ curOnglet=null; return buildBody(); }
+  const vue = curVue[c.id] || "matchs";
+  let html=`<div class="card">
+    <div class="poule-head">
+      <h2>🏆 ${esc(c.nom)}</h2>
+      <div>
+        <button class="ordre-fl" data-monter="${c.id}" title="Remonter cette coupe dans la liste" ${state.coupes.indexOf(c)<=0?'disabled':''}>▲</button>
+        <button class="ordre-fl" data-descendre="${c.id}" title="Descendre cette coupe dans la liste" ${state.coupes.indexOf(c)>=state.coupes.length-1?'disabled':''}>▼</button>
+        <button class="mini" data-editcoupe="${c.id}">✎ Renommer</button>
+        <button class="mini danger" data-delcoupe="${c.id}">🗑 Supprimer</button>
+        <button class="mini gold" data-addtour="${c.id}">+ Ajouter un tour</button>
+      </div>
+    </div>
+    <p class="hint">Dans une coupe, il n'y a pas de calendrier : les matchs sortent au tirage au sort, tour par tour. Le club nommé en premier reçoit.</p>
+    <div class="fieldbar">
+      <span class="fb-lab">Champs à remplir :</span>
+      <button class="chip ${c.champs.buts?'on':''}" data-champc="buts" data-c="${c.id}">⚽ Buteurs</button>
+      <button class="chip ${c.champs.cartons?'on':''}" data-champc="cartons" data-c="${c.id}">${sanctionsCoupe(c).mode==='hand'?'⏱️ Sanctions':'🟨 Cartons'}</button>
+      ${c.champs.cartons?`<span class="chip-duo">
+        <button class="chip ${colonnesSanctionsCoupe(c).mode==='foot'?'on':''}" data-smodec="${c.id}" data-val="foot"
+          title="Carton jaune et carton rouge">⚽ Sanctions foot</button>
+        <button class="chip ${colonnesSanctionsCoupe(c).mode==='hand'?'on':''}" data-smodec="${c.id}" data-val="hand"
+          title="Avertissement, exclusion de 2 minutes, disqualification">🏐 Sanctions handball</button>
+      </span>`:''}
+      <button class="chip ${c.champs.tab?'on':''}" data-champc="tab" data-c="${c.id}">🥅 Tirs au but</button>
+      <button class="chip ${c.champs.pf?'on':''}" data-champc="pf" data-c="${c.id}">⚠️ Pénalité / forfait</button>
+      <button class="chip ${c.champs.pronos?'on':''}" data-champc="pronos" data-c="${c.id}">🔮 Pronostics</button>
+      ${c.champs.pronos?`<span class="chip-duo">
+        <button class="chip ${pronoModeCoupe(c)==='score'?'on':''}" data-pmodec="${c.id}" data-val="score"
+          title="Écrire le score exact, par exemple 3 - 1">⚽ Prono foot</button>
+        <button class="chip ${pronoModeCoupe(c)==='qualifie'?'on':''}" data-pmodec="${c.id}" data-val="qualifie"
+          title="Désigner seulement l'équipe qui se qualifie">🏐 Prono handball</button>
+      </span>`:''}
+    </div>
+    <div class="subtabs">
+      <button class="${vue==='matchs'?'active':''}" data-vuec="matchs" data-c="${c.id}">Matchs &amp; saisie</button>
+      <button class="${vue==='resultats'?'active':''}" data-vuec="resultats" data-c="${c.id}">📋 Résultats</button>
+      <button class="${vue==='stats'?'active':''}" data-vuec="stats" data-c="${c.id}">📊 Stats</button>
+      ${c.champs.buts?`<button class="${vue==='buteurs'?'active':''}" data-vuec="buteurs" data-c="${c.id}">Buteurs</button>`:''}
+    </div>
+  </div>`;
+  if(vue==="resultats"){ html+=htmlResultats(c); }
+  else if(vue==="stats"){ html+=htmlStatsCoupe(c); }
+  else if(vue==="buteurs"){ html+=htmlButeursCoupe(c); }
+  else{
+    if(!c.tours.length){
+      html+=`<div class="card"><div class="empty">
+        <strong>Pas encore de tour</strong>
+        Quand le tirage au sort est fait, ajoute un tour (1er tour, 16es de finale, Finale…) et écris les matchs.
+      </div></div>`;
+    }else{
+      // un tour a la fois : avec huit tours, tout afficher obligeait a descendre
+      // jusqu'en bas de page pour atteindre le dernier
+      let i = curTour[c.id];
+      if(typeof i!=='number' || i<0 || i>=c.tours.length) i=c.tours.length-1;   // le plus recent
+      const t=c.tours[i];
+      // la barre de navigation doit etre dans une carte : sinon elle flotte sur le
+      // fond sombre et le nom du tour devient illisible
+      html+=`<div class="card">
+        <div class="tour-nav">
+          <button class="mini" data-tprev="${c.id}" ${i<=0?'disabled':''}>‹</button>
+          <span class="tour-nom">${esc(t.nom)}<small>tour ${i+1} sur ${c.tours.length}</small></span>
+          <button class="mini" data-tnext="${c.id}" ${i>=c.tours.length-1?'disabled':''}>›</button>
+        </div>
+        ${c.tours.length>1?`<div class="tour-tous">${c.tours.map((x,k)=>
+          `<button class="tt ${k===i?'on':''}" data-taller="${c.id}" data-i="${k}">${esc(x.nom)}</button>`).join('')}</div>`:''}
+      </div>`;
+      html+=htmlTour(c,t);
+    }
+  }
+  box.innerHTML=html;
+  brancherBody();
+}
+
+/* ===== Résultats : qui est qualifié, qui est éliminé ===== */
+function htmlResultats(c){
+  if(!c.tours.length) return `<div class="card"><div class="empty">
+    <strong>Pas encore de résultats</strong>Ajoute des tours et leurs matchs.</div></div>`;
+  let html="";
+  c.tours.forEach(t=>{
+    const joues=t.matchs.filter(m=>vainqueurCoupe(m,c));
+    const attente=t.matchs.filter(m=>!vainqueurCoupe(m,c));
+    html+=`<div class="card">
+      <h3 style="margin:0 0 8px">${esc(t.nom)}</h3>`;
+    if(!t.matchs.length){
+      html+=`<div class="empty">Aucun match dans ce tour.</div></div>`;
+      return;
+    }
+    if(joues.length){
+      html+=`<div class="res-grid">
+        <div class="res-col">
+          <div class="res-titre ok">✅ Qualifiés <span class="res-nb">${joues.length}</span></div>`;
+      joues.forEach(m=>{
+        const v=vainqueurCoupe(m,c);
+        const sc=state.scores[m.id]||{};
+        let detail;
+        if(sc.forfh||sc.forfa) detail=`<span class="res-tab">forfait</span>`;
+        else{
+          const tab = (+sc.h===+sc.a && num(sc.tabh) && num(sc.taba)) ? ` <span class="res-tab">(t.a.b. ${sc.tabh}-${sc.taba})</span>` : '';
+          detail=`${sc.h}-${sc.a}${tab}`;
+        }
+        html+=`<div class="res-item ok">${isFav(v)?'⭐ ':''}${htmlLogo(v,18)}<strong>${esc(v)}</strong>${divTag(m,v)}
+          <span class="res-sc">${detail}</span></div>`;
+      });
+      html+=`</div><div class="res-col">
+          <div class="res-titre ko">❌ Éliminés <span class="res-nb">${joues.length}</span></div>`;
+      joues.forEach(m=>{
+        const v=vainqueurCoupe(m,c);
+        const perdant = v===m.dom ? m.ext : m.dom;
+        html+=`<div class="res-item ko">${isFav(perdant)?'⭐ ':''}${htmlLogo(perdant,18)}${esc(perdant)}${divTag(m,perdant)}</div>`;
+      });
+      html+=`</div></div>`;
+    }
+    if(attente.length){
+      html+=`<div class="res-attente"><strong>⏳ Pas encore joués (${attente.length})</strong>`;
+      attente.forEach(m=>{
+        html+=`<div class="res-item wait">${esc(m.dom)} - ${esc(m.ext)}</div>`;
+      });
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  });
+  return html;
+}
+
+/* ===== Buteurs d'une coupe ===== */
+function parseButeurs(txt){
+  const out=[]; if(!txt) return out;
+  txt.split(',').forEach(part=>{
+    part=part.trim(); if(!part) return;
+    let n=1; const m=part.match(/^(.*?)(?:\s*[x×]\s*(\d+))?$/i);
+    if(m){ const name=m[1].trim(); if(m[2]) n=parseInt(m[2]); if(name) out.push({name,goals:n}); }
+  });
+  return out;
+}
+function htmlButeursCoupe(c){
+  const map={};
+  c.tours.forEach(t=>t.matchs.forEach(m=>{
+    const sc=state.scores[m.id]; if(!sc||!sc.buts) return;
+    parseButeurs(sc.buts).forEach(({name,goals})=>{
+      const k=name.toLowerCase();
+      if(!map[k]) map[k]={player:name,goals:0};
+      map[k].goals+=goals;
+    });
+  }));
+  const list=Object.values(map).sort((a,b)=>b.goals-a.goals||a.player.localeCompare(b.player));
+  if(!list.length) return `<div class="card"><div class="empty">
+    <strong>Pas encore de buteurs</strong>Écris les buteurs sous les matchs (ex. « Diego x2, Lucas »).</div></div>`;
+  let html=`<div class="card"><div class="sc-list">`;
+  list.forEach((s,i)=>{
+    html+=`<div class="sc-item"><span class="sc-pos">${i+1}</span>
+      <span class="sc-name">${esc(s.player)}</span>
+      <span class="sc-goals">${s.goals} ⚽</span></div>`;
+  });
+  html+=`</div></div>`;
+  return html;
+}
+
+function htmlTour(c,t){
+  let html=`<div class="card">
+    <div class="poule-head">
+      <h3>${esc(t.nom)} <span class="hint" style="display:inline">· ${t.matchs.length} match${t.matchs.length>1?'s':''}</span></h3>
+      <div>
+        <button class="mini" data-addmatch="${t.id}">+ Ajouter un match</button>
+        <button class="mini" data-edittour="${t.id}">✎ Renommer</button>
+        <button class="mini danger" data-deltour="${t.id}">🗑 Supprimer</button>
+      </div>
+    </div>`;
+  if(!t.matchs.length){
+    html+=`<div class="empty">Ajoute les matchs de ce tour avec « + Ajouter un match ».</div></div>`;
+    return html;
+  }
+  parDateHeure(t.matchs).forEach(m=>{
+    const sc=state.scores[m.id]||{}; const dt=state.dates[m.id]||{};
+    const vainq = vainqueurCoupe(m,c);
+    const estFav = (m.dom&&isFav(m.dom)) || (m.ext&&isFav(m.ext));
+    html+=`<div class="match${estFav?' match-fav':''}">
+      <span class="team-col">
+        <span class="team ${vainq===m.dom?'win':''}" data-editteam="${m.id}" title="Cliquer pour changer l'équipe">${isFav(m.dom)?'⭐ ':''}${htmlLogo(m.dom,34)}${nomEquipeHtml(m.dom)} <span class="edit-team">✎</span></span>
+        <input class="div-in" data-id="${m.id}" data-c="divh" placeholder="division" value="${esc(m.divh||"")}" title="Division de ${esc(m.dom)}">
+      </span>
+      <input class="sc" type="number" min="0" data-id="${m.id}" data-side="h" value="${sc.h||""}">
+      <button class="inv" data-inv="${m.id}" title="Inverser qui reçoit">⇄</button>
+      <input class="sc" type="number" min="0" data-id="${m.id}" data-side="a" value="${sc.a||""}">
+      <span class="team-col">
+        <span class="team ${vainq===m.ext?'win':''}" data-editteam="${m.id}" title="Cliquer pour changer l'équipe"><span class="edit-team">✎</span> ${nomEquipeHtml(m.ext)}${htmlLogo(m.ext,34)}${isFav(m.ext)?' ⭐':''}</span>
+        <input class="div-in" data-id="${m.id}" data-c="diva" placeholder="division" value="${esc(m.diva||"")}" title="Division de ${esc(m.ext)}">
+      </span>
+      <button class="mini danger delm" data-delmatch="${m.id}" title="Enlever ce match">✕</button>
+      <div class="ar-line">
+        <button type="button" class="ar-btn ${m.ar?'on':''}" data-ar="${m.id}"
+          title="${m.ar?'Ce tour se joue en deux manches':'Ce match se joue en une seule fois'}">${m.ar?'🔁 Aller-retour':'1️⃣ Match simple'}</button>
+        ${m.ar?`<span class="ar-tag">Aller chez ${esc(m.dom)}</span>`:''}
+      </div>
+      ${m.ar?`<div class="ar-retour">
+        <span class="ar-tag">🔁 Retour chez ${esc(m.ext)}</span>
+        <input class="sc" type="number" min="0" data-id="${m.id}" data-side="rdom" value="${sc.rdom||""}" title="Buts de ${esc(m.dom)} au match retour">
+        <span class="sep">-</span>
+        <input class="sc" type="number" min="0" data-id="${m.id}" data-side="rext" value="${sc.rext||""}" title="Buts de ${esc(m.ext)} au match retour">
+        <span class="ar-cumul" data-cumul="${m.id}">${htmlCumul(m)}</span>
+      </div>`:''}
+${htmlFaceAFace(m)}${htmlForme(m)}
+      <div class="date-line">
+        ${m.ar?`<span class="manche">ALLER</span>`:''}
+        <input type="date" class="din" data-id="${m.id}" data-f="date" value="${dt.date||""}">
+        <button type="button" class="cal-btn" data-cal="${m.id}" data-f="date" title="Ouvrir le calendrier">&#128197;</button>
+        <input type="time" class="tin" data-id="${m.id}" data-f="time" value="${dt.time||""}">
+        <button type="button" class="hr-btn" data-hr="${m.id}" data-f="time" title="Choisir l'heure">&#128340;</button>
+      </div>
+      <div class="lieu-line">
+        ${m.ar?`<span class="manche">ALLER</span>`:''}
+        <button type="button" class="lieu-btn" data-lieux="${m.id}" data-cote="dom" title="Terrains de ${esc(m.dom)}">🏟️</button>
+        <span class="lieu-row"><span class="lieu-ic">📍</span><input class="lieu-in" data-id="${m.id}" data-c="ville" placeholder="ville" value="${esc(m.ville||"")}" title="Ville où se joue le match"></span>
+        <span class="lieu-row"><span class="lieu-ic">📮</span><input class="lieu-in lieu-cp" data-id="${m.id}" data-c="cp" placeholder="code postal" value="${esc(m.cp||"")}" maxlength="5" inputmode="numeric" title="Code postal"></span>
+        <span class="lieu-row"><span class="lieu-ic">🏟️</span><input class="lieu-in" data-id="${m.id}" data-c="stade" placeholder="stade" value="${esc(m.stade||"")}" title="Stade où se joue le match"></span>
+      </div>`;
+    if(m.ar){
+      html+=`<div class="date-line">
+        <span class="manche">RETOUR</span>
+        <input type="date" class="din" data-id="${m.id}" data-f="rdate" value="${dt.rdate||""}">
+        <button type="button" class="cal-btn" data-cal="${m.id}" data-f="rdate" title="Date du match retour">&#128197;</button>
+        <input type="time" class="tin" data-id="${m.id}" data-f="rtime" value="${dt.rtime||""}">
+        <button type="button" class="hr-btn" data-hr="${m.id}" data-f="rtime" title="Heure du match retour">&#128340;</button>
+      </div>
+      <div class="lieu-line">
+        <span class="manche">RETOUR</span>
+        <button type="button" class="lieu-btn" data-lieux="${m.id}" data-cote="ext" title="Terrains de ${esc(m.ext)}">🏟️</button>
+        <span class="lieu-row"><span class="lieu-ic">📍</span><input class="lieu-in" data-id="${m.id}" data-c="rville" placeholder="ville" value="${esc(m.rville||"")}" title="Ville du match retour"></span>
+        <span class="lieu-row"><span class="lieu-ic">📮</span><input class="lieu-in lieu-cp" data-id="${m.id}" data-c="rcp" placeholder="code postal" value="${esc(m.rcp||"")}" maxlength="5" inputmode="numeric" title="Code postal du match retour"></span>
+        <span class="lieu-row"><span class="lieu-ic">🏟️</span><input class="lieu-in" data-id="${m.id}" data-c="rstade" placeholder="stade" value="${esc(m.rstade||"")}" title="Stade du match retour"></span>
+      </div>`;
+    }
+    if(c.champs.tab){
+      html+=`<div class="tab-line">
+        <span class="tb-lab">🥅 Tirs au but :</span>
+        <input class="tin-tab" type="number" min="0" data-id="${m.id}" data-c="tabh" value="${sc.tabh||""}" title="Tirs au but ${esc(m.dom)}">
+        <span class="sep">-</span>
+        <input class="tin-tab" type="number" min="0" data-id="${m.id}" data-c="taba" value="${sc.taba||""}" title="Tirs au but ${esc(m.ext)}">
+        <span class="hint" style="display:inline;margin:0">${m.ar?'(si égalité sur le cumul)':'(si égalité)'}</span>
+      </div>`;
+    }
+    if(c.champs.buts){
+      html+=`<div class="buts-line">
+        <input class="bin" data-id="${m.id}" placeholder="⚽ buteurs : ex. Diego x2, Lucas" value="${esc(sc.buts||"")}">
+      </div>`;
+    }
+    if(c.champs.cartons){
+      const sa=colonnesSanctionsCoupe(c);
+      const cases=(cote)=>sa.cols.map(col=>{
+        const champ=col.cle+cote;
+        return `<span class="ct" title="${esc(col.titre)}">${col.ic}<input class="cin" type="number" min="0" data-id="${m.id}" data-c="${champ}" value="${sc[champ]||""}"></span>`;
+      }).join("");
+      html+=`<div class="cartons-line">
+        <span class="ct-side">${esc(m.dom)} :</span>${cases('h')}
+        <span class="ct-sep">·</span>
+        <span class="ct-side">${esc(m.ext)} :</span>${cases('a')}
+      </div>`;
+    }
+    if(c.champs.pf){
+      html+=`<div class="pf-line">
+        <span class="pf-side">${esc(m.dom)} :</span>
+        <span class="pf" title="Points de pénalité">⚠️<input class="pin" type="number" min="0" data-id="${m.id}" data-c="penh" value="${sc.penh||""}"></span>
+        <span class="pf" title="${esc(m.dom)} a déclaré forfait">🚫 Forf.<input class="pin pf-check" type="checkbox" data-id="${m.id}" data-c="forfh" ${sc.forfh?"checked":""}></span>
+        <span class="ct-sep">·</span>
+        <span class="pf-side">${esc(m.ext)} :</span>
+        <span class="pf" title="Points de pénalité">⚠️<input class="pin" type="number" min="0" data-id="${m.id}" data-c="pena" value="${sc.pena||""}"></span>
+        <span class="pf" title="${esc(m.ext)} a déclaré forfait">🚫 Forf.<input class="pin pf-check" type="checkbox" data-id="${m.id}" data-c="forfa" ${sc.forfa?"checked":""}></span>
+      </div>`;
+    }
+    if(c.champs.pronos && pronoModeCoupe(c)==='qualifie'){
+      html+=htmlPronoQualifie(c, m);
+    }else if(c.champs.pronos){
+      const pr=state.pronos&&state.pronos[m.id]||{};
+      html+=`<div class="prono-line">
+        <span class="pr-lab">🔮 Mon prono :</span>
+        <input class="prin" type="number" min="0" data-id="${m.id}" data-side="h" value="${pr.h||""}">
+        <span class="sep">-</span>
+        <input class="prin" type="number" min="0" data-id="${m.id}" data-side="a" value="${pr.a||""}">
+        <span class="pr-res">${htmlPronoRes(m.id)}</span>
+      </div>`;
+    }
+    if(vainq){
+      const parForf = (sc.forfh||sc.forfa) ? ' <span class="vq-mot">(forfait)</span>' : '';
+      html+=`<div class="vainq-line">✅ Qualifié : <strong>${esc(vainq)}</strong>${parForf}</div>`;
+    }
+    html+=`</div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
+
+/* ===== Sanctions : football ou handball (coupes) =====
+   Memes champs de donnees (cjh/crh/cja/cra), seuls les libelles changent. */
+/* Trois niveaux au handball : avertissement (jaune), exclusion de 2 minutes,
+   disqualification (rouge). Le jaune existe bien, il fallait ajouter une colonne. */
+function colonnesSanctionsCoupe(c){
+  const hand = c && c.sanctions==='hand';
+  if(hand) return {mode:'hand', cols:[
+    {cle:'cj',  ic:'🟨', titre:'Avertissement (carton jaune)'},
+    {cle:'ex2', ic:'⏱️', titre:'Exclusion de 2 minutes'},
+    {cle:'cr',  ic:'🟥', titre:'Disqualification'}
+  ]};
+  return {mode:'foot', cols:[
+    {cle:'cj', ic:'🟨', titre:'Carton jaune'},
+    {cle:'cr', ic:'🟥', titre:'Carton rouge'}
+  ]};
+}
+function sanctionsCoupe(c){ return colonnesSanctionsCoupe(c); }
+
+/* ===== Mode de pronostic (coupes) =====
+   'score'      : Joris ecrit le score exact.
+   'qualifie'   : il designe seulement qui passe au tour suivant. Dans une coupe c'est
+                  la vraie question -- et ca marche aussi bien pour un match simple,
+                  un aller-retour ou une seance de tirs au but, puisqu'on compare au
+                  qualifie calcule par vainqueurCoupe().
+   Reglable par coupe ; 'score' par defaut, donc rien ne change pour l'existant. */
+function pronoModeCoupe(c){
+  return (c && c.pronoMode==='qualifie') ? 'qualifie' : 'score';
+}
+function htmlPronoQualifie(c, m){
+  const pr=(state.pronos&&state.pronos[m.id])||{};
+  const choix=[['dom', m.dom||'\u00c0 domicile'],['ext', m.ext||'\u00c0 l\'ext\u00e9rieur']];
+  return `<div class="prono-line">
+    <span class="pr-lab">🔮 Qui se qualifie ?</span>
+    <span class="pr-choix">
+      ${choix.map(([v,lib])=>`<button type="button" class="pr-b ${pr.r===v?'on':''}" data-prv="${m.id}" data-v="${v}">${esc(lib)}</button>`).join("")}
+    </span>
+    <span class="pr-res">${htmlPronoResQualifie(c, m)}</span>
+  </div>`;
+}
+function htmlPronoResQualifie(c, m){
+  const pr=(state.pronos&&state.pronos[m.id])||{};
+  if(!pr.r) return "";
+  const vainq=vainqueurCoupe(m,c);
+  if(!vainq) return "";
+  const prevu = pr.r==='dom' ? m.dom : m.ext;
+  return prevu===vainq ? `<span class="pr-ok">\u2705 bien vu !</span>`
+                       : `<span class="pr-ko">\u274c rat\u00e9</span>`;
+}
+
+/* Résultat d'un pronostic : 🎯 exact, ✅ bon résultat, ❌ raté */
+function htmlPronoRes(mid){
+  const pr=state.pronos&&state.pronos[mid], sc=state.scores[mid];
+  if(!pr||!sc||!num(pr.h)||!num(pr.a)||!num(sc.h)||!num(sc.a)) return "";
+  const ph=+pr.h, pa=+pr.a, rh=+sc.h, ra=+sc.a, sg=x=>x>0?1:x<0?-1:0;
+  if(ph===rh&&pa===ra) return `<span class="pr-ok">🎯 score exact !</span>`;
+  if(sg(ph-pa)===sg(rh-ra)) return `<span class="pr-bon">✅ bon résultat</span>`;
+  return `<span class="pr-ko">❌ raté</span>`;
+}
+
+/* Retrouve un match de coupe par son id */
+function trouverMatchCoupe(mid){
+  for(const c of state.coupes)
+    for(const t of c.tours){
+      const m=t.matchs.find(x=>x.id===mid);
+      if(m) return m;
+    }
+  return null;
+}
+/* Petite étiquette de division d'une équipe dans un match */
+function divTag(m, equipe){
+  const d = equipe===m.dom ? m.divh : (equipe===m.ext ? m.diva : "");
+  return d ? ` <span class="res-div">${esc(d)}</span>` : "";
+}
+
+/* Qui est qualifié ? (forfait, puis score, puis tirs au but si égalité) */
+/* Cumul des deux manches d'un aller-retour. Rien tant que le retour n'est pas rempli. */
+function cumulAR(m){
+  const sc=state.scores[m.id]; if(!sc || !m.ar) return null;
+  if(!num(sc.h)||!num(sc.a)||!num(sc.rdom)||!num(sc.rext)) return null;
+  return { dom:(+sc.h)+(+sc.rdom), ext:(+sc.a)+(+sc.rext) };
+}
+function htmlCumul(m){
+  const t=cumulAR(m);
+  if(!t) return '';
+  const egal = t.dom===t.ext;
+  return `Cumul : <b>${t.dom} - ${t.ext}</b>${egal?' \u00b7 \u00e9galit\u00e9':''}`;
+}
+function vainqueurCoupe(m,c){
+  const sc=state.scores[m.id]; if(!sc) return null;
+  // Un forfait qualifie d'office l'adversaire (règlement Coupe de France, art. 5)
+  if(c.champs.pf){
+    if(sc.forfh && !sc.forfa) return m.ext;
+    if(sc.forfa && !sc.forfh) return m.dom;
+    if(sc.forfh && sc.forfa) return null; // les deux forfaits : personne
+  }
+  if(!num(sc.h)||!num(sc.a)) return null;
+  let h=+sc.h, a=+sc.a;
+  if(m.ar){
+    // aller-retour : tant que la manche retour n'est pas remplie, personne n'est qualifie
+    if(!num(sc.rdom)||!num(sc.rext)) return null;
+    h += +sc.rdom; a += +sc.rext;
+  }
+  if(h>a) return m.dom;
+  if(a>h) return m.ext;
+  if(c.champs.tab && num(sc.tabh) && num(sc.taba)){
+    if(+sc.tabh > +sc.taba) return m.dom;
+    if(+sc.taba > +sc.tabh) return m.ext;
+  }
+  return null;
+}
+
+/* Met à jour l'affichage du qualifié sans redessiner toute la page
+   (sinon Joris perdrait le focus en tapant) */
+function majVainqueur(mid){
+  if(!curOnglet || !curOnglet.startsWith('coupe:')) return;
+  const c=getCoupe(curOnglet.slice(6)); if(!c) return;
+  let m=null;
+  c.tours.forEach(t=>{ const x=t.matchs.find(y=>y.id===mid); if(x) m=x; });
+  if(!m) return;
+  const bloc=document.querySelector(`.match input.sc[data-id="${mid}"]`);
+  if(!bloc) return;
+  const carte=bloc.closest('.match');
+  const cum=carte.querySelector('.ar-cumul');
+  if(cum) cum.innerHTML=htmlCumul(m);
+  const v=vainqueurCoupe(m,c);
+  let ligne=carte.querySelector('.vainq-line');
+  if(v){
+    if(!ligne){ ligne=document.createElement('div'); ligne.className='vainq-line'; carte.appendChild(ligne); }
+    ligne.innerHTML=`✅ Qualifié : <strong>${esc(v)}</strong>`;
+  }else if(ligne){ ligne.remove(); }
+  carte.querySelectorAll('.team').forEach(el=>el.classList.remove('win'));
+  if(v){
+    const teams=carte.querySelectorAll('.team');
+    if(v===m.dom) teams[0].classList.add('win'); else teams[1].classList.add('win');
+  }
+}
+
+/* Met à jour l'étiquette du prono sans redessiner la page */
+function majProno(mid){
+  const inp=document.querySelector(`.prono-line input.prin[data-id="${mid}"]`);
+  if(!inp) return;
+  const zone=inp.closest('.prono-line').querySelector('.pr-res');
+  if(zone) zone.innerHTML=htmlPronoRes(mid);
+}
+
+/* ===== Calendrier maison =====
+   Chrome n'ouvre pas son calendrier natif de facon fiable (ni sur PC ni sur
+   Android, et showPicker() ne change rien). On dessine donc le notre, sur le
+   meme principe que le selecteur d'equipe qui fonctionne deja bien.
+   Le champ date reste un vrai <input type="date"> : la saisie au clavier
+   continue de marcher exactement comme avant. */
+const CAL_MOIS=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+const CAL_JOURS=['L','M','M','J','V','S','D'];
+function calPad(n){ return n<10 ? '0'+n : ''+n; }
+function calCle(a,m,j){ return a+'-'+calPad(m+1)+'-'+calPad(j); }
+function fermerCal(){
+  const o=document.querySelector('.cal-pop'); if(o) o.remove();
+  document.removeEventListener('click',fermerCalAuto);
+}
+function fermerCalAuto(e){
+  if(!e.target.closest('.cal-pop') && !e.target.closest('.cal-btn')
+     && !e.target.closest('.hr-btn') && !e.target.closest('.lieu-btn')) fermerCal();
+}
+function ouvrirCal(btn, inp){
+  fermerCal();
+  const pop=document.createElement('div');
+  pop.className='cal-pop';
+  document.body.appendChild(pop);
+  // un clic DANS la bulle ne doit jamais la fermer : on l'arrete ici, sinon un
+  // bouton qui redessine (fleche de mois, choix d'heure) se retrouve detache du
+  // DOM et la fermeture automatique croit que le clic venait de l'exterieur
+  pop.addEventListener('click', e=>e.stopPropagation());
+
+  let depart = inp.value ? new Date(inp.value+'T12:00:00') : new Date();
+  if(isNaN(depart.getTime())) depart = new Date();
+  let annee=depart.getFullYear(), mois=depart.getMonth();
+
+  function choisir(val){
+    inp.value = val;
+    inp.dispatchEvent(new Event('change',{bubbles:true}));
+    fermerCal();
+  }
+  function dessiner(){
+    const auj=new Date();
+    const cleAuj=calCle(auj.getFullYear(),auj.getMonth(),auj.getDate());
+    let ans='';
+    for(let a=annee-6;a<=annee+6;a++) ans+='<option value="'+a+'"'+(a===annee?' selected':'')+'>'+a+'</option>';
+    let h='<div class="cal-head">'
+      + '<button type="button" class="cal-nav" data-prev>&lsaquo;</button>'
+      + '<select class="cal-mois">'+CAL_MOIS.map((m,i)=>'<option value="'+i+'"'+(i===mois?' selected':'')+'>'+m+'</option>').join('')+'</select>'
+      + '<select class="cal-annee">'+ans+'</select>'
+      + '<button type="button" class="cal-nav" data-next>&rsaquo;</button>'
+      + '</div><div class="cal-grid">'
+      + CAL_JOURS.map(j=>'<div class="cal-dow">'+j+'</div>').join('');
+    const decal=(new Date(annee,mois,1).getDay()+6)%7;   // lundi en premier
+    const nb=new Date(annee,mois+1,0).getDate();
+    for(let i=0;i<decal;i++) h+='<div></div>';
+    for(let d=1;d<=nb;d++){
+      const cle=calCle(annee,mois,d);
+      let cls='cal-day';
+      if(cle===inp.value) cls+=' sel';
+      if(cle===cleAuj) cls+=' today';
+      h+='<button type="button" class="'+cls+'" data-val="'+cle+'">'+d+'</button>';
+    }
+    h+='</div><div class="cal-foot">'
+      + '<button type="button" data-auj>Aujourd\'hui</button>'
+      + '<button type="button" data-vider>Effacer</button>'
+      + '</div>';
+    pop.innerHTML=h;
+
+    pop.querySelector('[data-prev]').addEventListener('click',()=>{
+      mois--; if(mois<0){ mois=11; annee--; } dessiner();
+    });
+    pop.querySelector('[data-next]').addEventListener('click',()=>{
+      mois++; if(mois>11){ mois=0; annee++; } dessiner();
+    });
+    pop.querySelector('.cal-mois').addEventListener('change',e=>{ mois=+e.target.value; dessiner(); });
+    pop.querySelector('.cal-annee').addEventListener('change',e=>{ annee=+e.target.value; dessiner(); });
+    pop.querySelectorAll('.cal-day').forEach(b=>b.addEventListener('click',()=>choisir(b.dataset.val)));
+    pop.querySelector('[data-auj]').addEventListener('click',()=>{
+      const a=new Date(); choisir(calCle(a.getFullYear(),a.getMonth(),a.getDate()));
+    });
+    pop.querySelector('[data-vider]').addEventListener('click',()=>choisir(''));
+  }
+  dessiner();
+
+  placerPop(pop, btn);
+  setTimeout(()=>document.addEventListener('click',fermerCalAuto),0);
+}
+
+/* Nom des departements. La valeur stockee reste le numero (c'est lui qu'on deduit du
+   code postal), mais tout ce qui est affiche est le nom. */
+const DEPTS = {
+"01":"Ain","02":"Aisne","03":"Allier","04":"Alpes-de-Haute-Provence","05":"Hautes-Alpes",
+"06":"Alpes-Maritimes","07":"Ard\u00e8che","08":"Ardennes","09":"Ari\u00e8ge","10":"Aube",
+"11":"Aude","12":"Aveyron","13":"Bouches-du-Rh\u00f4ne","14":"Calvados","15":"Cantal",
+"16":"Charente","17":"Charente-Maritime","18":"Cher","19":"Corr\u00e8ze",
+"20":"Corse","2A":"Corse-du-Sud","2B":"Haute-Corse",
+"21":"C\u00f4te-d'Or","22":"C\u00f4tes-d'Armor","23":"Creuse","24":"Dordogne","25":"Doubs",
+"26":"Dr\u00f4me","27":"Eure","28":"Eure-et-Loir","29":"Finist\u00e8re","30":"Gard",
+"31":"Haute-Garonne","32":"Gers","33":"Gironde","34":"H\u00e9rault","35":"Ille-et-Vilaine",
+"36":"Indre","37":"Indre-et-Loire","38":"Is\u00e8re","39":"Jura","40":"Landes",
+"41":"Loir-et-Cher","42":"Loire","43":"Haute-Loire","44":"Loire-Atlantique","45":"Loiret",
+"46":"Lot","47":"Lot-et-Garonne","48":"Loz\u00e8re","49":"Maine-et-Loire","50":"Manche",
+"51":"Marne","52":"Haute-Marne","53":"Mayenne","54":"Meurthe-et-Moselle","55":"Meuse",
+"56":"Morbihan","57":"Moselle","58":"Ni\u00e8vre","59":"Nord","60":"Oise",
+"61":"Orne","62":"Pas-de-Calais","63":"Puy-de-D\u00f4me","64":"Pyr\u00e9n\u00e9es-Atlantiques",
+"65":"Hautes-Pyr\u00e9n\u00e9es","66":"Pyr\u00e9n\u00e9es-Orientales","67":"Bas-Rhin","68":"Haut-Rhin",
+"69":"Rh\u00f4ne","70":"Haute-Sa\u00f4ne","71":"Sa\u00f4ne-et-Loire","72":"Sarthe","73":"Savoie",
+"74":"Haute-Savoie","75":"Paris","76":"Seine-Maritime","77":"Seine-et-Marne","78":"Yvelines",
+"79":"Deux-S\u00e8vres","80":"Somme","81":"Tarn","82":"Tarn-et-Garonne","83":"Var",
+"84":"Vaucluse","85":"Vend\u00e9e","86":"Vienne","87":"Haute-Vienne","88":"Vosges",
+"89":"Yonne","90":"Territoire de Belfort","91":"Essonne","92":"Hauts-de-Seine",
+"93":"Seine-Saint-Denis","94":"Val-de-Marne","95":"Val-d'Oise",
+"971":"Guadeloupe","972":"Martinique","973":"Guyane","974":"La R\u00e9union","976":"Mayotte"
+};
+/* Numeros dans l'ordre officiel : 01..19, 2A, 2B, 21..95, puis outre-mer */
+const DEPTS_ORDRE = Object.keys(DEPTS).filter(c => c!=="20").sort((a,b)=>{
+  const n=x=>x==="2A"?20.1:(x==="2B"?20.2:parseFloat(x));
+  return n(a)-n(b);
+});
+function nomDept(code){
+  const c=(code||'').trim();
+  return c ? (DEPTS[c] || c) : '';
+}
+
+/* Range les matchs par date puis par heure : un match a 11h00 passe avant celui de
+   midi. Ceux qui n'ont pas encore de date restent a la fin, dans l'ordre de saisie --
+   ils ne sont pas encore programmes, les mettre en premier n'aurait pas de sens.
+   Le tableau d'origine n'est pas modifie : c'est un tri d'affichage. */
+function parDateHeure(liste){
+  return liste.map((m,i)=>({m,i})).sort((a,b)=>{
+    const da=(state.dates[a.m.id]||{}).date||'', db=(state.dates[b.m.id]||{}).date||'';
+    if(!da && !db) return a.i-b.i;
+    if(!da) return 1;
+    if(!db) return -1;
+    if(da!==db) return da.localeCompare(db);
+    const ha=(state.dates[a.m.id]||{}).time||'', hb=(state.dates[b.m.id]||{}).time||'';
+    if(ha!==hb){ if(!ha) return 1; if(!hb) return -1; return ha.localeCompare(hb); }
+    return a.i-b.i;
+  }).map(x=>x.m);
+}
+
+/* ===== Confrontations directes =====
+   Pour savoir qui part favori, on va chercher toutes les fois ou ces deux equipes se
+   sont deja rencontrees : dans ce carnet ET dans l'autre, sur TOUTES les saisons.
+   Lecture seule, chargee une fois au demarrage. */
+/* histoDistant : les autres saisons et l'autre carnet, lus une fois au demarrage.
+   histoLocal   : la saison ouverte dans ce carnet, recalculee a chaque affichage pour
+                  que le face a face tienne compte du score que Joris vient de taper. */
+let histoDistant = [], histoLocal = [];
+function lireHistorique(data, saison, cible){
+  if(!data) return;
+  const dest = cible || histoDistant;
+  const dates=data.dates||{}, scores=data.scores||{};
+  const noter=(m, dom, ext, h, a, quoi)=>{
+    if(h===undefined||h===''||a===undefined||a==='') return;
+    dest.push({id:m.id, dom, ext, h:+h, a:+a, quoi, saison, date:(dates[m.id]||{}).date||''});
+  };
+  (data.divisions||[]).forEach(d=>(d.poules||[]).forEach(p=>(p.matchs||[]).forEach(m=>{
+    if(!m.dom||!m.ext) return;
+    const sc=scores[m.id]||{};
+    noter(m, m.dom, m.ext, sc.h, sc.a, d.nom||'Championnat');
+  })));
+  (data.coupes||[]).forEach(c=>(c.tours||[]).forEach(t=>(t.matchs||[]).forEach(m=>{
+    if(!m.dom||!m.ext) return;
+    const sc=scores[m.id]||{};
+    noter(m, m.dom, m.ext, sc.h, sc.a, c.nom||'Coupe');
+    if(m.ar) noter(m, m.ext, m.dom, sc.rext, sc.rdom, (c.nom||'Coupe')+' (retour)');
+  })));
+}
+function majHistoLocal(){
+  histoLocal=[];
+  lireHistorique(state, saisonCourante, histoLocal);
+}
+let autreData=null;   // le contenu de l'autre carnet, saison en cours, en lecture seule
+async function chargerHistorique(){
+  if(!sb) return;
+  histoDistant=[]; autreData=null;
+  for(const base of [CARNET_ID_BASE, AUTRE_CARNET_ID]){
+    let saisons=[SAISON_DEFAUT];
+    try{
+      const {data}=await sb.from('carnet').select('data').eq('id', base+':saisons').maybeSingle();
+      if(data && data.data && Array.isArray(data.data.liste)) saisons=data.data.liste;
+    }catch(e){}
+    if(!saisons.includes(SAISON_DEFAUT)) saisons.push(SAISON_DEFAUT);
+    for(const s of saisons){
+      const ligne = (s===SAISON_DEFAUT) ? base : base+':'+s;
+      // la saison ouverte est recalculee en direct par majHistoLocal() : on ne la
+      // relit pas ici, sinon les matchs y figureraient deux fois
+      if(ligne===CARNET_ID) continue;
+      try{
+        const {data}=await sb.from('carnet').select('data').eq('id',ligne).maybeSingle();
+        lireHistorique(data && data.data, s);
+        // on garde la saison en cours de l'autre carnet pour pouvoir l'afficher
+        if(base===AUTRE_CARNET_ID && s===saisonCourante) autreData = data && data.data;
+      }catch(e){}
+    }
+  }
+  histoDistant.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  buildBody();
+}
+/* Deux libelles designent-ils la meme equipe ?
+   Meme club ET meme suffixe d'equipe. On a essaye plus souple -- accepter qu'un cote
+   precise l'equipe et pas l'autre -- mais un resultat des seniors se retrouvait alors
+   affiche sous un match U13, ce qui est pire que de ne rien montrer : Joris regarde
+   cette ligne justement pour savoir qui part favori.
+   Consequence : pour relier une coupe et un championnat, il faut y designer l'equipe
+   de la meme facon. */
+function suffixeDe(nom){
+  const i=(nom||'').indexOf(" \u2014 ");
+  return i>0 ? nom.slice(i+3).trim().toLowerCase() : "";
+}
+/* On decoupe le nom nous-memes plutot que d'appeler clubDeNom() : celui-ci ne retire
+   le suffixe que si le club figure dans la bibliotheque, or elle peut ne pas encore
+   etre chargee, ou ne pas contenir un club d'une saison passee. */
+function clubBrut(nom){
+  const i=(nom||'').indexOf(" \u2014 ");
+  return (i>0 ? nom.slice(0,i) : (nom||'')).trim().toLowerCase();
+}
+function memeEquipe(a, b){
+  if(a===b) return true;
+  if(clubBrut(a)!==clubBrut(b)) return false;
+  return suffixeDe(a)===suffixeDe(b);
+}
+/* Les rencontres entre ces deux equipes, quel que soit le receveur. */
+function faceAFace(dom, ext){
+  return histoLocal.concat(histoDistant)
+    .filter(r=>(memeEquipe(r.dom,dom)&&memeEquipe(r.ext,ext))
+             ||(memeEquipe(r.dom,ext)&&memeEquipe(r.ext,dom)))
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+/* ===== Serie de resultats d'une equipe =====
+   Championnat ET coupes confondus, toutes saisons : on repart du meme historique que
+   le face a face. Du plus recent au plus ancien. */
+function formeEquipe(nom, idAExclure, combien){
+  const n = combien || 5;
+  return histoLocal.concat(histoDistant)
+    .filter(r=>r.id!==idAExclure && (memeEquipe(r.dom,nom)||memeEquipe(r.ext,nom)))
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''))
+    .slice(0,n)
+    .map(r=>{
+      const chezSoi = memeEquipe(r.dom, nom);
+      const pour = chezSoi ? r.h : r.a;
+      const contre = chezSoi ? r.a : r.h;
+      return {res: pour>contre ? 'V' : (pour<contre ? 'D' : 'N'),
+              detail: `${r.quoi} : ${pour} - ${contre}` + (r.saison&&r.saison!==SAISON_DEFAUT?` (${r.saison})`:'')};
+    });
+}
+/* Combien de fois de suite le meme resultat, en partant du plus recent. */
+function serieEnCours(liste){
+  if(!liste.length) return null;
+  const r=liste[0].res;
+  let n=1;
+  while(n<liste.length && liste[n].res===r) n++;
+  // attention au pluriel : « matchs nuls », pas « match nuls »
+  const mot = n>1
+    ? (r==='V' ? 'victoires' : (r==='D' ? 'd\u00e9faites' : 'matchs nuls'))
+    : (r==='V' ? 'victoire'  : (r==='D' ? 'd\u00e9faite'  : 'match nul'));
+  return n>1 ? `${n} ${mot} de suite` : `1 ${mot}`;
+}
+function ligneForme(nom, idMatch){
+  const l=formeEquipe(nom, idMatch);
+  if(!l.length) return `<div class="forme-l"><span class="forme-eq">${esc(clubDeNom(nom))}</span>
+    <span class="forme-vide">aucun match jou\u00e9</span></div>`;
+  const cases=l.map(x=>`<span class="fp ${x.res}" title="${esc(x.detail)}">${x.res}</span>`).join('');
+  return `<div class="forme-l">
+    <span class="forme-eq">${esc(clubDeNom(nom))}</span>
+    <span class="forme-suite">${cases}</span>
+    <span class="forme-serie">${esc(serieEnCours(l))}</span>
+  </div>`;
+}
+function htmlForme(m){
+  if(!m.dom || !m.ext) return '';
+  const a=formeEquipe(m.dom, m.id), b=formeEquipe(m.ext, m.id);
+  if(!a.length && !b.length) return '';   // rien a montrer en debut de saison
+  return `<div class="forme" title="Les 5 derniers matchs, championnat et coupes confondus, du plus r\u00e9cent au plus ancien">
+    <div class="forme-titre">📈 Forme r\u00e9cente <small>championnat et coupes</small></div>
+    ${ligneForme(m.dom, m.id)}${ligneForme(m.ext, m.id)}</div>`;
+}
+/* ===== L'autre carnet, en lecture seule =====
+   Depuis les coupes on veut consulter les classements du championnat sans changer de
+   page. Le calcul des points est refait ici a partir du bareme de chaque championnat
+   (3-1-0 au football, 2-1-0 au handball) : le carnet des coupes ne connait pas la
+   fonction classement() de l'autre. */
+function classementSimple(div, poule, scores){
+  const t={};
+  const eq=new Set(poule.equipes||[]);
+  (poule.matchs||[]).forEach(m=>{ if(m.dom) eq.add(m.dom); if(m.ext) eq.add(m.ext); });
+  eq.forEach(e=>{ if(e) t[e]={c:e,pts:0,j:0,g:0,n:0,p:0,bp:0,bc:0}; });
+  const b=(div&&div.bareme)||{};
+  const pv=Number.isFinite(+b.v)?+b.v:3, pn=Number.isFinite(+b.n)?+b.n:1, pd=Number.isFinite(+b.d)?+b.d:0;
+  (poule.matchs||[]).forEach(m=>{
+    const sc=scores[m.id]; if(!sc) return;
+    if(sc.h===undefined||sc.h===''||sc.a===undefined||sc.a==='') return;
+    const h=+sc.h, a=+sc.a;
+    if(!t[m.dom]||!t[m.ext]) return;
+    t[m.dom].j++; t[m.ext].j++;
+    t[m.dom].bp+=h; t[m.dom].bc+=a; t[m.ext].bp+=a; t[m.ext].bc+=h;
+    if(h>a){ t[m.dom].g++; t[m.dom].pts+=pv; t[m.ext].p++; t[m.ext].pts+=pd; }
+    else if(h<a){ t[m.ext].g++; t[m.ext].pts+=pv; t[m.dom].p++; t[m.dom].pts+=pd; }
+    else { t[m.dom].n++; t[m.ext].n++; t[m.dom].pts+=pn; t[m.ext].pts+=pn; }
+  });
+  return Object.values(t).sort((x,y)=>
+    y.pts-x.pts || (y.bp-y.bc)-(x.bp-x.bc) || y.bp-x.bp || x.c.localeCompare(y.c));
+}
+function htmlAutreCarnet(){
+  if(!autreData) return `<div class="ac-vide">Le championnat n'a pas encore \u00e9t\u00e9 lu.<br>
+    V\u00e9rifie que la synchro fonctionne, puis reviens sur cet onglet.</div>`;
+  const divs=autreData.divisions||[];
+  if(!divs.length) return `<div class="ac-vide">Aucun championnat pour la saison ${esc(saisonCourante)}.</div>`;
+  const scores=autreData.scores||{};
+  let html=`<div class="ac-rappel">\u2139\ufe0f Tu regardes le carnet du championnat. Pour modifier quelque chose,
+    ouvre-le depuis l'accueil.</div>`;
+  divs.forEach(d=>{
+    html+=`<div class="card"><h3 class="ac-titre">${esc(d.nom||'Championnat')}</h3>`;
+    const poules=d.poules||[];
+    if(!poules.length) html+=`<p class="ac-sous">Aucune poule</p>`;
+    poules.forEach(p=>{
+      const cl=classementSimple(d, p, scores);
+      html+=`<div class="ac-tour">${esc(p.nom||'Poule')}</div>`;
+      if(!cl.length){ html+=`<div class="ac-att">Aucune \u00e9quipe</div>`; return; }
+      html+=`<table class="rank"><thead><tr><th>#</th><th style="text-align:left">\u00c9quipe</th>
+        <th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>Diff</th></tr></thead><tbody>`;
+      cl.forEach((r,i)=>{
+        const diff=r.bp-r.bc;
+        html+=`<tr><td>${i+1}</td><td class="club">${esc(r.c)}</td>
+          <td class="pts">${r.pts}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td>
+          <td>${diff>0?'+':''}${diff}</td></tr>`;
+      });
+      html+=`</tbody></table>`;
+    });
+    html+=`</div>`;
+  });
+  return html;
+}
+function htmlFaceAFace(m){
+  if(!m.dom || !m.ext) return '';
+  const sc=state.scores[m.id]||{};
+  // on ne compte pas le match affiche dans son propre historique : on le reconnait
+  // a son identifiant, pas a son score (deux rencontres peuvent finir pareil)
+  const liste=faceAFace(m.dom, m.ext).filter(r=>r.id!==m.id);
+  if(!liste.length) return '';
+  let gd=0, gn=0, ge=0;
+  liste.forEach(r=>{
+    const memeSens = memeEquipe(r.dom, m.dom);
+    const butsDom = memeSens ? r.h : r.a;
+    const butsExt = memeSens ? r.a : r.h;
+    if(butsDom>butsExt) gd++; else if(butsDom<butsExt) ge++; else gn++;
+  });
+  const court=(n)=>{ const c=clubDeNom(n); return c.length>18 ? c.slice(0,17)+'\u2026' : c; };
+  const bilan = `${gd} \u2013 ${gn} \u2013 ${ge}`;
+  const recents = liste.slice(0,3).map(r=>{
+    const memeSens = memeEquipe(r.dom, m.dom);
+    const butsDom = memeSens ? r.h : r.a;
+    const butsExt = memeSens ? r.a : r.h;
+    const cls = butsDom>butsExt ? 'v' : (butsDom<butsExt ? 'd' : '');
+    const an = r.saison && r.saison!==SAISON_DEFAUT ? ' <small>'+esc(r.saison)+'</small>' : '';
+    return `<span class="h2h-r ${cls}"><b>${butsDom} - ${butsExt}</b> <small>${esc(r.quoi)}</small>${an}</span>`;
+  }).join('');
+  const reste = liste.length>3 ? `<span class="h2h-plus">+${liste.length-3}</span>` : '';
+  return `<div class="h2h" title="Victoires de ${esc(court(m.dom))} \u2013 nuls \u2013 victoires de ${esc(court(m.ext))}">
+    \u2694\ufe0f Face \u00e0 face <span class="h2h-bilan">${bilan}</span> ${recents}${reste}</div>`;
+}
+
+/* ===== Onglet « A voir » =====
+   Rassemble tous les matchs qui ont une date, toutes competitions confondues, dans
+   l'ordre du calendrier. Trois filtres combinables : departement, periode, favoris.
+   Les filtres vivent le temps de la visite, ils ne sont pas sauvegardes. */
+const AV = {dept:"", periode:"tous", favs:false, choisis:false};
+const AV_JOURS=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+const AV_MOIS=["janvier","f\u00e9vrier","mars","avril","mai","juin","juillet","ao\u00fbt",
+               "septembre","octobre","novembre","d\u00e9cembre"];
+function avJour(iso){
+  const d=new Date(iso+"T12:00:00");
+  if(isNaN(d.getTime())) return iso;
+  // majuscule sur le seul jour : « Samedi 15 aout », pas « Samedi 15 Aout »
+  const jour=AV_JOURS[d.getDay()];
+  return `${jour.charAt(0).toUpperCase()}${jour.slice(1)} ${d.getDate()} ${AV_MOIS[d.getMonth()]} ${d.getFullYear()}`;
+}
+function avAujourdhui(){
+  const d=new Date();
+  return d.getFullYear()+"-"+calPad(d.getMonth()+1)+"-"+calPad(d.getDate());
+}
+function avDansNJours(n){
+  const d=new Date(); d.setDate(d.getDate()+n);
+  return d.getFullYear()+"-"+calPad(d.getMonth()+1)+"-"+calPad(d.getDate());
+}
+/* Le week-end qui vient. Si on est samedi ou dimanche, c'est celui-ci. */
+function avWeekEnd(){
+  const d=new Date(), j=d.getDay();
+  const versSamedi = (j===0) ? -1 : (6-j);
+  const sam=new Date(d); sam.setDate(d.getDate()+versSamedi);
+  const dim=new Date(sam); dim.setDate(sam.getDate()+1);
+  const f=x=>x.getFullYear()+"-"+calPad(x.getMonth()+1)+"-"+calPad(x.getDate());
+  return [f(sam), f(dim)];
+}
+function avDeptSortie(s){
+  return deptDepuisCp(s.cp) || deptDuClub(s.dom) || "";
+}
+function avGarde(s){
+  if(AV.choisis && !(state.aVoir||{})[s.cle]) return false;
+  if(AV.favs){
+    const favs=state.favs||[];
+    if(!favs.includes(s.dom) && !favs.includes(s.ext)) return false;
+  }
+  if(AV.dept && avDeptSortie(s)!==AV.dept) return false;
+  if(AV.periode==="avenir" && s.date < avAujourdhui()) return false;
+  if(AV.periode==="semaine"){
+    if(s.date < avAujourdhui() || s.date > avDansNJours(7)) return false;
+  }
+  if(AV.periode==="we"){
+    const [a,b]=avWeekEnd();
+    if(s.date < a || s.date > b) return false;
+  }
+  return true;
+}
+function htmlAVoir(){
+  const toutes = collecterSorties().sort((x,y)=>
+    (x.date+(x.heure||"99:99")).localeCompare(y.date+(y.heure||"99:99")));
+  const deptsPresents=[...new Set(toutes.map(avDeptSortie).filter(Boolean))]
+    .sort((a,b)=>nomDept(a).localeCompare(nomDept(b),'fr'));
+  if(AV.dept && !deptsPresents.includes(AV.dept)) AV.dept="";
+
+  const vues = toutes.filter(avGarde);
+  const favs = state.favs||[];
+
+  let filtres=`<div class="av-filtres">
+    <div class="av-ligne">
+      <span class="av-lab">Quand</span>
+      ${[["tous","Tous"],["avenir","\u00c0 venir"],["we","Ce week-end"],["semaine","7 prochains jours"]]
+        .map(([v,l])=>`<button class="av-b ${AV.periode===v?'on':''}" data-avp="${v}">${l}</button>`).join("")}
+    </div>`;
+  if(deptsPresents.length>1){
+    filtres+=`<div class="av-ligne">
+      <span class="av-lab">O\u00f9</span>
+      <button class="av-b ${AV.dept===''?'on':''}" data-avd="">Partout</button>
+      ${deptsPresents.map(d=>`<button class="av-b ${AV.dept===d?'on':''}" data-avd="${esc(d)}">${esc(nomDept(d))}</button>`).join("")}
+    </div>`;
+  }
+  if(favs.length){
+    filtres+=`<div class="av-ligne">
+      <span class="av-lab">Qui</span>
+      <button class="av-b ${!AV.favs?'on':''}" data-avf="0">Toutes les \u00e9quipes</button>
+      <button class="av-b ${AV.favs?'on':''}" data-avf="1">\u2b50 Mes \u00e9quipes</button>
+    </div>`;
+  }
+  const choisis = state.aVoir||{};
+  const nbChoisis = toutes.filter(s=>choisis[s.cle]).length;
+  if(nbChoisis){
+    filtres+=`<div class="av-ligne">
+      <span class="av-lab">Ma s\u00e9lection</span>
+      <button class="av-b ${!AV.choisis?'on':''}" data-avc="0">Tous les matchs</button>
+      <button class="av-b ${AV.choisis?'on':''}" data-avc="1">\u2713 O\u00f9 je vais</button>
+      <span class="av-compte">${nbChoisis} match${nbChoisis>1?'s':''} choisi${nbChoisis>1?'s':''}</span>
+    </div>`;
+  }
+  filtres+=`</div>`;
+
+  if(!toutes.length){
+    return filtres+`<div class="av-vide"><strong>Aucun match dat\u00e9 pour l'instant.</strong><br>
+      Mets une date sur tes matchs et ils appara\u00eetront ici, rang\u00e9s par jour.</div>`;
+  }
+  if(!vues.length){
+    return filtres+`<div class="av-vide">Aucun match ne correspond \u00e0 ces filtres.<br>
+      Essaie « Tous » ou « Partout » pour en voir plus.</div>`;
+  }
+
+  let html=filtres, jourCourant="";
+  vues.forEach(s=>{
+    if(s.date!==jourCourant){
+      jourCourant=s.date;
+      html+=`<div class="av-jour">${esc(avJour(s.date))}</div>`;
+    }
+    const dept=avDeptSortie(s);
+    const lieu=[s.stade, [s.ville, dept?nomDept(dept):""].filter(Boolean).join(" \u00b7 ")]
+      .filter(Boolean);
+    const etoile=e=>favs.includes(e)?'<span class="av-fav">\u2605</span> ':'';
+    const pris=!!(state.aVoir||{})[s.cle];
+    html+=`<div class="av-carte ${pris?'choisi':''}">
+      <span class="av-h ${s.heure?'':'vide'}">${s.heure?esc(s.heure):'\u2014'}</span>
+      <span class="av-eq">${etoile(s.dom)}${esc(s.dom)} <span class="av-vs">re\u00e7oit</span> ${etoile(s.ext)}${esc(s.ext)}</span>
+      ${s.score?`<span class="av-score">${esc(s.score)}</span>`:''}
+      ${lieu.length?`<span class="av-info">${lieu.map((l,i)=>i===0?`<b>${esc(l)}</b>`:`<span>${esc(l)}</span>`).join("")}</span>`:''}
+      <button class="av-go" data-avgo="${esc(s.cle)}">${pris?'\u2713 J\'y vais':'+ J\'y vais'}</button>
+      <span class="av-ctx">${esc(s.contexte)}</span>
+    </div>`;
+  });
+  return html;
+}
+function brancherAVoir(box){
+  box.querySelectorAll('[data-avp]').forEach(b=>b.addEventListener('click',()=>{
+    AV.periode=b.dataset.avp; buildBody();
+  }));
+  box.querySelectorAll('[data-avd]').forEach(b=>b.addEventListener('click',()=>{
+    AV.dept=b.dataset.avd; buildBody();
+  }));
+  box.querySelectorAll('[data-avf]').forEach(b=>b.addEventListener('click',()=>{
+    AV.favs=b.dataset.avf==='1'; buildBody();
+  }));
+  box.querySelectorAll('[data-avc]').forEach(b=>b.addEventListener('click',()=>{
+    AV.choisis=b.dataset.avc==='1'; buildBody();
+  }));
+  box.querySelectorAll('[data-avgo]').forEach(b=>b.addEventListener('click',()=>{
+    if(!state.aVoir) state.aVoir={};
+    const cle=b.dataset.avgo;
+    if(state.aVoir[cle]) delete state.aVoir[cle]; else state.aVoir[cle]=true;
+    save(); buildBody();
+  }));
+}
+
+/* Un match de coupe = une sortie, et deux quand il se joue en aller-retour :
+   les deux manches ont leur propre date et leur propre terrain. */
+function collecterSorties(){
+  const out=[];
+  state.coupes.forEach(c=>c.tours.forEach(t=>t.matchs.forEach(m=>{
+    if(!m.dom||!m.ext) return;
+    const dt=state.dates[m.id]||{};
+    const sc=state.scores[m.id]||{};
+    if(dt.date){
+      out.push({cle:m.id, date:dt.date, heure:dt.time||"", dom:m.dom, ext:m.ext,
+        ville:m.ville||"", cp:m.cp||"", stade:m.stade||"",
+        score:(num(sc.h)&&num(sc.a))?`${sc.h} - ${sc.a}`:"",
+        contexte:`${c.nom} \u00b7 ${t.nom}${m.ar?' \u00b7 match aller':''}`});
+    }
+    if(m.ar && dt.rdate){
+      // au retour, c'est l'equipe nommee en second qui recoit
+      out.push({cle:m.id+'#retour', date:dt.rdate, heure:dt.rtime||"", dom:m.ext, ext:m.dom,
+        ville:m.rville||"", cp:m.rcp||"", stade:m.rstade||"",
+        score:(num(sc.rdom)&&num(sc.rext))?`${sc.rext} - ${sc.rdom}`:"",
+        contexte:`${c.nom} \u00b7 ${t.nom} \u00b7 match retour`});
+    }
+  })));
+  return out;
+}
+
+/* ===== Departement d'un club =====
+   Saisi a la main dans « Mes equipes », ou devine tout seul a partir du code postal
+   du terrain principal : 21000 -> 21, 97400 -> 974 (outre-mer sur trois chiffres),
+   20xxx -> 2A/2B indiscernables, on laisse alors « 20 ». */
+function deptDepuisCp(cp){
+  const c=(cp||'').replace(/\s/g,'');
+  if(!/^\d{4,5}$/.test(c)) return '';
+  const p=c.length===4 ? '0'+c : c;             // 1000 -> 01000
+  return (p.charAt(0)==='9' && p.charAt(1)==='7') ? p.slice(0,3) : p.slice(0,2);
+}
+function deptDuClub(nom){
+  const inf = biblio.equipes[clubDeNom(nom)];
+  if(!inf) return '';
+  if((inf.dept||'').trim()) return inf.dept.trim();
+  const l = (Array.isArray(inf.lieux) && inf.lieux[0]) ? inf.lieux[0] : inf;
+  return deptDepuisCp(l.cp);
+}
+/* ===== Terrains du club qui recoit =====
+   Les fiches club peuvent contenir plusieurs terrains (inf.lieux). Les anciennes
+   fiches n'ont que ville/cp/stade : on les presente alors comme un terrain unique. */
+function lieuxDuClub(nom){
+  const inf = biblio.equipes[clubDeNom(nom)];
+  if(!inf) return [];
+  if(Array.isArray(inf.lieux) && inf.lieux.length) return inf.lieux;
+  if(inf.ville||inf.cp||inf.stade) return [{id:'principal', ville:inf.ville||"", cp:inf.cp||"", stade:inf.stade||""}];
+  return [];
+}
+function ouvrirLieux(btn, nomDom, poser){
+  fermerCal();
+  const liste=lieuxDuClub(nomDom).filter(l=>l.ville||l.cp||l.stade);
+  const pop=document.createElement('div');
+  pop.className='cal-pop';
+  document.body.appendChild(pop);
+  pop.addEventListener('click', e=>e.stopPropagation());
+  if(!liste.length){
+    pop.innerHTML='<div class="lieux-vide">Aucun terrain enregistr\u00e9 pour ce club.<br>Tu peux les ajouter dans \u00ab Mes \u00e9quipes \u00bb.</div>';
+  }else{
+    pop.innerHTML='<div class="hr-lab">TERRAINS DU CLUB QUI RE\u00c7OIT</div>'
+      + liste.map((l,i)=>'<button type="button" class="lieu-opt" data-i="'+i+'">'
+          + '<b>'+esc(l.stade||'(stade sans nom)')+'</b>'
+          + '<span>'+esc([l.ville,l.cp].filter(Boolean).join(' \u00b7 ')||'\u2014')+'</span></button>').join('');
+    pop.querySelectorAll('.lieu-opt').forEach(b=>b.addEventListener('click',()=>{
+      poser(liste[+b.dataset.i]); fermerCal();
+    }));
+  }
+  placerPop(pop, btn);
+  setTimeout(()=>document.addEventListener('click',fermerCalAuto),0);
+}
+
+/* Place une bulle sous son bouton, en restant dans l'ecran (utile sur telephone) */
+function placerPop(pop, btn){
+  const r=btn.getBoundingClientRect();
+  const largeur=pop.offsetWidth, hauteur=pop.offsetHeight;
+  let g=r.left+window.scrollX, t=r.bottom+window.scrollY+6;
+  const maxG=window.scrollX+document.documentElement.clientWidth-largeur-8;
+  if(g>maxG) g=maxG;
+  if(g<window.scrollX+8) g=window.scrollX+8;
+  if(r.bottom+hauteur+10>document.documentElement.clientHeight && r.top-hauteur-6>0){
+    t=r.top+window.scrollY-hauteur-6;
+  }
+  pop.style.left=g+'px';
+  pop.style.top=t+'px';
+}
+
+/* ===== Horloge maison (meme principe que le calendrier) ===== */
+function ouvrirHeure(btn, inp){
+  fermerCal();
+  const pop=document.createElement('div');
+  pop.className='cal-pop';
+  document.body.appendChild(pop);
+  // un clic DANS la bulle ne doit jamais la fermer : on l'arrete ici, sinon un
+  // bouton qui redessine (fleche de mois, choix d'heure) se retrouve detache du
+  // DOM et la fermeture automatique croit que le clic venait de l'exterieur
+  pop.addEventListener('click', e=>e.stopPropagation());
+
+  let h=null, mn=0;
+  if(/^\d{1,2}:\d{2}$/.test(inp.value)){
+    const p=inp.value.split(':'); h=+p[0]; mn=+p[1];
+  }
+  function appliquer(){
+    if(h===null) return;
+    inp.value=calPad(h)+':'+calPad(mn);
+    inp.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  /* La bulle n'est construite qu'une seule fois. A chaque clic on ne fait que
+     deplacer le surlignage : reconstruire tout le contenu recreait les 36 boutons
+     sous le doigt de Joris, ce qui donne un clignotement et peut faire perdre le
+     bouton en cours de clic. */
+  function majSelection(){
+    pop.querySelectorAll('[data-h]').forEach(b=>b.classList.toggle('sel', +b.dataset.h===h));
+    pop.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('sel', +b.dataset.m===mn));
+  }
+  function construire(){
+    let heures='';
+    for(let i=0;i<24;i++){
+      heures+='<button type="button" class="cal-day" data-h="'+i+'">'+i+'</button>';
+    }
+    let mins='';
+    for(let i=0;i<60;i+=5){
+      mins+='<button type="button" class="cal-day" data-m="'+i+'">'+calPad(i)+'</button>';
+    }
+    pop.innerHTML='<div class="hr-lab">HEURE</div><div class="hr-grid">'+heures+'</div>'
+      + '<div class="hr-lab">MINUTES</div><div class="hr-grid">'+mins+'</div>'
+      + '<div class="cal-foot"><button type="button" data-vider>Effacer</button>'
+      + '<button type="button" data-ok>Terminé</button></div>';
+
+    pop.querySelectorAll('[data-h]').forEach(b=>b.addEventListener('click',()=>{
+      h=+b.dataset.h; if(mn===null) mn=0; appliquer(); majSelection();
+    }));
+    pop.querySelectorAll('[data-m]').forEach(b=>b.addEventListener('click',()=>{
+      mn=+b.dataset.m; appliquer(); majSelection();
+    }));
+    pop.querySelector('[data-vider]').addEventListener('click',()=>{
+      inp.value=''; inp.dispatchEvent(new Event('change',{bubbles:true})); fermerCal();
+    });
+    pop.querySelector('[data-ok]').addEventListener('click',fermerCal);
+    majSelection();
+  }
+  construire();
+
+  placerPop(pop, btn);
+  setTimeout(()=>document.addEventListener('click',fermerCalAuto),0);
+}
+
+/* Est-ce que Joris est en train de taper dans un champ ? (pour ne pas redessiner sous ses doigts) */
+let redessinEnAttente=false;
+let majDistanteEnAttente=null; // mise à jour du cloud reçue pendant la saisie, appliquée après
+let derniereFrappe=0;
+document.addEventListener('input', ()=>{ derniereFrappe=Date.now(); }, true);
+document.addEventListener('keydown', ()=>{ derniereFrappe=Date.now(); }, true);
+function enSaisie(){
+  // calendrier maison ouvert : on ne redessine surtout pas sous ses pieds
+  if(document.querySelector('.cal-pop')) return true;
+  const a=document.activeElement;
+  if(a && (a.tagName==='INPUT' || a.tagName==='TEXTAREA' || a.tagName==='SELECT')) return true;
+  if(Date.now()-derniereFrappe < 600) return true;
+  return false;
+}
+function appliquerRedessinEnAttente(){
+  if(enSaisie()) return;
+  // une mise à jour du cloud attendait la fin de la saisie ? on l'applique maintenant
+  if(majDistanteEnAttente){
+    const {data,stamp}=majDistanteEnAttente;
+    majDistanteEnAttente=null;
+    applyingRemote=true;
+    state=normalize(data); lastRemoteStamp=stamp;
+    lastSaved=JSON.stringify(state);
+    localStorage.setItem(STORE_KEY,lastSaved);
+    if(!curOnglet || !getCoupe(curOnglet.slice(6))) curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+    applyingRemote=false;
+    redessinEnAttente=false;
+    buildDivTabs(); buildBody();
+    return;
+  }
+  if(redessinEnAttente){
+    redessinEnAttente=false;
+    buildDivTabs(); buildBody();
+  }
+}
+document.addEventListener('focusout',()=>{ setTimeout(appliquerRedessinEnAttente,300); });
+setInterval(appliquerRedessinEnAttente, 1200);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ redessinEnAttente=true; appliquerRedessinEnAttente(); } });
+
+/* ===== Branchement des évènements du corps ===== */
+function brancherBody(){
+  const box=document.getElementById('divBody');
+  // coupes
+  box.querySelectorAll('[data-editcoupe]').forEach(b=>b.addEventListener('click',()=>ouvrirCoupeModal(b.dataset.editcoupe)));
+  // ordre d'affichage des coupes, comme pour les championnats
+  box.querySelectorAll('[data-monter],[data-descendre]').forEach(b=>b.addEventListener('click',()=>{
+    const id=b.dataset.monter || b.dataset.descendre;
+    const i=state.coupes.findIndex(c=>c.id===id);
+    if(i<0) return;
+    const j = b.dataset.monter ? i-1 : i+1;
+    if(j<0 || j>=state.coupes.length) return;
+    const tmp=state.coupes[i]; state.coupes[i]=state.coupes[j]; state.coupes[j]=tmp;
+    save(); buildDivTabs(); buildBody();
+  }));
+  // navigation d'un tour a l'autre
+  const versTour=(cid, n)=>{
+    const c=getCoupe(cid); if(!c) return;
+    let i=curTour[cid];
+    if(typeof i!=='number' || i<0 || i>=c.tours.length) i=c.tours.length-1;
+    curTour[cid]=Math.max(0, Math.min(c.tours.length-1, i+n));
+    buildBody();
+  };
+  box.querySelectorAll('[data-tprev]').forEach(b=>b.addEventListener('click',()=>versTour(b.dataset.tprev,-1)));
+  box.querySelectorAll('[data-tnext]').forEach(b=>b.addEventListener('click',()=>versTour(b.dataset.tnext,+1)));
+  box.querySelectorAll('[data-taller]').forEach(b=>b.addEventListener('click',()=>{
+    curTour[b.dataset.taller]=+b.dataset.i; buildBody();
+  }));
+  box.querySelectorAll('[data-delcoupe]').forEach(b=>b.addEventListener('click',()=>supprimerCoupe(b.dataset.delcoupe)));
+  box.querySelectorAll('[data-addtour]').forEach(b=>b.addEventListener('click',()=>ouvrirTourModal(b.dataset.addtour,null)));
+  box.querySelectorAll('[data-edittour]').forEach(b=>b.addEventListener('click',()=>{
+    const t=getTour(b.dataset.edittour); ouvrirTourModal(coupeDuTour(t.id).id, t.id);
+  }));
+  box.querySelectorAll('[data-deltour]').forEach(b=>b.addEventListener('click',()=>supprimerTour(b.dataset.deltour)));
+  box.querySelectorAll('[data-addmatch]').forEach(b=>b.addEventListener('click',()=>ouvrirMatchModal(b.dataset.addmatch)));
+  box.querySelectorAll('[data-delmatch]').forEach(b=>b.addEventListener('click',()=>supprimerMatchCoupe(b.dataset.delmatch)));
+  box.querySelectorAll('[data-editteam]').forEach(el=>el.addEventListener('click',(e)=>{
+    if(e.target.closest('input')) return; // ne pas déclencher si on clique dans un champ
+    editerEquipesMatch(el.dataset.editteam);
+  }));
+  box.querySelectorAll('[data-vuec]').forEach(b=>b.addEventListener('click',()=>{
+    curVue[b.dataset.c]=b.dataset.vuec; buildBody();
+  }));
+  box.querySelectorAll('[data-champc]').forEach(b=>b.addEventListener('click',()=>{
+    const c=getCoupe(b.dataset.c);
+    c.champs[b.dataset.champc]=!c.champs[b.dataset.champc];
+    if(curVue[c.id]==='buteurs' && !c.champs.buts) curVue[c.id]='matchs';
+    save(); buildBody();
+  }));
+  box.querySelectorAll('[data-smodec]').forEach(b=>b.addEventListener('click',()=>{
+    const c=getCoupe(b.dataset.smodec); if(!c) return;
+    c.sanctions = b.dataset.val;
+    save(); buildBody();
+  }));
+  box.querySelectorAll('[data-pmodec]').forEach(b=>b.addEventListener('click',()=>{
+    const c=getCoupe(b.dataset.pmodec); if(!c) return;
+    c.pronoMode = b.dataset.val;
+    save(); buildBody();
+  }));
+  box.querySelectorAll('button[data-prv]').forEach(b=>b.addEventListener('click',()=>{
+    const id=b.dataset.prv;
+    if(!state.pronos[id]) state.pronos[id]={};
+    // recliquer sur le meme choix l'annule
+    state.pronos[id].r = (state.pronos[id].r===b.dataset.v) ? "" : b.dataset.v;
+    save(); buildBody();
+  }));
+  box.querySelectorAll('input.tin-tab').forEach(inp=>inp.addEventListener('input',()=>{
+    const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
+    state.scores[id][inp.dataset.c]=inp.value; save(); majVainqueur(id);
+  }));
+  box.querySelectorAll('input.pin').forEach(inp=>inp.addEventListener('change',()=>{
+    const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
+    state.scores[id][inp.dataset.c] = inp.type==="checkbox" ? inp.checked : inp.value;
+    save(); buildBody();
+  }));
+  box.querySelectorAll('input.prin').forEach(inp=>inp.addEventListener('input',()=>{
+    const id=inp.dataset.id; if(!state.pronos[id]) state.pronos[id]={};
+    state.pronos[id][inp.dataset.side]=inp.value; save(); majProno(id);
+  }));
+  // division
+  // scores
+  box.querySelectorAll('button.ar-btn').forEach(b=>b.addEventListener('click',e=>{
+    e.preventDefault(); e.stopPropagation();
+    const m=trouverMatchCoupe(b.dataset.ar); if(!m) return;
+    if(m.ar){
+      // on repasse en match simple : les scores du retour ne servent plus a rien
+      const sc=state.scores[m.id];
+      if(sc && (num(sc.rdom)||num(sc.rext))
+         && !confirm("Repasser en match simple ?\n\nLes scores du match retour seront effac\u00e9s.")) return;
+      m.ar=false;
+      if(sc){ delete sc.rdom; delete sc.rext; }
+      delete m.rville; delete m.rcp; delete m.rstade;
+      const dt=state.dates[m.id];
+      if(dt){ delete dt.rdate; delete dt.rtime; }
+    }else{
+      m.ar=true;
+    }
+    save(); buildBody();
+  }));
+  box.querySelectorAll('input.sc').forEach(inp=>inp.addEventListener('input',()=>{
+    const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
+    state.scores[id][inp.dataset.side]=inp.value; save(); majVainqueur(id); majProno(id);
+  }));
+  // dates / heures
+  box.querySelectorAll('[data-inv]').forEach(b=>b.addEventListener('click',()=>{
+    const m=trouverMatchCoupe(b.dataset.inv); if(!m) return;
+    [m.dom,m.ext]=[m.ext,m.dom];
+    [m.divh,m.diva]=[m.diva,m.divh];
+    const sc=state.scores[m.id];
+    if(sc){ [sc.h,sc.a]=[sc.a,sc.h]; [sc.tabh,sc.taba]=[sc.taba,sc.tabh]; [sc.cjh,sc.cja]=[sc.cja,sc.cjh]; [sc.crh,sc.cra]=[sc.cra,sc.crh]; [sc.forfh,sc.forfa]=[sc.forfa,sc.forfh]; }
+    const pr=state.pronos[m.id]; if(pr){ [pr.h,pr.a]=[pr.a,pr.h]; }
+    save(); buildBody();
+  }));
+  box.querySelectorAll('input.div-in').forEach(inp=>inp.addEventListener('input',()=>{
+    const m=trouverMatchCoupe(inp.dataset.id);
+    if(m) m[inp.dataset.c]=inp.value;
+    save();
+  }));
+  box.querySelectorAll('button.lieu-btn').forEach(b=>b.addEventListener('click',e=>{
+    e.preventDefault(); e.stopPropagation();
+    const m=trouverMatchCoupe(b.dataset.lieux); if(!m) return;
+    // au retour, c'est l'equipe nommee en second qui recoit
+    const retour = b.dataset.cote==='ext';
+    const hote = retour ? m.ext : m.dom;
+    if(!hote) return;
+    ouvrirLieux(b, hote, (l)=>{
+      if(retour){ m.rville=l.ville||""; m.rcp=l.cp||""; m.rstade=l.stade||""; }
+      else      { m.ville =l.ville||""; m.cp =l.cp||""; m.stade =l.stade||""; }
+      save(); buildBody();
+    });
+  }));
+  box.querySelectorAll('input.lieu-in').forEach(inp=>{
+    // pendant la frappe : on enregistre juste dans le match
+    inp.addEventListener('input',()=>{
+      const m=trouverMatchCoupe(inp.dataset.id);
+      if(m) m[inp.dataset.c]=inp.value;
+      save();
+    });
+    // à la fin : redescente vers la fiche du club
+    inp.addEventListener('change',()=>{
+      const m=trouverMatchCoupe(inp.dataset.id); if(!m) return;
+      // les champs du retour concernent l'autre club : rville -> ville chez m.ext
+      const MANCHE_RETOUR={rville:'ville', rcp:'cp', rstade:'stade'};
+      const brut=inp.dataset.c;
+      const champ=MANCHE_RETOUR[brut]||brut;
+      const hote=MANCHE_RETOUR[brut] ? m.ext : m.dom;
+      if(hote && inp.value.trim()){
+        const club=clubDeNom(hote), info=biblio.equipes[club];
+        if(info && !info[champ]){
+          info[champ]=inp.value.trim();
+          // on garde le 1er terrain de la fiche aligne sur ville/cp/stade
+          if(Array.isArray(info.lieux) && info.lieux[0]) info.lieux[0][champ]=info[champ];
+          sauverBiblio();
+        }
+      }
+    });
+  });
+  box.querySelectorAll('input.din, input.tin').forEach(inp=>{
+    // data-f vaut date/time pour l'aller, rdate/rtime pour la manche retour
+    const champ = inp.dataset.f || (inp.classList.contains('din') ? 'date' : 'time');
+    inp.addEventListener('change',()=>{
+      const id=inp.dataset.id; if(!state.dates[id]) state.dates[id]={};
+      state.dates[id][champ]=inp.value; save();
+    });
+    // Chrome (PC comme Android) n'ouvre pas toujours le calendrier quand on clique
+    // sur la zone texte du champ, seulement sur la petite icone. On l'ouvre nous-memes.
+    // Si Chrome l'a deja ouvert (clic pile sur l'icone), showPicker leve une erreur
+    // qu'on ignore volontairement : le selecteur reste ouvert, rien ne clignote.
+  });
+  // bouton calendrier maison a cote de chaque champ date
+  box.querySelectorAll('button.cal-btn').forEach(b=>b.addEventListener('click',e=>{
+    e.preventDefault(); e.stopPropagation();
+    const inp=box.querySelector('input.din[data-id="'+b.dataset.cal+'"][data-f="'+(b.dataset.f||'date')+'"]');
+    if(inp) ouvrirCal(b, inp);
+  }));
+  // bouton horloge maison a cote de chaque champ heure
+  box.querySelectorAll('button.hr-btn').forEach(b=>b.addEventListener('click',e=>{
+    e.preventDefault(); e.stopPropagation();
+    const inp=box.querySelector('input.tin[data-id="'+b.dataset.hr+'"][data-f="'+(b.dataset.f||'time')+'"]');
+    if(inp) ouvrirHeure(b, inp);
+  }));
+  // buteurs
+  box.querySelectorAll('input.bin').forEach(inp=>inp.addEventListener('input',()=>{
+    const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
+    state.scores[id].buts=inp.value; save();
+  }));
+  // cartons
+  box.querySelectorAll('input.cin').forEach(inp=>inp.addEventListener('input',()=>{
+    const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
+    state.scores[id][inp.dataset.c]=inp.value; save();
+  }));
+  // pénalités / forfaits
+  box.querySelectorAll('input.pin').forEach(inp=>inp.addEventListener('change',()=>{
+    const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
+    state.scores[id][inp.dataset.c] = inp.type==="checkbox" ? inp.checked : inp.value;
+    save(); buildBody();
+  }));
+}
+
+/* ===== Modale tour ===== */
+let tourEnCours=null, coupeDuTourEnCours=null;
+function ouvrirTourModal(coupeId, tourId){
+  coupeDuTourEnCours=coupeId; tourEnCours=tourId;
+  const t = tourId ? getTour(tourId) : null;
+  document.getElementById('tourModalTitle').textContent = t ? "Renommer le tour" : "Nouveau tour";
+  document.getElementById('tourName').value = t ? t.nom : "";
+  // suggestions de noms de tours pas encore utilisés
+  const c = getCoupe(coupeId) || coupeDuTour(tourId);
+  const dejaPris = c.tours.map(x=>x.nom);
+  const dispo = TOURS_SUGGERES.filter(n=>!dejaPris.includes(n));
+  document.getElementById('tourSuggest').innerHTML = dispo.length
+    ? `<span class="sg-lab">Cliquer pour choisir :</span>`+dispo.map(n=>`<button class="sg" data-tn="${esc(n)}">${esc(n)}</button>`).join("")
+    : "";
+  document.getElementById('tourSuggest').querySelectorAll('.sg').forEach(b=>b.addEventListener('click',()=>{
+    document.getElementById('tourName').value=b.dataset.tn;
+  }));
+  document.getElementById('tourModal').hidden=false;
+  document.getElementById('tourName').focus();
+}
+document.getElementById('tourSave').addEventListener('click',()=>{
+  const nom=document.getElementById('tourName').value.trim();
+  if(!nom){ alert("Écris un nom de tour (ex. 16es de finale)."); return; }
+  if(tourEnCours){ getTour(tourEnCours).nom=nom; }
+  else{ getCoupe(coupeDuTourEnCours).tours.push({id:uid(),nom,matchs:[]}); }
+  save(); document.getElementById('tourModal').hidden=true; buildBody();
+});
+document.getElementById('tourCancel').addEventListener('click',()=>document.getElementById('tourModal').hidden=true);
+document.getElementById('tourClose').addEventListener('click',()=>document.getElementById('tourModal').hidden=true);
+
+function supprimerCoupe(cid){
+  const c=getCoupe(cid);
+  if(!confirm(`Supprimer la coupe « ${c.nom} » et tous ses tours ?\n\nAttention : ses scores seront perdus.`)) return;
+  c.tours.forEach(t=>t.matchs.forEach(m=>{ delete state.scores[m.id]; delete state.dates[m.id]; delete state.pronos[m.id]; }));
+  state.coupes = state.coupes.filter(x=>x.id!==cid);
+  curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+  save(); buildDivTabs(); buildBody();
+}
+
+function supprimerTour(tid){
+  const t=getTour(tid);
+  if(!confirm(`Supprimer le tour « ${t.nom} » et ses matchs ?`)) return;
+  t.matchs.forEach(m=>{ delete state.scores[m.id]; delete state.dates[m.id]; delete state.pronos[m.id]; });
+  state.coupes.forEach(c=>{ c.tours=c.tours.filter(x=>x.id!==tid); });
+  save(); buildBody();
+}
+
+/* ===== Modale match de coupe (avec équipes cliquables) ===== */
+let tourDuMatch=null;
+let matchEnEdition=null; // si défini, on modifie ce match au lieu d'en créer un
+function ouvrirMatchModal(tourId){
+  tourDuMatch=tourId;
+  matchEnEdition=null;
+  document.getElementById('matchDom').value="";
+  document.getElementById('matchExt').value="";
+  document.getElementById('matchSave').textContent="Ajouter";
+  const titre=document.querySelector('#matchModal h2'); if(titre) titre.textContent="Ajouter un match";
+  remplirSuggestions('domSuggest','matchDom');
+  remplirSuggestions('extSuggest','matchExt');
+  brancherRechercheEquipe('matchDom','domSuggest');
+  brancherRechercheEquipe('matchExt','extSuggest');
+  document.getElementById('matchModal').hidden=false;
+  document.getElementById('matchDom').focus();
+}
+/* Rouvre la modale pour changer les équipes d'un match déjà créé */
+function editerEquipesMatch(mid){
+  const m=trouverMatchCoupe(mid);
+  if(!m) return;
+  matchEnEdition=m;
+  document.getElementById('matchDom').value=m.dom||"";
+  document.getElementById('matchExt').value=m.ext||"";
+  document.getElementById('matchSave').textContent="Valider";
+  const titre=document.querySelector('#matchModal h2'); if(titre) titre.textContent="Changer les équipes";
+  remplirSuggestions('domSuggest','matchDom');
+  remplirSuggestions('extSuggest','matchExt');
+  brancherRechercheEquipe('matchDom','domSuggest');
+  brancherRechercheEquipe('matchExt','extSuggest');
+  document.getElementById('matchModal').hidden=false;
+  document.getElementById('matchDom').focus();
+}
+function catsEquipe(nom){
+  const inf=biblio.equipes[nom];
+  return (inf && Array.isArray(inf.cats)) ? inf.cats : [];
+}
+/* Liste des choix : chaque club seul + chacune de ses équipes internes (CLUB — Catégorie Nom) */
+function listeChoixEquipes(){
+  const res=[]; // {label, club, cat}
+  toutesEquipes().forEach(club=>{
+    const dept=deptDuClub(club);
+    res.push({label:club, club, cat:"", dept}); // le club seul (compatibilité)
+    const inf=biblio.equipes[club];
+    if(inf && Array.isArray(inf.equipes)){
+      inf.equipes.forEach(eq=>{
+        const cat=(eq.cat||"").trim();
+        const type=(eq.type||"").trim();
+        // suffixe = type puis catégorie (plus de nom)
+        const bouts=[];
+        if(type) bouts.push(type);
+        if(cat && cat!==type) bouts.push(cat);
+        const suffixe=bouts.join(" ");
+        if(!suffixe) return; // rien à distinguer, on garde juste le club
+        res.push({label:`${club} — ${suffixe}`, club, cat, type, dept});
+      });
+    }
+  });
+  return res;
+}
+let sugFiltreCat={};
+let sugFiltreType={};
+let sugFiltreDept={};
+function remplirSuggestions(boxId, inputId){
+  const choix=listeChoixEquipes();
+  const box=document.getElementById(boxId);
+  if(!choix.length){ box.innerHTML=`<span class="sg-lab">Écris le nom de l'équipe.</span>`; return; }
+  const typesPresents=(biblio.typesEquipe||[]).filter(t=>choix.some(x=>x.type===t));
+  const catsPresentes=(biblio.categories||[]).filter(c=>choix.some(x=>x.cat===c));
+  const deptsPresents=[...new Set(choix.map(x=>x.dept).filter(Boolean))]
+    .sort((a,b)=>nomDept(a).localeCompare(nomDept(b),'fr'));
+  let curCat=sugFiltreCat[boxId]||"";
+  let curType=sugFiltreType[boxId]||"";
+  let curDept=sugFiltreDept[boxId]||"";
+  // On garde le dernier filtre choisi d'une ouverture a l'autre, mais seulement s'il
+  // a encore du sens ici : s'il ne correspond a aucune equipe disponible, on le
+  // relache plutot que d'afficher une liste vide sans raison.
+  if(curType && !typesPresents.includes(curType)) curType="";
+  if(curCat && !catsPresentes.includes(curCat)) curCat="";
+  if(curDept && !deptsPresents.includes(curDept)) curDept="";
+  if(!choix.some(x=>(curType===""||x.type===curType) && (curCat===""||x.cat===curCat)
+                 && (curDept===""||x.dept===curDept))){
+    curType=""; curCat=""; curDept="";
+  }
+  sugFiltreType[boxId]=curType; sugFiltreCat[boxId]=curCat; sugFiltreDept[boxId]=curDept;
+  // filtre texte : ce que Joris a tapé dans le champ
+  const tape=(document.getElementById(inputId).value||"").toLowerCase().trim();
+  // Le texte et les filtres se combinent. Si la combinaison ne laisse rien, le bouton
+  // « Tout afficher » relâche les filtres sans effacer ce que Joris a tapé.
+  const visibles = choix.filter(x=>
+    (curCat==="" || x.cat===curCat)
+    && (curType==="" || x.type===curType)
+    && (curDept==="" || x.dept===curDept)
+    && (!tape || x.label.toLowerCase().includes(tape) || x.club.toLowerCase().includes(tape)));
+  let html=`<span class="sg-lab">Tape le nom du club ci-dessus, ou clique dans la liste :</span>`;
+  if(typesPresents.length){
+    html+=`<div class="sg-catfiltre" data-row="type">
+      <span class="pick-flabel">Type :</span>
+      <button class="pcf ${curType===''?'on':''}" data-sgtype="" data-box="${boxId}">Tous</button>
+      ${typesPresents.map(t=>`<button class="pcf ${curType===t?'on':''}" data-sgtype="${esc(t)}" data-box="${boxId}">${esc(t)}</button>`).join("")}
+    </div>`;
+  }
+  if(catsPresentes.length){
+    html+=`<div class="sg-catfiltre" data-row="cat">
+      <span class="pick-flabel">Catégorie :</span>
+      <button class="pcf ${curCat===''?'on':''}" data-sgcat="" data-box="${boxId}">Toutes</button>
+      ${catsPresentes.map(c=>`<button class="pcf ${curCat===c?'on':''}" data-sgcat="${esc(c)}" data-box="${boxId}">${esc(c)}</button>`).join("")}
+    </div>`;
+  }
+  if(deptsPresents.length>1){
+    html+=`<div class="sg-catfiltre" data-row="dept">
+      <span class="pick-flabel">Département :</span>
+      <button class="pcf ${curDept===''?'on':''}" data-sgdept="" data-box="${boxId}">Tous</button>
+      ${deptsPresents.map(d=>`<button class="pcf ${curDept===d?'on':''}" data-sgdept="${esc(d)}" data-box="${boxId}">${esc(nomDept(d))}</button>`).join("")}
+    </div>`;
+  }
+  if(!visibles.length){
+    const pourTexte = tape ? ` pour « ${esc(tape)} »` : '';
+    if(curCat || curType || curDept){
+      html+=`<div class="sg-vide">Aucun club${pourTexte} avec ce filtre.
+        <button class="pick-reset" type="button" data-sgreset="${boxId}">↺ Tout afficher</button></div>`;
+    }else if(tape){
+      html+=`<div class="sg-vide">Aucun club${pourTexte}.</div>`;
+    }else{
+      html+=`<div class="sg-vide">Aucun club. Ajoute-les d'abord dans « Mes équipes ».</div>`;
+    }
+  }else{
+    html+=`<div class="sg-liste">`+visibles.map(x=>{
+      return `<button class="sg" data-eq="${esc(x.label)}" data-input="${inputId}">${htmlLogo(x.club,18)}${esc(x.label)}</button>`;
+    }).join("")+`</div>`;
+  }
+  box.innerHTML=html;
+  const rst=box.querySelector('[data-sgreset]');
+  if(rst) rst.addEventListener('click',()=>{
+    sugFiltreCat[boxId]=""; sugFiltreType[boxId]=""; sugFiltreDept[boxId]="";
+    remplirSuggestions(boxId, inputId);
+  });
+  box.querySelectorAll('.sg').forEach(b=>b.addEventListener('click',()=>{
+    document.getElementById(b.dataset.input).value=b.dataset.eq;
+    box.innerHTML=""; // on referme la liste une fois l'équipe choisie
+  }));
+  box.querySelectorAll('[data-sgdept]').forEach(b=>b.addEventListener('click',()=>{
+    sugFiltreDept[b.dataset.box]=b.dataset.sgdept;
+    remplirSuggestions(boxId, inputId);
+  }));
+  box.querySelectorAll('[data-sgcat]').forEach(b=>b.addEventListener('click',()=>{
+    sugFiltreCat[b.dataset.box]=b.dataset.sgcat;
+    remplirSuggestions(boxId, inputId);
+  }));
+  box.querySelectorAll('[data-sgtype]').forEach(b=>b.addEventListener('click',()=>{
+    sugFiltreType[b.dataset.box]=b.dataset.sgtype;
+    remplirSuggestions(boxId, inputId);
+  }));
+}
+/* Filtre en direct quand Joris tape dans le champ */
+function brancherRechercheEquipe(inputId, boxId){
+  const inp=document.getElementById(inputId);
+  if(!inp || inp.dataset.recherche) return;
+  inp.dataset.recherche="1";
+  inp.addEventListener('input',()=>remplirSuggestions(boxId, inputId));
+  inp.addEventListener('focus',()=>remplirSuggestions(boxId, inputId));
+}
+document.getElementById('matchSave').addEventListener('click',()=>{
+  const dom=document.getElementById('matchDom').value.trim();
+  const ext=document.getElementById('matchExt').value.trim();
+  if(!dom||!ext){ alert("Écris les deux équipes."); return; }
+  if(dom===ext){ alert("Une équipe ne peut pas jouer contre elle-même !"); return; }
+  if(matchEnEdition){
+    // on modifie les équipes du match existant
+    matchEnEdition.dom=dom; matchEnEdition.ext=ext;
+    // remonter ville/cp/stade du club qui reçoit si le match ne les a pas encore
+    const infoDom = biblio.equipes[clubDeNom(dom)];
+    if(infoDom){
+      if(infoDom.ville && !matchEnEdition.ville) matchEnEdition.ville=infoDom.ville;
+      if(infoDom.cp && !matchEnEdition.cp) matchEnEdition.cp=infoDom.cp;
+      if(infoDom.stade && !matchEnEdition.stade) matchEnEdition.stade=infoDom.stade;
+    }
+    matchEnEdition=null;
+    save(); alimenterBiblio(); document.getElementById('matchModal').hidden=true; buildBody();
+    return;
+  }
+  const t=getTour(tourDuMatch);
+  const m={id:uid(), dom, ext};
+  // le club qui reçoit (dom) : on reprend sa ville/son stade depuis Mes équipes
+  const infoDom = biblio.equipes[clubDeNom(dom)];
+  if(infoDom){
+    if(infoDom.ville && !m.ville) m.ville=infoDom.ville;
+    if(infoDom.cp && !m.cp) m.cp=infoDom.cp;
+    if(infoDom.stade && !m.stade) m.stade=infoDom.stade;
+  }
+  t.matchs.push(m);
+  save(); alimenterBiblio(); document.getElementById('matchModal').hidden=true; buildBody();
+});
+document.getElementById('matchCancel').addEventListener('click',()=>document.getElementById('matchModal').hidden=true);
+document.getElementById('matchClose').addEventListener('click',()=>document.getElementById('matchModal').hidden=true);
+
+function supprimerMatchCoupe(mid){
+  state.coupes.forEach(c=>c.tours.forEach(t=>{
+    t.matchs=t.matchs.filter(m=>m.id!==mid);
+  }));
+  delete state.scores[mid]; delete state.dates[mid]; delete state.pronos[mid];
+  save(); buildBody();
+}
+
+/* ===== Modale division (sert aussi à renommer une coupe) ===== */
+let divEnCours=null, coupeEnCours=null, creerCoupe=false;
+function ouvrirCoupeModal(id){
+  coupeEnCours=id; divEnCours=null; creerCoupe=!id;
+  document.getElementById('divModalTitle').textContent = id ? "Renommer la coupe" : "Nouvelle coupe";
+  document.getElementById('divModalHint').textContent = "Comment s'appelle cette coupe ?";
+  document.getElementById('divName').value = id ? getCoupe(id).nom : "";
+  document.getElementById('divName').placeholder = "ex. Coupe de Bourgogne";
+  document.getElementById('divModal').hidden=false;
+  document.getElementById('divName').focus();
+}
+document.getElementById('divSave').addEventListener('click',()=>{
+  const nom=document.getElementById('divName').value.trim();
+  if(!nom){ alert("Écris un nom de coupe."); return; }
+  if(creerCoupe){
+    const c={id:uid(),nom,champs:Object.assign({},CHAMPS_COUPE_DEFAUT),tours:[]};
+    state.coupes.push(c); curOnglet='coupe:'+c.id;
+  }else{
+    getCoupe(coupeEnCours).nom=nom;
+  }
+  save(); document.getElementById('divModal').hidden=true;
+  buildDivTabs(); buildBody();
+});
+document.getElementById('divCancel').addEventListener('click',()=>document.getElementById('divModal').hidden=true);
+document.getElementById('divClose').addEventListener('click',()=>document.getElementById('divModal').hidden=true);
+document.getElementById('divName').addEventListener('keydown',e=>{
+  if(e.key==='Enter') document.getElementById('divSave').click();
+});
+/* ===== Favoris ===== */
+function buildFavsList(filtre){
+  const f=(filtre||'').toLowerCase().trim();
+  const eqs=toutesEquipes();
+  const box=document.getElementById('favsList');
+  if(!eqs.length){ box.innerHTML=`<p class="hint">Crée d'abord des poules avec des équipes.</p>`; return; }
+  const vus=eqs.filter(e=>!f || e.toLowerCase().includes(f));
+  if(!vus.length){ box.innerHTML=`<p class="favs-vide">Aucune équipe pour « ${esc((filtre||'').trim())} ».</p>`; return; }
+  box.innerHTML=vus.map(e=>`<label><input type="checkbox" data-team="${esc(e)}" ${isFav(e)?'checked':''}> ${esc(e)}</label>`).join("");
+  box.querySelectorAll('input').forEach(c=>c.addEventListener('change',()=>{
+    const t=c.dataset.team;
+    if(c.checked){ if(!state.favs.includes(t)) state.favs.push(t); }
+    else state.favs=state.favs.filter(x=>x!==t);
+    save(); buildBody();
+  }));
+}
+/* ===== Médailles ===== */
+function buildBadges(){
+  const box=document.getElementById('badgesBox'); if(!box) return;
+  let matchsJoues=0, totalButs=0, nbTours=0, nbTab=0, exploits=0, forfaits=0;
+  const clubsAvecLogo=Object.values(biblio.equipes||{}).filter(e=>e.logo).length;
+  state.coupes.forEach(c=>c.tours.forEach(t=>{
+    if(t.matchs.length>0) nbTours++;
+    t.matchs.forEach(m=>{
+      const sc=state.scores[m.id];
+      if(sc && num(sc.h) && num(sc.a) && m.dom && m.ext){
+        matchsJoues++;
+        totalButs += (+sc.h)+(+sc.a);
+        if(+sc.h===+sc.a && num(sc.tabh) && num(sc.taba)) nbTab++;
+        // exploit : le vainqueur a une division "plus faible" (numéro plus grand) que le perdant
+        const v=vainqueurCoupe(m,c);
+        if(v){
+          const dv = v===m.dom ? m.divh : m.diva;
+          const dp = v===m.dom ? m.diva : m.divh;
+          const nv=parseInt((dv||'').replace(/\D/g,'')), np=parseInt((dp||'').replace(/\D/g,''));
+          if(nv && np && nv>np) exploits++;
+        }
+      }
+      if(sc && (sc.forfh||sc.forfa)) forfaits++;
+    });
+  }));
+  const favs=(state.favs||[]).length;
+
+  const BADGES=[
+    {ic:"⚽",titre:"Premiers pas",desc:"Noter ton 1er match de coupe",ok:matchsJoues>=1},
+    {ic:"🗂️",titre:"Le tirage",desc:"Créer ton 1er tour",ok:nbTours>=1},
+    {ic:"🔥",titre:"Ça avance",desc:"Noter 10 matchs",ok:matchsJoues>=10},
+    {ic:"💪",titre:"Assidu",desc:"Noter 30 matchs",ok:matchsJoues>=30},
+    {ic:"🏟️",titre:"Grand tournoi",desc:"Créer 5 tours",ok:nbTours>=5},
+    {ic:"⭐",titre:"Supporter",desc:"Choisir une équipe favorite",ok:favs>=1},
+    {ic:"🎽",titre:"Collectionneur",desc:"Mettre 5 logos de clubs",ok:clubsAvecLogo>=5},
+    {ic:"🥅",titre:"Séance de tirs",desc:"Un match décidé aux tirs au but",ok:nbTab>=1},
+    {ic:"😮",titre:"L'exploit !",desc:"Une petite équipe sort une plus grosse",ok:exploits>=1},
+    {ic:"⚽",titre:"Festival de buts",desc:"100 buts notés au total",ok:totalButs>=100},
+    {ic:"🚫",titre:"Forfait",desc:"Noter un forfait",ok:forfaits>=1},
+    {ic:"👑",titre:"Marathon",desc:"Noter 50 matchs de coupe",ok:matchsJoues>=50},
+  ];
+  const gagnes=BADGES.filter(b=>b.ok).length;
+  document.getElementById('badgeProgress').innerHTML=
+    `<div class="bp-count">${gagnes} / ${BADGES.length}</div><div class="bp-lab">médailles gagnées</div>
+     <div class="bp-bar"><div class="bp-fill" style="width:${Math.round(gagnes/BADGES.length*100)}%"></div></div>`;
+  box.innerHTML=BADGES.map(b=>`
+    <div class="badge ${b.ok?'on':'off'}">
+      <div class="b-ic">${b.ok?b.ic:'🔒'}</div>
+      <div class="b-titre">${b.titre}</div>
+      <div class="b-desc">${b.desc}</div>
+    </div>`).join("");
+}
+document.getElementById('btnBadges').addEventListener('click',()=>{ buildBadges(); document.getElementById('badgesModal').hidden=false; });
+document.getElementById('badgesClose').addEventListener('click',()=>document.getElementById('badgesModal').hidden=true);
+document.getElementById('badgesDone').addEventListener('click',()=>document.getElementById('badgesModal').hidden=true);
+
+document.getElementById('btnFavs').addEventListener('click',()=>{
+  document.getElementById('favsSearch').value="";
+  buildFavsList(); document.getElementById('favsModal').hidden=false;
+});
+document.getElementById('favsSearch').addEventListener('input',e=>buildFavsList(e.target.value));
+document.getElementById('favsDone').addEventListener('click',()=>document.getElementById('favsModal').hidden=true);
+document.getElementById('favsClose').addEventListener('click',()=>document.getElementById('favsModal').hidden=true);
+document.getElementById('favsClear').addEventListener('click',()=>{
+  state.favs=[]; save();
+  buildFavsList(document.getElementById('favsSearch').value);   // on garde la recherche en cours
+  buildBody();
+});
+
+/* ===== Export / Import / Reset ===== */
+document.getElementById('btnExport').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify({app:"coupes_district_2627_joris",version:2,exportedAt:new Date().toISOString(),data:state,biblio:biblio},null,1)],{type:"application/json"});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download="sauvegarde-coupes-district-joris_"+new Date().toISOString().slice(0,10)+".json";
+  a.click();
+});
+document.getElementById('btnImport').addEventListener('click',()=>document.getElementById('fileImport').click());
+document.getElementById('fileImport').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      state=normalize(d.data||d);
+      if(d.biblio && d.biblio.equipes){
+        Object.keys(d.biblio.equipes).forEach(nom=>{
+          const src=d.biblio.equipes[nom];
+          if(!biblio.equipes[nom]) biblio.equipes[nom]={logo:"",ville:""};
+          if(src.logo && !biblio.equipes[nom].logo) biblio.equipes[nom].logo=src.logo;
+          if(src.ville && !biblio.equipes[nom].ville) biblio.equipes[nom].ville=src.ville;
+        });
+        sauverBiblio();
+      }
+      recupererAnciensLogos(d.data||d);
+      curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+      save(); alimenterBiblio(); buildDivTabs(); buildBody();
+      alert("Import réussi !");
+    }catch(err){ alert("Ce fichier n'est pas une sauvegarde du carnet District."); }
+  };
+  r.readAsText(f);
+  e.target.value="";
+});
+document.getElementById('btnReset').addEventListener('click',()=>{
+  if(!confirm("Tout effacer ? Tes divisions, poules et scores seront supprimés.\n(Tes équipes favorites seront gardées.)")) return;
+  const favs=state.favs.slice();
+  state=normalize({}); state.favs=favs;
+  curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+  save(); buildDivTabs(); buildBody();
+});
+
+/* ===== Bibliothèque d'équipes partagée =====
+   Stockée à part dans Supabase (id = "equipes_district"), lue et écrite par le
+   carnet Championnat ET le carnet Coupes. Une équipe ajoutée d'un côté est
+   disponible de l'autre, avec son logo et son stade.
+   biblio = { equipes: { "Nom": {logo:"data:...", ville:"..."} } }
+*/
+const BIBLIO_ID = "equipes_district";
+const BIBLIO_KEY = "equipes_district_joris_v1";
+let biblio = chargerBiblio();
+let biblioTimer=null, biblioStamp=0, appliBiblio=false;
+
+function chargerBiblio(){
+  try{
+    const b=JSON.parse(localStorage.getItem(BIBLIO_KEY));
+    if(b && b.equipes) return b;
+  }catch(e){}
+  return {equipes:{}};
+}
+/* Tant que ce carnet n'a pas reussi a lire la bibliotheque dans le cloud, il ne doit
+   RIEN y ecrire : sinon une version locale incomplete (ouverture hors ligne, cache
+   ancien) partirait ecraser ce que Joris a saisi dans « Mes equipes ». */
+let biblioLue=false;
+/* Ce carnet ne gere que les clubs (equipes, logos, lieux). Les listes de types et de
+   categories appartiennent a « Mes equipes » : on les recopie telles qu'elles sont dans
+   le cloud au moment d'ecrire, sans jamais les remplacer par notre copie, qui peut etre
+   perimee. C'est ce qui a fait disparaitre les categories U15 et U16 de Joris. */
+function fusionPourEnvoi(distant){
+  const base = (distant && typeof distant==='object') ? Object.assign({},distant) : {};
+  delete base._src;
+  const sortie = Object.assign({}, base, {equipes: Object.assign({}, base.equipes||{}, biblio.equipes||{})});
+  // on ne touche pas aux listes : celles du cloud font foi
+  if(base.typesEquipe) sortie.typesEquipe = base.typesEquipe;
+  if(base.categories)  sortie.categories  = base.categories;
+  return sortie;
+}
+function sauverBiblio(){
+  localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+  if(appliBiblio) return;
+  if(!sb || !biblioLue) return;
+  clearTimeout(biblioTimer);
+  biblioTimer=setTimeout(async()=>{
+    try{
+      // on relit juste avant d'ecrire, pour partir de la version la plus fraiche
+      const {data}=await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
+      const fusion=fusionPourEnvoi(data && data.data);
+      biblio=Object.assign({}, fusion);   // on garde localement ce qu'on vient d'apprendre
+      localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+      await sb.from('carnet').upsert({id:BIBLIO_ID,data:Object.assign({},fusion,{_src:CLIENT_ID}),updated_at:new Date().toISOString()});
+    }catch(e){}
+  },700);
+}
+/* Récupère les logos mis avant la bibliothèque (ils étaient dans state.logos).
+   Sans ça, les logos déjà posés par Joris seraient ignorés. */
+function recupererAnciensLogos(src){
+  const vieux = src && src.logos;
+  if(!vieux || typeof vieux!=='object') return false;
+  let repris=false;
+  Object.keys(vieux).forEach(nom=>{
+    const img=vieux[nom];
+    if(!img || typeof img!=='string' || !img.startsWith('data:')) return;
+    if(!biblio.equipes[nom]) biblio.equipes[nom]={logo:"",ville:""};
+    if(!biblio.equipes[nom].logo){ biblio.equipes[nom].logo=img; repris=true; }
+  });
+  if(repris) sauverBiblio();
+  return repris;
+}
+
+/* Toute équipe utilisée dans le carnet rejoint la bibliothèque toute seule */
+function alimenterBiblio(){
+  let neuf=false;
+  equipesDuCarnet().forEach(nom=>{
+    // si c'est une équipe interne (CLUB — Équipe) dont le club existe déjà, on n'ajoute rien
+    if(nom.includes(" — ")) return;
+    if(!biblio.equipes[nom]){ biblio.equipes[nom]={logo:"",ville:""}; neuf=true; }
+  });
+  if(neuf) sauverBiblio();
+}
+/* "CHENOVE — U15" -> "CHENOVE" : retrouve le club derrière une équipe interne */
+function clubDeNom(nom){
+  if(!nom) return nom;
+  if(biblio.equipes[nom]) return nom; // c'est déjà un club connu
+  const i=nom.indexOf(" — ");
+  if(i>0){ const c=nom.slice(0,i); if(biblio.equipes[c]) return c; }
+  return nom;
+}
+function equipeInfo(nom){ return biblio.equipes[clubDeNom(nom)] || {logo:"",ville:""}; }
+function nomsBiblio(){ return Object.keys(biblio.equipes).sort((a,b)=>a.localeCompare(b)); }
+
+/* Les équipes proposées = celles du carnet + celles de la bibliothèque */
+function toutesEquipes(){
+  const set=new Set(equipesDuCarnet());
+  nomsBiblio().forEach(n=>set.add(n));
+  return [...set].sort((a,b)=>a.localeCompare(b));
+}
+
+/* ===== Logos ===== */
+const LOGO_COULEURS = ["#C8102E","#1a7a3c","#1a73e8","#8a6d3b","#6b3fa0","#b06a00","#0a3d8f","#c2185b","#00838f","#5d4037"];
+function couleurEquipe(nom){
+  let h=0;
+  for(let i=0;i<nom.length;i++) h=(h*31+nom.charCodeAt(i))>>>0;
+  return LOGO_COULEURS[h % LOGO_COULEURS.length];
+}
+function initialesEquipe(nom){
+  const mots=nom.trim().split(/[\s-]+/).filter(Boolean);
+  if(!mots.length) return "?";
+  if(mots.length===1) return mots[0].slice(0,2).toUpperCase();
+  return (mots[0][0]+mots[1][0]).toUpperCase();
+}
+/* Affiche le club en principal et "Type Catégorie" en petite ligne dessous */
+function nomEquipeHtml(nom){
+  if(!nom) return "";
+  const club=clubDeNom(nom);
+  const sep=nom.indexOf(" — ");
+  const suffixe = sep>0 ? nom.slice(sep+3) : "";
+  const dept=deptDuClub(nom);
+  return `<span class="nom-lignes"><span class="nom-club">${esc(club)}</span>${suffixe?`<span class="nom-sub">${esc(suffixe)}</span>`:''}${dept?`<span class="nom-dept">📍 ${esc(nomDept(dept))}</span>`:''}</span>`;
+}
+function htmlLogo(nom, taille){
+  // 22 px paraissait riquiqui a cote des champs et des noms elargis pour le handball.
+  // On reste modeste par defaut (tableaux de classement, listes) et on agrandit
+  // franchement la ou Joris regarde : la ligne du match.
+  const t = taille || 24;
+  const club = clubDeNom(nom);
+  const src = equipeInfo(nom).logo;
+  if(src) return `<img class="lg" src="${src}" alt="" style="width:${t}px;height:${t}px">`;
+  return `<span class="lg lg-txt" style="width:${t}px;height:${t}px;background:${couleurEquipe(club)};font-size:${Math.round(t*0.4)}px">${esc(initialesEquipe(club))}</span>`;
+}
+/* Réduit l'image : sinon la bibliothèque devient lourde à synchroniser */
+function reduireImage(file, cb){
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const T=64;
+      const cv=document.createElement('canvas'); cv.width=T; cv.height=T;
+      const ctx=cv.getContext('2d');
+      const ech=Math.min(T/img.width, T/img.height);
+      const w=img.width*ech, h=img.height*ech;
+      ctx.drawImage(img,(T-w)/2,(T-h)/2,w,h);
+      cb(cv.toDataURL('image/png'));
+    };
+    img.onerror=()=>alert("Ce fichier n'est pas une image valide.");
+    img.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+/* ===== Modale de la bibliothèque ===== */
+let logoPourEquipe=null;
+function buildLogosList(){
+  const box=document.getElementById('logosList');
+  const noms=toutesEquipes();
+  if(!noms.length){
+    box.innerHTML=`<p class="hint">Aucune équipe pour l'instant. Elles s'ajouteront toutes seules quand tu en créeras, ou ajoute-les ici.</p>`;
+    return;
+  }
+  const utilisees=new Set(equipesDuCarnet());
+  box.innerHTML=noms.map(e=>{
+    const inf=equipeInfo(e);
+    return `<div class="logo-row">
+      <span class="logo-prev">${htmlLogo(e,36)}</span>
+      <span class="logo-info">
+        <span class="logo-nom">${esc(e)}${utilisees.has(e)?'':' <span class="lg-libre">(pas utilisée ici)</span>'}</span>
+        <input class="logo-ville" data-ville="${esc(e)}" placeholder="ville ou stade…" value="${esc(inf.ville||"")}">
+      </span>
+      <button class="mini" data-logoadd="${esc(e)}">${inf.logo?'Changer':'Logo'}</button>
+      ${inf.logo?`<button class="mini danger" data-logodel="${esc(e)}" title="Enlever le logo">✕</button>`:''}
+      ${!utilisees.has(e)?`<button class="mini danger" data-eqdel="${esc(e)}" title="Retirer de la bibliothèque">🗑</button>`:''}
+    </div>`;
+  }).join("");
+  box.querySelectorAll('[data-logoadd]').forEach(b=>b.addEventListener('click',()=>{
+    logoPourEquipe=b.dataset.logoadd;
+    document.getElementById('fileLogo').click();
+  }));
+  box.querySelectorAll('[data-logodel]').forEach(b=>b.addEventListener('click',()=>{
+    biblio.equipes[b.dataset.logodel].logo="";
+    sauverBiblio(); buildLogosList(); buildBody();
+  }));
+  box.querySelectorAll('[data-eqdel]').forEach(b=>b.addEventListener('click',()=>{
+    const n=b.dataset.eqdel;
+    if(!confirm(`Retirer « ${n} » de la bibliothèque ?\n\n(Elle n'est utilisée dans aucun match de ce carnet.)`)) return;
+    delete biblio.equipes[n];
+    sauverBiblio(); buildLogosList();
+  }));
+  box.querySelectorAll('[data-ville]').forEach(inp=>inp.addEventListener('input',()=>{
+    const n=inp.dataset.ville;
+    if(!biblio.equipes[n]) biblio.equipes[n]={logo:"",ville:""};
+    biblio.equipes[n].ville=inp.value;
+    sauverBiblio();
+  }));
+}
+document.getElementById('fileLogo').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  if(f && logoPourEquipe){
+    reduireImage(f, dataUrl=>{
+      if(!biblio.equipes[logoPourEquipe]) biblio.equipes[logoPourEquipe]={logo:"",ville:""};
+      biblio.equipes[logoPourEquipe].logo=dataUrl;
+      sauverBiblio(); buildLogosList(); buildBody();
+    });
+  }
+  e.target.value="";
+});
+document.getElementById('btnLogos').addEventListener('click',()=>{
+  alimenterBiblio(); buildLogosList();
+  document.getElementById('logosModal').hidden=false;
+});
+document.getElementById('logosClose').addEventListener('click',()=>document.getElementById('logosModal').hidden=true);
+document.getElementById('logosDone').addEventListener('click',()=>document.getElementById('logosModal').hidden=true);
+document.getElementById('eqAdd').addEventListener('click',()=>{
+  const n=document.getElementById('eqNouvelle').value.trim();
+  if(!n){ alert("Écris le nom de l'équipe."); return; }
+  if(biblio.equipes[n]){ alert("Cette équipe est déjà dans la bibliothèque."); return; }
+  biblio.equipes[n]={logo:"",ville:""};
+  document.getElementById('eqNouvelle').value="";
+  sauverBiblio(); buildLogosList();
+});
+
+/* Synchro de la bibliothèque (appelée depuis initSync) */
+/* Remplit ville/cp/stade des matchs déjà créés depuis la fiche du club (sans écraser) */
+function remplirLieuxManquants(){
+  let change=false;
+  state.coupes.forEach(c=>c.tours.forEach(t=>t.matchs.forEach(m=>{
+    if(!m.dom) return;
+    const info=biblio.equipes[clubDeNom(m.dom)];
+    if(!info) return;
+    ["ville","cp","stade"].forEach(champ=>{
+      if(info[champ] && !m[champ]){ m[champ]=info[champ]; change=true; }
+    });
+  })));
+  if(change) save();
+}
+async function initBiblio(){
+  if(!sb) return;
+  try{
+    const {data}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
+    biblioLue=true;   // lecture reussie : on a le droit d'ecrire a partir de maintenant
+    if(data && data.data && data.data.equipes){
+      appliBiblio=true;
+      biblio=Object.assign({},data.data); delete biblio._src;
+      biblioStamp=data.updated_at?new Date(data.updated_at).getTime():0;
+      localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+      appliBiblio=false;
+      remplirLieuxManquants();
+      buildBody();
+    }
+    alimenterBiblio();
+    sb.channel('biblio-live').on('postgres_changes',
+      {event:'*',schema:'public',table:'carnet',filter:`id=eq.${BIBLIO_ID}`},
+      (p)=>{
+        if(!p.new||!p.new.data||!p.new.data.equipes) return;
+        const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
+        if(stamp<=biblioStamp) return;
+        appliBiblio=true;
+        if(p.new.data._src===CLIENT_ID){ biblioStamp=stamp; return; } // notre propre echo
+        biblio=Object.assign({},p.new.data); delete biblio._src; biblioStamp=stamp;
+        localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+        appliBiblio=false;
+        remplirLieuxManquants();
+        buildBody();
+        if(!document.getElementById('logosModal').hidden) buildLogosList();
+      }).subscribe();
+  }catch(e){}
+}
+
+/* ===== Synchro ===== */
+function setSync(txt,cls){ const el=document.getElementById('syncStatus'); el.textContent=txt; el.className=cls||""; }
+/* Identifiant de cet onglet, tire une fois au chargement. Chaque envoi vers Supabase
+   en est tamponne (_src). A la reception, tout ce qui porte notre propre marque est
+   ignore : sans ca, quand deux envois s'enchainent, l'echo du premier revient alors
+   qu'on ne memorise que le dernier, il passe pour une modif venue d'un autre appareil,
+   et l'ancien instantane vient effacer ce que Joris vient tout juste de saisir. */
+const CLIENT_ID = Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+let dernierEnvoi="";
+function pushToCloud(){
+  if(!SYNC_ENABLED||!sb) return;
+  clearTimeout(pushTimer);
+  pushTimer=setTimeout(async()=>{
+    try{
+      setSync("↑ envoi…");
+      const envoi=Object.assign({},state,{_src:CLIENT_ID});
+      dernierEnvoi=JSON.stringify(envoi); // filet de secours, en plus du tampon _src
+      const {error}=await sb.from('carnet').upsert({id:CARNET_ID,data:envoi,updated_at:new Date().toISOString()});
+      if(error) throw error;
+      setSync("☁ synchronisé","ok");
+    }catch(e){ setSync("⚠ hors ligne","warn"); }
+  },700);
+}
+/* Va chercher dans le cloud le contenu de la saison courante. */
+async function tirerDuCloud(){
+  if(!sb) return;
+  try{
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',CARNET_ID).maybeSingle();
+    if(error) throw error;
+    if(data&&data.data){
+      recupererAnciensLogos(data.data); // logos d'avant la bibliothèque
+      const remote=normalize(data.data);
+      const localVide = !state.coupes.some(c=>c.tours.length);
+      const remoteStamp = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+      if(localVide || remoteStamp>lastRemoteStamp){
+        applyingRemote=true;
+        state=remote; lastRemoteStamp=remoteStamp;
+        lastSaved=JSON.stringify(state);
+        localStorage.setItem(STORE_KEY,lastSaved);
+        curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+        buildDivTabs(); buildBody();
+        applyingRemote=false;
+      }
+    }
+    setSync("\u2601 synchronis\u00e9","ok");
+  }catch(e){ setSync("\u26a0 synchro indisponible (hors ligne)","warn"); }
+}
+/* Le canal temps reel n'ecoute qu'une seule ligne : il faut donc le rebrancher
+   quand on change de saison, sinon on continuerait d'ecouter l'ancienne. */
+let canalCarnet=null;
+async function rebrancherCanal(){
+  if(!sb) return;
+  try{ if(canalCarnet) await sb.removeChannel(canalCarnet); }catch(e){}
+  canalCarnet = sb.channel('coupes-district-live-'+saisonCourante).on('postgres_changes',
+    {event:'*',schema:'public',table:'carnet',filter:`id=eq.${CARNET_ID}`},
+    (p)=>{
+      if(!p.new||!p.new.data) return;
+      const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
+      if(stamp<=lastRemoteStamp) return;
+      // Notre propre echo (meme onglet) : on note le passage et on ne touche a rien
+      if(p.new.data._src===CLIENT_ID){ lastRemoteStamp=stamp; return; }
+      const recu=JSON.stringify(p.new.data);
+      if(recu===dernierEnvoi){ lastRemoteStamp=stamp; return; }
+      // Si Joris est en train de taper : NE PAS toucher à state (sinon on efface sa saisie)
+      if(enSaisie()){
+        majDistanteEnAttente={data:p.new.data, stamp};
+        redessinEnAttente=true;
+        return;
+      }
+      applyingRemote=true;
+      state=normalize(p.new.data); lastRemoteStamp=stamp;
+      lastSaved=JSON.stringify(state);
+      localStorage.setItem(STORE_KEY,lastSaved);
+      if(!curOnglet || (curOnglet.startsWith('coupe:') && !state.coupes.some(c=>c.id===curOnglet.slice(6)))) curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+      buildDivTabs(); buildBody();
+      applyingRemote=false;
+    }).subscribe();
+}
+async function initSync(){
+  if(!SYNC_ENABLED||typeof supabase==="undefined"){ setSync("\u26a0 synchro indisponible (hors ligne)","warn"); return; }
+  try{
+    sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    await tirerDuCloud();
+    initBiblio();
+    await rebrancherCanal();
+    await fusionnerSaisonsCloud();
+    chargerHistorique();   // confrontations directes, lecture seule
+  }catch(e){ setSync("\u26a0 synchro indisponible (hors ligne)","warn"); }
+}
+document.getElementById('btnSync').addEventListener('click',()=>{
+  const n=state.coupes.length, nt=state.coupes.reduce((s,c)=>s+c.tours.length,0);
+  const nm=state.coupes.reduce((s,c)=>s+c.tours.reduce((x,t)=>x+t.matchs.length,0),0);
+  document.getElementById('syncInfo').innerHTML=
+    `Ton carnet contient <strong>${n}</strong> coupe${n>1?'s':''}, <strong>${nt}</strong> tour${nt>1?'s':''} et <strong>${nm}</strong> match${nm>1?'s':''}.<br><br>
+     Tu peux aussi garder une copie sur ton appareil avec « ↓ Exporter ».`;
+  document.getElementById('syncModal').hidden=false;
+});
+document.getElementById('syncClose').addEventListener('click',()=>document.getElementById('syncModal').hidden=true);
+
+/* ===== Démarrage ===== */
+dessinerSaisons(); majTitreSaison();
+curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+/* Au démarrage : on récupère les logos posés avant la bibliothèque */
+try{
+  const brut=JSON.parse(localStorage.getItem(STORE_KEY)||'{}');
+  if(recupererAnciensLogos(brut)) console.log('Logos récupérés depuis l\'ancienne version.');
+}catch(e){}
+remplirLieuxManquants();
+buildDivTabs(); buildBody(); initSync();
+</script>
+</body>
+</html>

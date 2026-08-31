@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes équipes 2026-2027 — Le carnet de Joris (v1.0)</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{ --rouge:#C8102E; --noir:#111418; --or:#C8A24B; --craie:#F5F3F0; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,sans-serif;background:var(--noir);color:#222}
+  .wrap{max-width:900px;margin:0 auto;padding:14px}
+  header{background:linear-gradient(120deg,var(--rouge),#8d0b20);border-radius:16px;padding:16px 20px;color:#fff;position:relative;overflow:hidden}
+  header .badge{position:absolute;top:14px;left:20px;background:#fff;color:var(--noir);font-weight:900;letter-spacing:2px;border-radius:8px;padding:6px 12px;font-size:.85rem}
+  header h1{margin:8px 0 2px 96px;font-size:1.5rem;letter-spacing:1px}
+  header .sub{margin-left:96px;font-size:.75rem;text-transform:uppercase;letter-spacing:3px;opacity:.85}
+  header .home{display:inline-block;margin-top:10px;background:rgba(255,255,255,.9);color:var(--noir);text-decoration:none;font-weight:bold;border-radius:20px;padding:5px 14px;font-size:.85rem}
+  header .stripes{position:absolute;bottom:0;left:0;right:0;height:5px;display:flex}
+  header .stripes i{flex:1}
+  header .stripes i:nth-child(1){background:var(--rouge)}
+  header .stripes i:nth-child(2){background:var(--noir)}
+  header .stripes i:nth-child(3){background:#fff}
+
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:12px 0}
+  #syncStatus{font-size:.78rem;border-radius:20px;padding:5px 12px;background:var(--craie);color:#666}
+  #syncStatus.ok{background:#e6f4ea;color:#1a7a1a}
+  #syncStatus.warn{background:#fdecea;color:var(--rouge)}
+  .toolbar button{border:none;border-radius:20px;padding:7px 14px;font-family:inherit;font-weight:bold;font-size:.85rem;cursor:pointer;background:var(--craie);color:var(--noir)}
+  .toolbar button:hover{background:#e8e4de}
+
+  .card{background:var(--craie);border-radius:16px;padding:18px;margin-bottom:14px}
+  .card h2{margin:0 0 4px;color:var(--rouge);font-size:1.2rem}
+  .hint{color:#777;font-size:.85rem;margin:2px 0 12px;line-height:1.5}
+
+  .eq-add{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .eq-add input{flex:1;min-width:200px;border:1.5px solid #d4d4da;border-radius:8px;padding:9px 11px;font-family:inherit;font-size:.9rem}
+  .eq-add input:focus{outline:none;border-color:var(--rouge)}
+  .act{border:none;border-radius:20px;padding:9px 18px;font-family:inherit;font-weight:bold;cursor:pointer;background:var(--rouge);color:#fff;font-size:.88rem}
+  .act.gold{background:var(--or);color:var(--noir)}
+  .act.grey{background:#888}
+
+  .recherche{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+  .recherche input{flex:1;border:1.5px solid #d4d4da;border-radius:20px;padding:8px 14px;font-family:inherit;font-size:.88rem}
+  .recherche input:focus{outline:none;border-color:var(--rouge)}
+  .compteur{font-size:.8rem;color:#888;white-space:nowrap}
+
+  .eq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:10px}
+  .eq-carte{background:#fff;border-radius:12px;padding:12px;display:flex;gap:10px;align-items:flex-start}
+  .eq-logo{flex:none;cursor:pointer;position:relative}
+  .eq-logo .chg{position:absolute;inset:0;background:rgba(0,0,0,.55);color:#fff;border-radius:50%;display:none;align-items:center;justify-content:center;font-size:.62rem;font-weight:bold;text-align:center}
+  .eq-logo:hover .chg{display:flex}
+  .eq-corps{flex:1;min-width:0}
+  .eq-nom{font-weight:bold;font-size:.92rem;word-break:break-word;margin-bottom:4px;cursor:pointer}
+  .eq-nom:hover{color:var(--rouge)}
+  .rename-ic{font-size:.75rem;opacity:.5}
+  .cat-choix{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;background:#fff;border-radius:8px;padding:8px 11px}
+  .cat-lab{font-size:.78rem;color:#888;font-weight:bold}
+  .cat-case{font-size:.82rem;display:inline-flex;align-items:center;gap:3px;cursor:pointer}
+  .eq-cats{display:flex;align-items:center;gap:4px;margin-top:5px;flex-wrap:wrap}
+  .eq-equipes{margin-top:8px;background:#f8f7f4;border-radius:8px;padding:8px}
+  .ee-titre{font-size:.74rem;color:#888;font-weight:bold;margin-bottom:5px}
+  .ee-entete{display:none}
+  .ee-ligne{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-bottom:8px;background:#fff;border-radius:8px;padding:6px}
+  .ee-nom{flex:1 1 100%;width:100%;min-width:0;border:1.5px solid #d4d4da;border-radius:6px;padding:7px 9px;font-family:inherit;font-size:.88rem;font-weight:bold}
+  .ee-nom:focus{outline:none;border-color:var(--rouge)}
+  .ee-cat{flex:1 1 auto;border:1.5px solid #d4d4da;border-radius:6px;padding:6px 6px;font-family:inherit;font-size:.82rem;background:#fafafa}
+  .ee-menus{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;width:100%;margin-top:4px}
+  .ee-mlab{display:flex;flex-direction:column;gap:2px;font-size:.68rem;color:#888;font-weight:bold;flex:1 1 auto}
+  .ee-type,.ee-menus .ee-cat{border:1.5px solid #d4d4da;border-radius:6px;padding:6px;font-family:inherit;font-size:.82rem;background:#fff}
+  .ee-gerer{border:none;background:#eef;color:#3a3a8a;border-radius:10px;padding:2px 7px;font-family:inherit;font-size:.68rem;font-weight:bold;cursor:pointer;margin-left:4px}
+  .ee-gerer:hover{background:#dde}
+  .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+  .modal-back[hidden]{display:none}
+  .modal-box{background:#fff;border-radius:16px;padding:20px;max-width:420px;width:100%;position:relative;max-height:85vh;overflow:auto}
+  .modal-box h2{margin:0 0 4px;color:var(--rouge);font-size:1.15rem}
+  .modal-x{position:absolute;top:12px;right:12px;border:none;background:#f0eeea;border-radius:50%;width:32px;height:32px;font-size:1rem;cursor:pointer}
+  .liste-ligne{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+  .liste-val{flex:1;border:1.5px solid #d4d4da;border-radius:6px;padding:7px 9px;font-family:inherit;font-size:.88rem}
+  .liste-val:focus{outline:none;border-color:var(--rouge)}
+  .liste-del{border:none;background:#fdecea;color:var(--rouge);border-radius:6px;width:30px;height:30px;font-weight:bold;cursor:pointer;flex:none}
+  .ee-fl{border:none;background:var(--craie);color:#777;border-radius:6px;width:24px;height:24px;font-size:.68rem;cursor:pointer;flex:none;font-family:inherit;padding:0;line-height:1}
+  .ee-fl:hover:not(:disabled){background:#e8e4de;color:var(--noir)}
+  .ee-fl:disabled{opacity:.25;cursor:default}
+  .ee-fleches{display:flex;flex-direction:column;gap:2px;flex:none;margin-right:2px}
+  .liste-fl{border:none;background:var(--craie);color:#666;border-radius:6px;width:26px;height:30px;font-size:.8rem;cursor:pointer;flex:none;font-family:inherit;padding:0}
+  .liste-fl:hover:not(:disabled){background:#e8e4de;color:var(--noir)}
+  .liste-fl:disabled{opacity:.25;cursor:default}
+  .liste-ajout{display:flex;gap:6px;margin-top:12px;border-top:1px solid #eee;padding-top:12px}
+  .liste-ajout input{flex:1;border:1.5px solid #d4d4da;border-radius:8px;padding:8px 10px;font-family:inherit;font-size:.88rem}
+  .liste-ajout input:focus{outline:none;border-color:var(--rouge)}
+  .ee-cat:focus{outline:none;border-color:var(--rouge)}
+  .ee-del{border:none;background:#fdecea;color:var(--rouge);border-radius:6px;width:34px;height:34px;font-weight:bold;cursor:pointer;flex:none}
+  .ee-lab-cat{font-size:.7rem;color:#aaa;font-weight:bold;flex:1 1 100%;margin-bottom:-2px}
+  .ee-add{border:1.5px dashed #c8a24b;background:#fffaf0;color:#9a6c00;border-radius:8px;padding:5px 10px;font-family:inherit;font-size:.78rem;font-weight:bold;cursor:pointer;margin-top:2px}
+  .ee-add:hover{background:#fff3d8}
+  .cat-btn{border:1.5px solid #ddd;background:#fafafa;color:#999;border-radius:12px;padding:2px 8px;font-family:inherit;font-size:.7rem;font-weight:bold;cursor:pointer}
+  .cat-btn.on{background:#1a73e8;border-color:#1a73e8;color:#fff}
+  .eq-lieu{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px}
+  .eq-lieux{margin-bottom:6px}
+  .sport-filtre{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:-4px 0 10px}
+  .sport-filtre .sf-lab{font-size:.7rem;color:#999;font-weight:bold;letter-spacing:.4px;text-transform:uppercase}
+  .sf-b{border:1px solid #dcd9d4;background:#fff;color:#666;border-radius:14px;padding:4px 12px;font-family:inherit;font-size:.76rem;font-weight:bold;cursor:pointer}
+  .sf-b:hover{border-color:var(--or);background:#fffdf6}
+  .sf-b.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .eq-sport{display:inline-flex;gap:0;border-radius:12px;overflow:hidden;border:1px solid #e2ded8;margin-left:6px;vertical-align:middle}
+  .eq-sport button{border:none;background:#fff;color:#999;padding:2px 9px;font-family:inherit;font-size:.7rem;font-weight:bold;cursor:pointer}
+  .eq-sport button+button{border-left:1px solid #e2ded8}
+  .eq-sport button.on{background:var(--or);color:#fff}
+  .eq-dept{display:flex;align-items:center;gap:6px;margin:4px 0 8px}
+  .eq-dept label{font-size:.68rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
+  .hist-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:#fbfaf8;margin-bottom:5px;flex-wrap:wrap}
+  .hist-quand{font-size:.82rem;font-weight:bold;color:var(--noir);min-width:150px}
+  .hist-quoi{font-size:.75rem;color:#888;flex:1;min-width:150px}
+  .hist-b{border:none;background:var(--or);color:#fff;border-radius:8px;padding:5px 11px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer}
+  .hist-b:hover{filter:brightness(1.07)}
+  .hist-vide{font-size:.82rem;color:#888;padding:10px 2px}
+  .eq-dept select{max-width:230px;border:1px solid #dcd9d4;border-radius:6px;padding:4px 8px;font-family:inherit;font-size:.8rem;background:#fff}
+  .eq-dept select:focus{outline:none;border-color:var(--rouge)}
+  .lieu-tete{display:flex;align-items:center;gap:6px;margin:7px 0 3px}
+  .lieu-num{font-size:.66rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
+  .lieu-del{border:none;background:#fdeaea;color:#c0392b;border-radius:6px;width:22px;height:22px;font-size:.68rem;cursor:pointer;flex:none;line-height:1}
+  .lieu-del:hover{background:#f8d4d4}
+  .lieu-add{border:1px dashed var(--or);background:#fffdf6;color:#8a6d1f;border-radius:8px;padding:4px 10px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer;margin-top:3px}
+  .lieu-add:hover{background:#fff3d8}
+  .eq-info{border:1px solid #e4e4e8;border-radius:6px;padding:5px 8px;font-family:inherit;font-size:.8rem;color:#444}
+  .eq-info:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .eq-info[data-info="ville"]{flex:1 1 60%;min-width:0}
+  .eq-cp{flex:1 1 90px;width:90px;text-align:center}
+  .eq-info[data-info="stade"]{flex:1 1 100%;width:100%}
+  .eq-ville{width:100%;border:1px solid #e4e4e8;border-radius:6px;padding:4px 7px;font-family:inherit;font-size:.78rem;color:#555}
+  .eq-ville:focus{outline:none;border-color:var(--rouge);background:#fff7f3}
+  .eq-type{display:flex;align-items:center;gap:4px;margin-top:5px;flex-wrap:wrap}
+  .et-lab{font-size:.72rem;color:#999}
+  .et-btn{border:1.5px solid #ddd;background:#fafafa;color:#888;border-radius:14px;padding:2px 9px;font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer}
+  .et-btn.on{background:var(--rouge);border-color:var(--rouge);color:#fff}
+  .eq-ou{font-size:.72rem;color:#999;margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
+  .tag{background:#f0eeea;border-radius:10px;padding:1px 7px;font-weight:bold}
+  .tag.champ{background:#e6f4ea;color:#1a7a1a}
+  .tag.coupe{background:#fff3e0;color:#8a6d3b}
+  .tag.libre{background:#f4f4f6;color:#999}
+  .tag .tag-saison{opacity:.6;font-weight:normal}
+  .ee-ou{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0 0 2px;font-size:.72rem}
+  .ee-ou .tag{font-size:.68rem}
+  .ee-rien{font-size:.68rem;color:#bbb;font-style:italic}
+  .eq-actions{display:flex;flex-direction:column;gap:4px}
+  .mini{border:none;border-radius:14px;padding:4px 9px;font-family:inherit;font-weight:bold;font-size:.72rem;cursor:pointer;background:#f0eeea;color:var(--noir);white-space:nowrap}
+  .mini:hover{background:#e4e0da}
+  .mini.danger{background:#fdecea;color:var(--rouge)}
+
+  .lg{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;flex:none}
+  .lg-txt{color:#fff;font-weight:800;letter-spacing:-.5px}
+  img.lg{object-fit:contain;background:#fff;border:1px solid #eee}
+
+  .empty{background:#fff;border:2px dashed #ddd;border-radius:12px;padding:26px;text-align:center;color:#888}
+  .empty strong{display:block;color:var(--noir);margin-bottom:6px;font-size:1rem}
+  footer{text-align:center;color:#777;font-size:.78rem;padding:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="badge">DFCO</span>
+    <h1>MES ÉQUIPES</h1>
+    <div class="sub">Aux couleurs des Rouges de Dijon</div>
+    <a class="home" href="index.html">↩ Accueil</a>
+    <div class="stripes"><i></i><i></i><i></i></div>
+  </header>
+
+  <div class="toolbar">
+    <span id="syncStatus">…</span>
+    <button id="btnExport">↓ Exporter</button>
+    <button id="btnImport">↑ Importer</button>
+    <button id="btnHist">🕐 Versions précédentes</button>
+    <input type="file" id="fileImport" accept="application/json" hidden>
+  </div>
+
+  <div class="card">
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 23 août · ordre des équipes ✓</span></h2>
+    <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
+
+    <div class="eq-add">
+      <input type="text" id="eqNouvelle" placeholder="Ajouter un club (ex. A.S. SEURRE P.B.)" maxlength="60">
+      <button class="act gold" id="eqAdd">+ Ajouter</button>
+    </div>
+    <p class="hint" style="margin:-6px 0 12px">Une fois le club ajouté, tu pourras créer ses équipes dedans (Senior 1, U15…).</p>
+
+    <div class="recherche">
+      <input type="text" id="chercher" placeholder="🔎 Chercher un club…">
+      <span class="compteur" id="compteur"></span>
+    </div>
+    <div class="sport-filtre" id="sportFiltre"></div>
+    <div style="text-align:right;margin:-6px 0 8px">
+      <button id="btnDiag" style="background:none;border:none;color:#bbb;font-size:.7rem;cursor:pointer;text-decoration:underline">test recherche</button>
+    </div>
+    <div id="diagBox" style="display:none;background:#fff8e1;border:1px solid #e0c060;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:.8rem;color:#7a5a00"></div>
+
+    <div id="eqListe"></div>
+    <input type="file" id="fileLogo" accept="image/*" hidden>
+  </div>
+
+  <footer>Le carnet de Joris · Mes équipes 2026-2027 · version 1.0 · ⚽</footer>
+</div>
+
+<script>
+/* ===== Capteur d'erreur : affiche à l'écran tout plantage du script ===== */
+window.addEventListener('error', function(ev){
+  try{
+    let box=document.getElementById('erreurGlobale');
+    if(!box){
+      box=document.createElement('div');
+      box.id='erreurGlobale';
+      box.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c8102e;color:#fff;padding:10px 14px;font-size:13px;font-family:sans-serif';
+      document.body.appendChild(box);
+    }
+    box.textContent = '⚠️ Erreur détectée : ' + ev.message + '  (ligne ' + ev.lineno + ')';
+  }catch(e){}
+});
+
+/* ===== RECHERCHE AUTONOME (prioritaire, ne dépend de rien d'autre) =====
+   Branchée tout de suite pour qu'elle marche même si le reste du script a un souci.
+   Elle masque/affiche les cartes déjà présentes selon le texte tapé. */
+function appliquerFiltreRecherche(){
+  const champ=document.getElementById('chercher');
+  const f = champ ? (champ.value||"").toLowerCase().trim() : "";
+  const cartes = document.querySelectorAll('#eqListe .eq-carte');
+  let visibles=0, total=cartes.length;
+  cartes.forEach(function(c){
+    const nomEl = c.querySelector('.eq-nom');
+    const nom = (nomEl ? nomEl.textContent : c.textContent || "").toLowerCase();
+    const ok = (f==="" || nom.includes(f));
+    c.style.display = ok ? "" : "none";
+    if(ok) visibles++;
+  });
+  const cpt=document.getElementById('compteur');
+  if(cpt) cpt.textContent = f ? (visibles+" / "+total+" clubs") : (total+" club"+(total>1?"s":""));
+  const d=document.getElementById('diagBox');
+  if(d) d.textContent = f ? ('Recherche "'+f+'" · '+visibles+' club(s) affichés sur '+total) : ('Tous les clubs affichés ('+total+')');
+}
+document.addEventListener('input', function(e){
+  if(!e.target || e.target.id!=='chercher') return;
+  appliquerFiltreRecherche();
+}, true);
+
+/* ===== Synchro ===== */
+const SUPABASE_URL = "https://hoyxgmmbngrjigjqptnr.supabase.co";
+const SUPABASE_KEY = "sb_publishable_y9KhYDWM2zyYFC_wtbBhlQ_BcqV9CR9";
+const BIBLIO_ID  = "equipes_district";              // la bibliothèque partagée
+const BIBLIO_KEY = "equipes_district_joris_v1";
+const CHAMP_ID   = "champ_district_2627";           // pour savoir où joue chaque équipe
+const COUPES_ID  = "coupes_district_2627";
+const SAISON_DEFAUT = "2026-2027";   // la saison qui garde les identifiants d'origine
+let sb=null, biblioTimer=null, biblioStamp=0, appliBiblio=false;
+
+const TYPES_DEFAUT = ["Équipe 1","Réserve"];
+const CATS_DEFAUT = ["Senior","U18","U15","U13","U12"];
+let biblio = chargerBiblio();
+let usageChamp = new Set();   // équipes qui jouent dans le championnat
+let usageCoupes = new Set();  // équipes qui jouent dans les coupes
+let filtre = "";
+
+function esc(s){return (s||"").toString().replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function setSync(txt,cls){ const el=document.getElementById('syncStatus'); el.textContent=txt; el.className=cls||""; }
+
+function chargerBiblio(){
+  try{
+    const b=JSON.parse(localStorage.getItem(BIBLIO_KEY));
+    if(b && b.equipes){ assurerListes(b); return b; }
+  }catch(e){}
+  return {equipes:{}, typesEquipe:TYPES_DEFAUT.slice(), categories:CATS_DEFAUT.slice()};
+}
+/* Garantit que les deux listes existent (pour les anciennes sauvegardes) */
+function assurerListes(b){
+  if(!b || typeof b!=='object') return b; // sécurité : rien à faire si b est cassé
+  if(!b.equipes || typeof b.equipes!=='object') b.equipes={};
+  if(!Array.isArray(b.typesEquipe) || !b.typesEquipe.length) b.typesEquipe=TYPES_DEFAUT.slice();
+  if(!Array.isArray(b.categories) || !b.categories.length) b.categories=CATS_DEFAUT.slice();
+  return b;
+}
+/* Identifiant de cet onglet, tire une fois au chargement. Chaque envoi vers Supabase
+   en est tamponne (_src) et tout echo portant notre propre marque est ignore.
+   Sans ca, quand Joris tape vite, plusieurs envois s'enchainent : l'echo du premier
+   revient alors qu'on ne memorisait que le dernier, il passe pour une modification
+   venue d'un autre appareil, et l'ancienne version vient effacer les lettres qu'il
+   vient de taper. */
+const CLIENT_ID = Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
+let dernierEnvoiBiblio="";
+/* Meme precaution ici : pas d'ecriture tant qu'on n'a pas lu le cloud une fois.
+   « Mes equipes » reste la page qui fait autorite sur les listes (types, categories),
+   c'est la seule ou on peut les modifier, donc elle les envoie telles quelles. */
+let biblioLue=false;
+/* ===== Filet de securite : historique local de la bibliotheque =====
+   Une ligne Supabase n'a pas d'historique : ce qui est ecrase est perdu. On garde
+   donc sur l'appareil quelques photos successives de la bibliotheque, pour pouvoir
+   revenir en arriere. Les logos en sont exclus (base64, beaucoup trop lourd) : on
+   sauvegarde ce qui compte et qui se ressaisit mal -- clubs, equipes, terrains,
+   departements, types et categories. */
+const HIST_KEY = BIBLIO_KEY + ":historique";
+const HIST_MAX = 12;
+function photoBiblio(b){
+  const eq={};
+  Object.keys(b.equipes||{}).forEach(n=>{
+    const s=b.equipes[n]||{}, c={};
+    ["ville","cp","stade","dept"].forEach(k=>{ if(s[k]) c[k]=s[k]; });
+    if(Array.isArray(s.lieux) && s.lieux.length) c.lieux=s.lieux;
+    if(Array.isArray(s.equipes) && s.equipes.length) c.equipes=s.equipes;
+    eq[n]=c;
+  });
+  return {equipes:eq, typesEquipe:(b.typesEquipe||[]).slice(), categories:(b.categories||[]).slice()};
+}
+function lireHistorique(){
+  try{ const h=JSON.parse(localStorage.getItem(HIST_KEY)); if(Array.isArray(h)) return h; }catch(e){}
+  return [];
+}
+function noterHistorique(){
+  try{
+    const h=lireHistorique();
+    const photo=photoBiblio(biblio);
+    const texte=JSON.stringify(photo);
+    if(h.length && JSON.stringify(h[0].d)===texte) return;         // rien de neuf
+    const av=h.length?h[0].d:null;
+    const perte = av && (Object.keys(av.equipes).length > Object.keys(photo.equipes).length
+                      || av.categories.length > photo.categories.length
+                      || av.typesEquipe.length > photo.typesEquipe.length);
+    // on photographie au plus une fois par quart d'heure, SAUF si quelque chose a
+    // disparu : ce cas-la, c'est justement celui qu'on veut pouvoir annuler
+    const recent = h.length && (Date.now()-h[0].t < 15*60*1000);
+    if(recent && !perte) return;
+    h.unshift({t:Date.now(), d:photo});
+    localStorage.setItem(HIST_KEY, JSON.stringify(h.slice(0,HIST_MAX)));
+  }catch(e){ /* quota depasse : tant pis, on ne bloque pas la sauvegarde */ }
+}
+function quandFr(t){
+  const d=new Date(t);
+  return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})
+       + ' \u00e0 ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+function ouvrirHistorique(){
+  const h=lireHistorique();
+  const box=document.getElementById('histItems');
+  if(!h.length){
+    box.innerHTML='<p class="hist-vide">Aucune version enregistr\u00e9e pour l\'instant. '
+      + 'Le carnet en gardera une \u00e0 chaque fois que tu modifieras tes \u00e9quipes.</p>';
+  }else{
+    box.innerHTML=h.map((s,i)=>{
+      const nc=Object.keys(s.d.equipes).length;
+      const ne=Object.values(s.d.equipes).reduce((n,c)=>n+((c.equipes||[]).length),0);
+      return `<div class="hist-item">
+        <span class="hist-quand">${esc(quandFr(s.t))}${i===0?' (la plus r\u00e9cente)':''}</span>
+        <span class="hist-quoi">${nc} club${nc>1?'s':''} \u00b7 ${ne} \u00e9quipe${ne>1?'s':''} \u00b7 ${s.d.categories.length} cat\u00e9gorie${s.d.categories.length>1?'s':''} (${esc(s.d.categories.join(', '))})</span>
+        <button class="hist-b" data-hist="${i}">R\u00e9cup\u00e9rer</button>
+      </div>`;
+    }).join("");
+    box.querySelectorAll('[data-hist]').forEach(b=>b.addEventListener('click',()=>{
+      restaurerHistorique(h[+b.dataset.hist]);
+    }));
+  }
+  document.getElementById('histModal').hidden=false;
+}
+/* La restauration n'efface jamais rien : elle ne fait qu'ajouter ce qui manque. */
+function restaurerHistorique(s){
+  if(!s || !s.d) return;
+  if(!confirm(`R\u00e9cup\u00e9rer la version du ${quandFr(s.t)} ?\n\nCe qui manque sera remis. Rien de ce que tu as aujourd'hui ne sera effac\u00e9.`)) return;
+  let nc=0, ne=0, nl=0;
+  ["typesEquipe","categories"].forEach(cle=>{
+    if(!Array.isArray(biblio[cle])) biblio[cle]=[];
+    (s.d[cle]||[]).forEach(v=>{ if(v && !biblio[cle].includes(v)){ biblio[cle].push(v); nl++; } });
+  });
+  Object.keys(s.d.equipes).forEach(nom=>{
+    const src=s.d.equipes[nom];
+    if(!biblio.equipes[nom]){ biblio.equipes[nom]={logo:"",ville:""}; nc++; }
+    const cur=biblio.equipes[nom];
+    ["ville","cp","stade","dept"].forEach(k=>{ if(src[k] && !cur[k]) cur[k]=src[k]; });
+    if(Array.isArray(src.lieux) && src.lieux.length && (!Array.isArray(cur.lieux) || !cur.lieux.length)) cur.lieux=src.lieux;
+    if(Array.isArray(src.equipes) && src.equipes.length){
+      if(!Array.isArray(cur.equipes)) cur.equipes=[];
+      const sig=e=>((e.type||'')+'|'+(e.cat||'')).toLowerCase();
+      const deja=new Set(cur.equipes.map(sig));
+      src.equipes.forEach(e=>{
+        if(!e || deja.has(sig(e))) return;
+        cur.equipes.push(Object.assign({},e,{id:uid()})); deja.add(sig(e)); ne++;
+      });
+    }
+  });
+  sauverBiblio(); buildListe();
+  document.getElementById('histModal').hidden=true;
+  alert(`R\u00e9cup\u00e9ration termin\u00e9e !\n\n${nc} club(s)\n${ne} \u00e9quipe(s)\n${nl} type(s)/cat\u00e9gorie(s)`);
+}
+function sauverBiblio(){
+  localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+  noterHistorique();
+  if(appliBiblio || !sb || !biblioLue) return;
+  clearTimeout(biblioTimer);
+  biblioTimer=setTimeout(async()=>{
+    try{
+      setSync("↑ envoi…");
+      const envoi=Object.assign({},biblio,{_src:CLIENT_ID});
+      dernierEnvoiBiblio=JSON.stringify(envoi); // filet de secours, en plus du tampon _src
+      await sb.from('carnet').upsert({id:BIBLIO_ID,data:envoi,updated_at:new Date().toISOString()});
+      setSync("☁ synchronisé","ok");
+    }catch(e){ setSync("⚠ hors ligne","warn"); }
+  },700);
+}
+
+/* ===== Garde-fou anti-effacement pendant la saisie ===== */
+let redessinEnAttente=false, derniereFrappe=0;
+document.addEventListener('input', ()=>{ derniereFrappe=Date.now(); }, true);
+document.addEventListener('keydown', ()=>{ derniereFrappe=Date.now(); }, true);
+function enSaisie(){
+  const a=document.activeElement;
+  if(a && (a.tagName==='INPUT' || a.tagName==='TEXTAREA' || a.tagName==='SELECT')) return true;
+  if(Date.now()-derniereFrappe < 600) return true; // fenêtre de grâce (passage rapide entre champs)
+  return false;
+}
+function redessinerSiPossible(){
+  if(enSaisie()){ redessinEnAttente=true; return; }
+  redessinEnAttente=false; buildListe();
+}
+function appliquerRedessinEnAttente(){
+  if(redessinEnAttente && !enSaisie()){ redessinEnAttente=false; buildListe(); }
+}
+document.addEventListener('focusout',()=>{ setTimeout(appliquerRedessinEnAttente,300); });
+setInterval(appliquerRedessinEnAttente, 1200);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ redessinEnAttente=true; appliquerRedessinEnAttente(); } });
+
+/* ===== Logos ===== */
+const LOGO_COULEURS = ["#C8102E","#1a7a3c","#1a73e8","#8a6d3b","#6b3fa0","#b06a00","#0a3d8f","#c2185b","#00838f","#5d4037"];
+function couleurEquipe(nom){
+  let h=0;
+  for(let i=0;i<nom.length;i++) h=(h*31+nom.charCodeAt(i))>>>0;
+  return LOGO_COULEURS[h % LOGO_COULEURS.length];
+}
+function initialesEquipe(nom){
+  const mots=nom.trim().split(/[\s-]+/).filter(Boolean);
+  if(!mots.length) return "?";
+  if(mots.length===1) return mots[0].slice(0,2).toUpperCase();
+  return (mots[0][0]+mots[1][0]).toUpperCase();
+}
+function htmlLogo(nom, taille){
+  try{
+    const t = taille || 48;
+    const src = (biblio.equipes[nom]||{}).logo;
+    if(src) return `<img class="lg" src="${esc(src)}" alt="" style="width:${t}px;height:${t}px">`;
+    return `<span class="lg lg-txt" style="width:${t}px;height:${t}px;background:${couleurEquipe(nom)};font-size:${Math.round(t*0.36)}px">${esc(initialesEquipe(nom))}</span>`;
+  }catch(e){
+    const t = taille || 48;
+    return `<span class="lg lg-txt" style="width:${t}px;height:${t}px;background:#C8102E;font-size:${Math.round(t*0.36)}px">?</span>`;
+  }
+}
+/* Réduit l'image : sinon la bibliothèque devient lourde à synchroniser */
+function reduireImage(file, cb){
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const T=64;
+      const cv=document.createElement('canvas'); cv.width=T; cv.height=T;
+      const ctx=cv.getContext('2d');
+      const ech=Math.min(T/img.width, T/img.height);
+      const w=img.width*ech, h=img.height*ech;
+      ctx.drawImage(img,(T-w)/2,(T-h)/2,w,h);
+      cb(cv.toDataURL('image/png'));
+    };
+    img.onerror=()=>alert("Ce fichier n'est pas une image valide.");
+    img.src=r.result;
+  };
+  r.readAsDataURL(file);
+}
+
+/* ===== Affichage ===== */
+function migrerEquipes(){
+  let change=false;
+  // sécurité : si la bibliothèque n'est pas prête, on ne fait rien (évite un plantage)
+  if(!biblio || typeof biblio!=='object') return;
+  if(!biblio.equipes || typeof biblio.equipes!=='object') biblio.equipes={};
+  // 1) nettoyer les faux clubs "CLUB — Type Cat" créés par erreur (l'ancien bug)
+  Object.keys(biblio.equipes).forEach(n=>{
+    const i=n.indexOf(" — ");
+    if(i>0){
+      const vrai=n.slice(0,i);
+      // si le vrai club existe (ou existera), on supprime le doublon fantôme
+      if(biblio.equipes[vrai] || Object.keys(biblio.equipes).some(k=>k===vrai)){
+        delete biblio.equipes[n]; change=true;
+      }
+    }
+  });
+  // 2) chaque club a au moins une équipe, et on convertit l'ancien champ "nom" en "type"
+  Object.keys(biblio.equipes).forEach(n=>{
+    let inf=biblio.equipes[n];
+    // sécurité : si la valeur du club est cassée (null/undefined/pas un objet), on la répare
+    if(!inf || typeof inf!=='object'){
+      inf = {logo:"", ville:""};
+      biblio.equipes[n]=inf;
+      change=true;
+    }
+    if(!Array.isArray(inf.equipes) || !inf.equipes.length){
+      inf.equipes=[{id:uid(), type:"Équipe 1", cat:"Senior"}];
+      change=true;
+    } else {
+      inf.equipes.forEach(eq=>{
+        // ancienne équipe : elle a "nom" mais pas "type" -> on lui donne un type
+        if(eq && !eq.type){
+          eq.type = "Équipe 1";
+          delete eq.nom;
+          change=true;
+        }
+      });
+    }
+  });
+  if(change) sauverBiblio();
+}
+/* Nom des departements. La valeur stockee reste le numero (c'est lui qu'on deduit du
+   code postal), mais tout ce qui est affiche est le nom. */
+const DEPTS = {
+"01":"Ain","02":"Aisne","03":"Allier","04":"Alpes-de-Haute-Provence","05":"Hautes-Alpes",
+"06":"Alpes-Maritimes","07":"Ard\u00e8che","08":"Ardennes","09":"Ari\u00e8ge","10":"Aube",
+"11":"Aude","12":"Aveyron","13":"Bouches-du-Rh\u00f4ne","14":"Calvados","15":"Cantal",
+"16":"Charente","17":"Charente-Maritime","18":"Cher","19":"Corr\u00e8ze",
+"20":"Corse","2A":"Corse-du-Sud","2B":"Haute-Corse",
+"21":"C\u00f4te-d'Or","22":"C\u00f4tes-d'Armor","23":"Creuse","24":"Dordogne","25":"Doubs",
+"26":"Dr\u00f4me","27":"Eure","28":"Eure-et-Loir","29":"Finist\u00e8re","30":"Gard",
+"31":"Haute-Garonne","32":"Gers","33":"Gironde","34":"H\u00e9rault","35":"Ille-et-Vilaine",
+"36":"Indre","37":"Indre-et-Loire","38":"Is\u00e8re","39":"Jura","40":"Landes",
+"41":"Loir-et-Cher","42":"Loire","43":"Haute-Loire","44":"Loire-Atlantique","45":"Loiret",
+"46":"Lot","47":"Lot-et-Garonne","48":"Loz\u00e8re","49":"Maine-et-Loire","50":"Manche",
+"51":"Marne","52":"Haute-Marne","53":"Mayenne","54":"Meurthe-et-Moselle","55":"Meuse",
+"56":"Morbihan","57":"Moselle","58":"Ni\u00e8vre","59":"Nord","60":"Oise",
+"61":"Orne","62":"Pas-de-Calais","63":"Puy-de-D\u00f4me","64":"Pyr\u00e9n\u00e9es-Atlantiques",
+"65":"Hautes-Pyr\u00e9n\u00e9es","66":"Pyr\u00e9n\u00e9es-Orientales","67":"Bas-Rhin","68":"Haut-Rhin",
+"69":"Rh\u00f4ne","70":"Haute-Sa\u00f4ne","71":"Sa\u00f4ne-et-Loire","72":"Sarthe","73":"Savoie",
+"74":"Haute-Savoie","75":"Paris","76":"Seine-Maritime","77":"Seine-et-Marne","78":"Yvelines",
+"79":"Deux-S\u00e8vres","80":"Somme","81":"Tarn","82":"Tarn-et-Garonne","83":"Var",
+"84":"Vaucluse","85":"Vend\u00e9e","86":"Vienne","87":"Haute-Vienne","88":"Vosges",
+"89":"Yonne","90":"Territoire de Belfort","91":"Essonne","92":"Hauts-de-Seine",
+"93":"Seine-Saint-Denis","94":"Val-de-Marne","95":"Val-d'Oise",
+"971":"Guadeloupe","972":"Martinique","973":"Guyane","974":"La R\u00e9union","976":"Mayotte"
+};
+/* Numeros dans l'ordre officiel : 01..19, 2A, 2B, 21..95, puis outre-mer */
+const DEPTS_ORDRE = Object.keys(DEPTS).filter(c => c!=="20").sort((a,b)=>{
+  const n=x=>x==="2A"?20.1:(x==="2B"?20.2:parseFloat(x));
+  return n(a)-n(b);
+});
+function nomDept(code){
+  const c=(code||'').trim();
+  return c ? (DEPTS[c] || c) : '';
+}
+/* ===== Departement d'un club =====
+   Saisi a la main dans « Mes equipes », ou devine tout seul a partir du code postal
+   du terrain principal : 21000 -> 21, 97400 -> 974 (outre-mer sur trois chiffres),
+   20xxx -> 2A/2B indiscernables, on laisse alors « 20 ». */
+function deptDepuisCp(cp){
+  const c=(cp||'').replace(/\s/g,'');
+  if(!/^\d{4,5}$/.test(c)) return '';
+  const p=c.length===4 ? '0'+c : c;             // 1000 -> 01000
+  return (p.charAt(0)==='9' && p.charAt(1)==='7') ? p.slice(0,3) : p.slice(0,2);
+}
+function deptDuClub(nom){
+  const inf = biblio.equipes[clubDeNom(nom)];
+  if(!inf) return '';
+  if((inf.dept||'').trim()) return inf.dept.trim();
+  const l = (Array.isArray(inf.lieux) && inf.lieux[0]) ? inf.lieux[0] : inf;
+  return deptDepuisCp(l.cp);
+}
+/* ===== Terrains d'un club =====
+   Un club peut recevoir sur plusieurs terrains : terrain annexe, gymnase, commune
+   voisine... On stocke inf.lieux = [{id, ville, cp, stade}].
+   Le premier terrain est recopie dans inf.ville / inf.cp / inf.stade : les autres
+   carnets (Mondial, Ligue 1-2-3, Premier League, Serie A) ne connaissent que ces
+   trois champs et continuent donc de fonctionner sans aucune modification. */
+function assurerLieux(inf){
+  if(!inf) return [];
+  if(!Array.isArray(inf.lieux)){
+    inf.lieux = (inf.ville||inf.cp||inf.stade)
+      ? [{id:uid(), ville:inf.ville||"", cp:inf.cp||"", stade:inf.stade||""}]
+      : [];
+  }
+  if(!inf.lieux.length) inf.lieux=[{id:uid(), ville:"", cp:"", stade:""}];
+  inf.lieux.forEach(l=>{ if(!l.id) l.id=uid(); });
+  // si ville/cp/stade ont ete remplis ailleurs (import, saisie depuis un carnet),
+  // on les fait redescendre dans le terrain principal
+  const p=inf.lieux[0];
+  ["ville","cp","stade"].forEach(k=>{ if(!p[k] && inf[k]) p[k]=inf[k]; });
+  return inf.lieux;
+}
+function majLieuPrincipal(inf){
+  const l=(inf.lieux&&inf.lieux[0])||{};
+  inf.ville=l.ville||""; inf.cp=l.cp||""; inf.stade=l.stade||"";
+}
+/* Remplit le departement des clubs qui n'en ont pas encore, d'apres le code postal du
+   terrain principal. Joris n'a donc rien a saisir dans la plupart des cas, et il peut
+   toujours corriger ensuite avec la liste deroulante. Ne tourne qu'une fois par club :
+   des que inf.dept est renseigne, on n'y retouche plus. */
+function remplirDepts(){
+  let change=false;
+  Object.values(biblio.equipes||{}).forEach(inf=>{
+    if((inf.dept||'').trim()) return;
+    const l = (Array.isArray(inf.lieux) && inf.lieux[0]) ? inf.lieux[0] : inf;
+    const d = deptDepuisCp(l.cp);
+    if(d){ inf.dept=d; change=true; }
+  });
+  return change;
+}
+/* Convertit les anciennes fiches (un seul stade) en liste. Ne tourne qu'une fois. */
+function migrerLieux(){
+  let change=false;
+  Object.values(biblio.equipes||{}).forEach(inf=>{
+    const avant=JSON.stringify(inf.lieux||null);
+    assurerLieux(inf);
+    if(JSON.stringify(inf.lieux)!==avant) change=true;
+  });
+  return change;
+}
+/* ===== Sport d'un club =====
+   Le carnet est parti du football, mais Joris suit aussi du handball. Chaque club
+   porte donc son sport (inf.sport = 'foot' ou 'hand'), pour s'y retrouver dans une
+   liste qui melange les deux.
+   Devine tout seul a partir du nom : « BILLERE HANDBALL PAU PYRENEES », « ... HB ».
+   Ce qui est choisi a la main l'emporte toujours. */
+function devinerSport(nom){
+  const n=(nom||'').toUpperCase();
+  if(/HANDBALL|\bHAND\b|\bHB\b|\bH\.B\b/.test(n)) return 'hand';
+  return 'foot';
+}
+function sportDuClub(nom){
+  const inf=biblio.equipes[nom];
+  if(inf && (inf.sport==='foot' || inf.sport==='hand')) return inf.sport;
+  return devinerSport(nom);
+}
+/* Ecrit le sport devine dans les fiches qui n'en ont pas encore, une seule fois. */
+function remplirSports(){
+  let change=false;
+  Object.keys(biblio.equipes||{}).forEach(nom=>{
+    const inf=biblio.equipes[nom]; if(!inf) return;
+    if(inf.sport==='foot' || inf.sport==='hand') return;
+    inf.sport=devinerSport(nom); change=true;
+  });
+  return change;
+}
+function htmlSportClub(nom){
+  const s=sportDuClub(nom);
+  return `<span class="eq-sport" title="Sport de ce club">
+    <button data-sport="${esc(nom)}" data-val="foot" class="${s==='foot'?'on':''}" title="Football">⚽</button>
+    <button data-sport="${esc(nom)}" data-val="hand" class="${s==='hand'?'on':''}" title="Handball">🏐</button>
+  </span>`;
+}
+function buildListe(){
+  const chgLieux = migrerLieux();
+  const chgDept  = remplirDepts();
+  const chgSport = remplirSports();
+  if(chgLieux || chgDept || chgSport) sauverBiblio();
+  migrerEquipes();
+  const box=document.getElementById('eqListe');
+  // on lit toujours la valeur réelle du champ de recherche (source unique de vérité)
+  const champRech=document.getElementById('chercher');
+  filtre = champRech ? champRech.value.trim() : filtre;
+  let noms=Object.keys(biblio.equipes).sort((a,b)=>a.localeCompare(b));
+  const total=noms.length;
+  if(filtre){
+    const f=filtre.toLowerCase();
+    noms=noms.filter(n=>n.toLowerCase().includes(f));
+  }
+  if(filtreSport) noms=noms.filter(n=>sportDuClub(n)===filtreSport);
+  // la ligne de filtre ne sert que si les deux sports sont presents
+  const sportsPresents=[...new Set(Object.keys(biblio.equipes).map(sportDuClub))];
+  const zoneSport=document.getElementById('sportFiltre');
+  if(zoneSport){
+    if(sportsPresents.length>1){
+      zoneSport.innerHTML=`<span class="sf-lab">Sport</span>
+        <button class="sf-b ${filtreSport===''?'on':''}" data-sf="">Tous</button>
+        <button class="sf-b ${filtreSport==='foot'?'on':''}" data-sf="foot">⚽ Football</button>
+        <button class="sf-b ${filtreSport==='hand'?'on':''}" data-sf="hand">🏐 Handball</button>`;
+      zoneSport.querySelectorAll('[data-sf]').forEach(b=>b.addEventListener('click',()=>{
+        filtreSport=b.dataset.sf; buildListe();
+      }));
+    }else zoneSport.innerHTML='';
+  }
+  document.getElementById('compteur').textContent =
+    total ? (filtre ? `${noms.length} / ${total} clubs` : `${total} club${total>1?'s':''}`) : "";
+  if(!total){
+    box.innerHTML=`<div class="empty">
+      <strong>Aucun club pour l'instant</strong>
+      Ajoute-les ici, ou crée des matchs dans ton championnat et tes coupes : les équipes arriveront toutes seules.
+    </div>`;
+    return;
+  }
+  if(!noms.length){
+    box.innerHTML=`<div class="empty">Aucun club ne correspond à « ${esc(filtre)} ».</div>`;
+    return;
+  }
+  const nbLogos=Object.values(biblio.equipes).filter(e=>e.logo).length;
+  box.innerHTML=`<div class="eq-grid">`+noms.map(n=>{
+    const inf=biblio.equipes[n];
+    const ou = htmlUsageClub(n);
+    return `<div class="eq-carte">
+      <span class="eq-logo" data-logo="${esc(n)}" title="Cliquer pour ${inf.logo?'changer':'ajouter'} le logo">
+        ${htmlLogo(n,48)}
+        <span class="chg">${inf.logo?'changer':'+ logo'}</span>
+      </span>
+      <span class="eq-corps">
+        <div class="eq-nom" data-rename="${esc(n)}" title="Cliquer pour renommer le club">${esc(n)} <span class="rename-ic">✎</span></div>
+        ${htmlSportClub(n)}
+        <div class="eq-lieux">
+          ${assurerLieux(inf).map((l,i)=>`
+            <div class="lieu-tete">
+              <span class="lieu-num">${i===0?'Terrain principal':'Terrain '+(i+1)}</span>
+              ${i>0?`<button class="lieu-del" data-lieudel-club="${esc(n)}" data-lieudel-id="${l.id}" title="Enlever ce terrain">✕</button>`:''}
+            </div>
+            <div class="eq-lieu" data-club="${esc(n)}" data-lieu="${l.id}">
+              <input class="eq-info" data-info="ville" placeholder="🏙️ ville" value="${esc(l.ville||"")}">
+              <input class="eq-info eq-cp" data-info="cp" placeholder="code postal" value="${esc(l.cp||"")}" maxlength="5" inputmode="numeric">
+              <input class="eq-info" data-info="stade" placeholder="🏟️ nom du stade" value="${esc(l.stade||"")}">
+            </div>`).join("")}
+          <button class="lieu-add" data-addlieu="${esc(n)}">+ Ajouter un terrain</button>
+        </div>
+        <div class="eq-dept">
+          <label>Département</label>
+          <select data-dept="${esc(n)}" title="Laisse sur Automatique pour le deviner depuis le code postal">
+            <option value=""${!(inf.dept||"").trim()?' selected':''}>— non précisé —</option>
+            ${DEPTS_ORDRE.map(c=>`<option value="${c}"${(inf.dept||"").trim()===c?' selected':''}>${c} — ${esc(DEPTS[c])}</option>`).join("")}
+          </select>
+        </div>
+        <div class="eq-equipes">
+          <div class="ee-titre">Ses équipes : <button class="ee-gerer" data-gerer="types">✎ types</button> <button class="ee-gerer" data-gerer="categories">✎ catégories</button></div>
+          ${(inf.equipes||[]).map((eq,ie)=>`
+            <div class="ee-ligne" data-club="${esc(n)}" data-eqid="${eq.id}">
+              <div class="ee-menus">
+                <span class="ee-fleches">
+                  <button class="ee-fl" data-eqmont="${esc(n)}" data-i="${ie}" title="Monter cette équipe" ${ie===0?'disabled':''}>▲</button>
+                  <button class="ee-fl" data-eqdesc="${esc(n)}" data-i="${ie}" title="Descendre cette équipe" ${ie===(inf.equipes||[]).length-1?'disabled':''}>▼</button>
+                </span>
+                <label class="ee-mlab">Type
+                  <select class="ee-type" data-eqfield="type">
+                    <option value="">—</option>
+                    ${(biblio.typesEquipe||[]).map(t=>`<option ${eq.type===t?'selected':''}>${esc(t)}</option>`).join("")}
+                  </select>
+                </label>
+                <label class="ee-mlab">Catégorie
+                  <select class="ee-cat" data-eqfield="cat">
+                    <option value="">—</option>
+                    ${(biblio.categories||[]).map(c=>`<option ${eq.cat===c?'selected':''}>${esc(c)}</option>`).join("")}
+                  </select>
+                </label>
+                <button class="ee-del" data-eqdel-club="${esc(n)}" data-eqdel-id="${eq.id}" title="Enlever cette équipe">✕</button>
+              </div>
+              ${htmlUsageEquipe(n, eq)}
+            </div>`).join("")}
+          <button class="ee-add" data-addeq="${esc(n)}">+ Ajouter une équipe</button>
+        </div>
+        <div class="eq-ou">${ou}</div>
+      </span>
+      <span class="eq-actions">
+        ${inf.logo?`<button class="mini danger" data-logodel="${esc(n)}" title="Enlever le logo">✕ logo</button>`:''}
+        ${!(usageDetail.get(n)||[]).length?`<button class="mini danger" data-eqdel="${esc(n)}" title="Supprimer ce club">🗑</button>`:''}
+      </span>
+    </div>`;
+  }).join("")+`</div>
+  <p class="hint" style="margin-top:12px">${nbLogos} club${nbLogos>1?'s ont':' a'} un logo sur ${total}. Les clubs utilisés dans un match ne peuvent pas être supprimés.</p>`;
+  brancher();
+  // après chaque reconstruction, on réapplique le filtre de recherche pour rester cohérent
+  if(typeof appliquerFiltreRecherche==='function') appliquerFiltreRecherche();
+}
+
+/* Type d'une équipe : "1" ou "reserve". Deviné (chiffre à la fin), corrigeable. */
+function typeEquipe(nom){
+  const inf=biblio.equipes[nom];
+  if(inf && inf.type) return inf.type;
+  return /\s\d+$/.test((nom||'').trim()) ? 'reserve' : '1';
+}
+
+let logoPourEquipe=null;
+/* ===== Gestion des listes types / catégories ===== */
+let listeCourante=null; // 'types' ou 'categories'
+function cléListe(quoi){ return quoi==='types' ? 'typesEquipe' : 'categories'; }
+function ouvrirGestionListe(quoi){
+  listeCourante=quoi;
+  const est= quoi==='types';
+  document.getElementById('listeTitre').textContent = est ? "Gérer les types d'équipe" : "Gérer les catégories";
+  document.getElementById('listeHint').textContent = est
+    ? "Ces types (Équipe 1, Réserve…) servent pour toutes tes équipes."
+    : "Ces catégories (Senior, U18…) servent pour toutes tes équipes.";
+  document.getElementById('listeNouveau').value="";   // pas de reste de la fois d'avant
+  dessinerListe();
+  document.getElementById('listeModal').hidden=false;
+}
+function dessinerListe(){
+  const cle=cléListe(listeCourante);
+  const arr=biblio[cle]||[];
+  document.getElementById('listeItems').innerHTML = arr.map((v,i)=>`
+    <div class="liste-ligne">
+      <button class="liste-fl" data-mont="${i}" title="Monter" ${i===0?'disabled':''}>▲</button>
+      <button class="liste-fl" data-desc="${i}" title="Descendre" ${i===arr.length-1?'disabled':''}>▼</button>
+      <input class="liste-val" data-i="${i}" value="${esc(v)}">
+      <button class="liste-del" data-i="${i}" title="Supprimer">✕</button>
+    </div>`).join("") || `<div class="hint">Aucune valeur. Ajoute-en une ci-dessous.</div>`;
+  // l'ordre de cette liste est celui des menus deroulants dans les fiches club :
+  // Joris peut donc ranger Senior, U18, U15, U13 dans l'ordre qui lui parle
+  document.querySelectorAll('[data-mont],[data-desc]').forEach(b=>b.addEventListener('click',()=>{
+    const i = b.dataset.mont!==undefined ? +b.dataset.mont : +b.dataset.desc;
+    const j = b.dataset.mont!==undefined ? i-1 : i+1;
+    const l = biblio[cle];
+    if(!l || j<0 || j>=l.length) return;
+    const t=l[i]; l[i]=l[j]; l[j]=t;
+    sauverBiblio(); dessinerListe(); buildListe();
+  }));
+  // éditer une valeur (renommer)
+  document.querySelectorAll('.liste-val').forEach(inp=>inp.addEventListener('input',()=>{
+    biblio[cle][+inp.dataset.i]=inp.value;
+    sauverBiblio();
+  }));
+  // supprimer
+  document.querySelectorAll('.liste-del').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.i;
+    if(confirm(`Supprimer « ${biblio[cle][i]} » de la liste ?`)){
+      biblio[cle].splice(i,1); sauverBiblio(); dessinerListe(); buildListe();
+    }
+  }));
+}
+/* Ajoute ce qui est tapé dans le champ. Renvoie false si rien n'a été ajouté. */
+function ajouterValeurListe(silencieux){
+  const champ=document.getElementById('listeNouveau');
+  const cle=cléListe(listeCourante);
+  const v=champ.value.trim();
+  if(!v) return false;
+  if(!Array.isArray(biblio[cle])) biblio[cle]=[];
+  if(biblio[cle].includes(v)){
+    if(!silencieux) alert("Cette valeur existe déjà.");
+    champ.value="";
+    return false;
+  }
+  biblio[cle].push(v);
+  champ.value="";
+  sauverBiblio(); dessinerListe(); buildListe();
+  return true;
+}
+function brancherModaleListes(){
+  document.getElementById('listeAdd').addEventListener('click',()=>ajouterValeurListe(false));
+  document.getElementById('listeNouveau').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('listeAdd').click(); });
+  document.getElementById('btnHist').addEventListener('click',ouvrirHistorique);
+  document.getElementById('histClose').addEventListener('click',()=>document.getElementById('histModal').hidden=true);
+  document.getElementById('listeClose').addEventListener('click',()=>{
+    // Ce qui est tapé sans avoir cliqué sur « + Ajouter » était perdu en silence :
+    // on demande plutôt à Joris ce qu'il veut en faire avant de fermer.
+    const v=document.getElementById('listeNouveau').value.trim();
+    if(v && confirm(`Tu as écrit « ${v} » sans l'ajouter.\n\nOK pour l'ajouter, Annuler pour l'abandonner.`)){
+      ajouterValeurListe(true);
+    }
+    document.getElementById('listeNouveau').value="";
+    document.getElementById('listeModal').hidden=true; buildListe();
+  });
+}
+
+function brancher(){
+  document.querySelectorAll('[data-logo]').forEach(el=>el.addEventListener('click',()=>{
+    logoPourEquipe=el.dataset.logo;
+    document.getElementById('fileLogo').click();
+  }));
+  document.querySelectorAll('[data-logodel]').forEach(b=>b.addEventListener('click',()=>{
+    biblio.equipes[b.dataset.logodel].logo="";
+    sauverBiblio(); buildListe();
+  }));
+  document.querySelectorAll('[data-eqdel]').forEach(b=>b.addEventListener('click',()=>{
+    const n=b.dataset.eqdel;
+    if(!confirm(`Supprimer « ${n} » ?\n\n(Ce club ne joue aucun match, tu peux le remettre plus tard.)`)) return;
+    delete biblio.equipes[n];
+    sauverBiblio(); buildListe();
+  }));
+  document.querySelectorAll('.eq-lieu').forEach(row=>{
+    const n=row.dataset.club, lid=row.dataset.lieu;
+    row.querySelectorAll('[data-info]').forEach(inp=>inp.addEventListener('input',()=>{
+      const inf=biblio.equipes[n]; if(!inf) return;
+      const l=(inf.lieux||[]).find(x=>x.id===lid); if(!l) return;
+      l[inp.dataset.info]=inp.value;
+      majLieuPrincipal(inf);   // le 1er terrain reste lisible par les autres carnets
+      sauverBiblio();          // pas de redessin : Joris garde le curseur ou il est
+    }));
+  });
+  document.querySelectorAll('[data-sport]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();   // sinon on declenche le renommage du club
+    const inf=biblio.equipes[b.dataset.sport]; if(!inf) return;
+    inf.sport=b.dataset.val;
+    sauverBiblio(); buildListe();
+  }));
+  document.querySelectorAll('[data-dept]').forEach(sel=>sel.addEventListener('change',()=>{
+    const inf=biblio.equipes[sel.dataset.dept]; if(!inf) return;
+    inf.dept=sel.value.trim();   // vide = automatique, devine depuis le code postal
+    sauverBiblio();
+  }));
+  document.querySelectorAll('[data-addlieu]').forEach(b=>b.addEventListener('click',()=>{
+    const inf=biblio.equipes[b.dataset.addlieu]; if(!inf) return;
+    assurerLieux(inf).push({id:uid(), ville:"", cp:"", stade:""});
+    sauverBiblio(); buildListe();
+  }));
+  document.querySelectorAll('[data-lieudel-id]').forEach(b=>b.addEventListener('click',()=>{
+    const inf=biblio.equipes[b.dataset.lieudelClub]; if(!inf) return;
+    inf.lieux=(inf.lieux||[]).filter(l=>l.id!==b.dataset.lieudelId);
+    assurerLieux(inf); majLieuPrincipal(inf);
+    sauverBiblio(); buildListe();
+  }));
+  // éditer le nom ou la catégorie d'une équipe interne
+  document.querySelectorAll('.ee-ligne').forEach(ligne=>{
+    const club=ligne.dataset.club, eqid=ligne.dataset.eqid;
+    ligne.querySelectorAll('[data-eqfield]').forEach(ch=>{
+      const evt = ch.tagName==='SELECT' ? 'change' : 'input';
+      ch.addEventListener(evt,()=>{
+        const eq=(biblio.equipes[club].equipes||[]).find(e=>e.id===eqid);
+        if(eq){ eq[ch.dataset.eqfield]=ch.value; sauverBiblio(); }
+      });
+    });
+  });
+  // ajouter une équipe au club
+  // ordre des equipes A L'INTERIEUR d'un club : Joris range ses U13 ensemble, etc.
+  document.querySelectorAll('[data-eqmont],[data-eqdesc]').forEach(b=>b.addEventListener('click',()=>{
+    const nom = b.dataset.eqmont || b.dataset.eqdesc;
+    const inf = biblio.equipes[nom]; if(!inf || !Array.isArray(inf.equipes)) return;
+    const i = +b.dataset.i;
+    const j = b.dataset.eqmont!==undefined ? i-1 : i+1;
+    if(j<0 || j>=inf.equipes.length) return;
+    const t=inf.equipes[i]; inf.equipes[i]=inf.equipes[j]; inf.equipes[j]=t;
+    sauverBiblio(); buildListe();
+  }));
+  document.querySelectorAll('[data-addeq]').forEach(b=>b.addEventListener('click',()=>{
+    const club=b.dataset.addeq;
+    if(!biblio.equipes[club]) return;
+    if(!Array.isArray(biblio.equipes[club].equipes)) biblio.equipes[club].equipes=[];
+    biblio.equipes[club].equipes.push({id:uid(), type:"Équipe 1", cat:"Senior"});
+    sauverBiblio(); buildListe();
+  }));
+  // gérer les listes (types / catégories)
+  document.querySelectorAll('[data-gerer]').forEach(b=>b.addEventListener('click',()=>{
+    ouvrirGestionListe(b.dataset.gerer);
+  }));
+  // enlever une équipe
+  document.querySelectorAll('[data-eqdel-id]').forEach(b=>b.addEventListener('click',()=>{
+    const club=b.dataset.eqdelClub, eqid=b.dataset.eqdelId;
+    const arr=biblio.equipes[club].equipes||[];
+    const eq=arr.find(e=>e.id===eqid);
+    if(eq && confirm(`Enlever l'équipe « ${[eq.type,eq.cat].filter(Boolean).join(" ")||"?"} » de ${club} ?`)){
+      biblio.equipes[club].equipes=arr.filter(e=>e.id!==eqid);
+      sauverBiblio(); buildListe();
+    }
+  }));
+  // renommer un club en cliquant sur son nom
+  document.querySelectorAll('[data-rename]').forEach(el=>el.addEventListener('click',()=>{
+    const ancien=el.dataset.rename;
+    const nouveau=(prompt("Nouveau nom du club :", ancien)||"").trim();
+    if(!nouveau || nouveau===ancien) return;
+    if(biblio.equipes[nouveau]){ alert("Un club porte déjà ce nom."); return; }
+    biblio.equipes[nouveau]=biblio.equipes[ancien];
+    delete biblio.equipes[ancien];
+    sauverBiblio(); buildListe();
+  }));
+}
+document.getElementById('fileLogo').addEventListener('change',e=>{
+  const f=e.target.files[0];
+  if(f && logoPourEquipe){
+    reduireImage(f, dataUrl=>{
+      if(!biblio.equipes[logoPourEquipe]) biblio.equipes[logoPourEquipe]={logo:"",ville:""};
+      biblio.equipes[logoPourEquipe].logo=dataUrl;
+      sauverBiblio(); buildListe();
+    });
+  }
+  e.target.value="";
+});
+document.getElementById('eqAdd').addEventListener('click',()=>{
+  const n=document.getElementById('eqNouvelle').value.trim();
+  if(!n){ alert("Écris le nom du club."); return; }
+  if(biblio.equipes[n]){ alert("Ce club est déjà dans la liste."); return; }
+  biblio.equipes[n]={logo:"",ville:"",equipes:[{id:uid(), type:"Équipe 1", cat:"Senior"}]};
+  document.getElementById('eqNouvelle').value="";
+  sauverBiblio(); buildListe();
+});
+document.getElementById('eqNouvelle').addEventListener('keydown',e=>{
+  if(e.key==='Enter') document.getElementById('eqAdd').click();
+});
+// Recherche : branchement par délégation au niveau du document.
+// Comme ça, la frappe est toujours captée, même si le champ est recréé
+// ou si l'ordre de chargement varie selon le navigateur.
+function faireRecherche(valeur){
+  filtre=(valeur||"").trim();
+  redessinEnAttente=false; // la recherche est prioritaire
+  let erreur=null;
+  try{
+    buildListe();
+  }catch(e){
+    erreur=e;
+    afficherListeSimple();
+  }
+  // diagnostic TOUJOURS actif tant qu'on cherche ce bug
+  const d=document.getElementById('diagBox');
+  if(d){
+    d.style.display='block';
+    const total=Object.keys(biblio.equipes).length;
+    const f=filtre.toLowerCase();
+    const qMatch=Object.keys(biblio.equipes).filter(x=>String(x).toLowerCase().includes(f));
+    const exemples=qMatch.slice(0,4).join(", ");
+    if(erreur){
+      d.textContent = `⚠️ Erreur : ${erreur.message} (filtre="${filtre}")`;
+    }else{
+      d.textContent = `Filtre="${filtre}" · ${qMatch.length}/${total} clubs matchent · exemples : ${exemples}`;
+    }
+  }
+}
+// Affichage minimal de secours si buildListe plante : juste les noms filtrés
+function afficherListeSimple(){
+  const box=document.getElementById('eqListe');
+  const f=filtre.toLowerCase();
+  const noms=Object.keys(biblio.equipes).filter(n=>n.toLowerCase().includes(f)).sort((a,b)=>a.localeCompare(b));
+  box.innerHTML=`<div class="eq-grid">`+noms.map(n=>
+    `<div class="eq-carte"><span class="eq-corps"><div class="eq-nom" data-rename="${esc(n)}">${esc(n)} <span class="rename-ic">✎</span></div></span></div>`
+  ).join("")+`</div>`;
+}
+document.addEventListener('input', e=>{
+  if(e.target && e.target.id==='chercher') faireRecherche(e.target.value);
+});
+document.addEventListener('change', e=>{
+  if(e.target && e.target.id==='chercher') faireRecherche(e.target.value);
+});
+document.addEventListener('keyup', e=>{
+  if(e.target && e.target.id==='chercher') faireRecherche(e.target.value);
+});
+// petit bouton "test recherche" : active un message qui montre ce que fait la recherche
+(function(){
+  const btn=document.getElementById('btnDiag');
+  if(btn) btn.addEventListener('click',()=>{
+    window.__diag = !window.__diag;
+    const d=document.getElementById('diagBox');
+    if(d){
+      d.style.display = window.__diag ? 'block' : 'none';
+      d.textContent = window.__diag ? "Mode test activé : tape un nom de club dans la case ci-dessus, tu verras ici ce qui se passe." : "";
+    }
+    btn.textContent = window.__diag ? "arrêter le test" : "test recherche";
+  });
+})();
+
+/* ===== Export / Import ===== */
+document.getElementById('btnExport').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify({app:"equipes_district_joris",version:1,exportedAt:new Date().toISOString(),biblio:biblio},null,1)],{type:"application/json"});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download="sauvegarde-mes-equipes-joris_"+new Date().toISOString().slice(0,10)+".json";
+  a.click();
+});
+document.getElementById('btnImport').addEventListener('click',()=>document.getElementById('fileImport').click());
+
+document.getElementById('fileImport').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const d=JSON.parse(r.result);
+      const bib = d.biblio || d;
+      const src = (bib && bib.equipes) ? bib.equipes : null;
+      if(!src){ alert("Ce fichier ne contient pas de liste d'équipes."); return; }
+      // Les listes voyagent aussi dans la sauvegarde : on les remet, sans rien perdre
+      // de ce qui existe deja (union). C'est ce qui manquait pour retrouver U15/U16.
+      let nl=0;
+      [["typesEquipe"],["categories"]].forEach(([cle])=>{
+        if(!Array.isArray(bib[cle])) return;
+        if(!Array.isArray(biblio[cle])) biblio[cle]=[];
+        bib[cle].forEach(v=>{ if(v && !biblio[cle].includes(v)){ biblio[cle].push(v); nl++; } });
+      });
+      let n=0, ne=0;
+      Object.keys(src).forEach(nom=>{
+        if(!biblio.equipes[nom]) biblio.equipes[nom]={logo:"",ville:""};
+        const cur=biblio.equipes[nom], src2=src[nom];
+        if(src2.logo && !cur.logo){ cur.logo=src2.logo; n++; }
+        // on complète les champs vides depuis la sauvegarde
+        ["ville","cp","stade"].forEach(k=>{ if(src2[k] && !cur[k]) cur[k]=src2[k]; });
+        // Les equipes internes du club : on ajoute celles de la sauvegarde qui manquent,
+        // au lieu de ne les prendre que si le club n'en a aucune. Sinon l'equipe creee
+        // d'office par le carnet suffisait a bloquer toute la recuperation.
+        if(Array.isArray(src2.equipes) && src2.equipes.length){
+          if(!Array.isArray(cur.equipes)) cur.equipes=[];
+          const signature=e=>((e.type||'')+'|'+(e.cat||'')).toLowerCase();
+          const deja=new Set(cur.equipes.map(signature));
+          src2.equipes.forEach(e=>{
+            if(!e || deja.has(signature(e))) return;
+            cur.equipes.push(Object.assign({}, e, {id: uid()}));
+            deja.add(signature(e)); ne++;
+          });
+        }
+      });
+      sauverBiblio(); buildListe();
+      alert(`Import réussi !\n\n${n} logo(s) ajouté(s)\n${nl} type(s)/catégorie(s) récupéré(s)\n${ne} équipe(s) de club récupérée(s)`);
+    }catch(err){ alert("Ce fichier n'est pas une sauvegarde valide."); }
+  };
+  r.readAsText(f);
+  e.target.value="";
+});
+
+/* ===== Où joue chaque équipe ? (lecture des deux carnets) ===== */
+/* Dans les carnets, une equipe s'appelle « AJ AUXERRE \u2014 EQUIPE 1 Senior ».
+   Ici les fiches sont rangees par club : on retire donc le suffixe. */
+function clubDeNom(nom){
+  const i=(nom||'').indexOf(" \u2014 ");
+  return i>0 ? nom.slice(0,i) : (nom||'');
+}
+/* club -> liste des competitions ou il est engage.
+   Chaque entree : {type:'champ'|'coupe', libelle, saison, equipe} */
+let usageDetail = new Map();
+let filtreSport = "";   // "", "foot" ou "hand" 
+function noterUsage(club, entree){
+  if(!club) return;
+  if(!usageDetail.has(club)) usageDetail.set(club, []);
+  const l=usageDetail.get(club);
+  const cle=entree.type+'|'+entree.libelle+'|'+entree.saison+'|'+entree.equipe;
+  if(!l.some(e=>e.type+'|'+e.libelle+'|'+e.saison+'|'+e.equipe===cle)) l.push(entree);
+}
+function lireUsage(data, cible, saison){
+  if(!data) return;
+  const s=saison||'';
+  (data.divisions||[]).forEach(d=>(d.poules||[]).forEach(p=>{
+    const plusieurs=(d.poules||[]).length>1;
+    const libelle = plusieurs ? `${d.nom||'Championnat'} \u00b7 ${p.nom||''}`.trim() : (d.nom||'Championnat');
+    const vus=new Set();
+    (p.equipes||[]).forEach(e=>vus.add(e));
+    (p.matchs||[]).forEach(m=>{ if(m.dom) vus.add(m.dom); if(m.ext) vus.add(m.ext); });
+    vus.forEach(nom=>{
+      cible.add(nom);
+      noterUsage(clubDeNom(nom), {type:'champ', libelle, saison:s, equipe:nom});
+    });
+  }));
+  (data.coupes||[]).forEach(c=>{
+    const vus=new Set();
+    (c.tours||[]).forEach(t=>(t.matchs||[]).forEach(m=>{ if(m.dom) vus.add(m.dom); if(m.ext) vus.add(m.ext); }));
+    vus.forEach(nom=>{
+      cible.add(nom);
+      noterUsage(clubDeNom(nom), {type:'coupe', libelle:(c.nom||'Coupe'), saison:s, equipe:nom});
+    });
+  });
+}
+/* Lit les deux carnets, pour toutes leurs saisons. */
+async function lireTousLesCarnets(){
+  usageDetail=new Map(); usageChamp.clear(); usageCoupes.clear();
+  const lots=[[CHAMP_ID, usageChamp],[COUPES_ID, usageCoupes]];
+  for(const [base, cible] of lots){
+    let saisons=[SAISON_DEFAUT];
+    try{
+      const {data}=await sb.from('carnet').select('data').eq('id', base+':saisons').maybeSingle();
+      if(data && data.data && Array.isArray(data.data.liste)) saisons=data.data.liste;
+    }catch(e){}
+    if(!saisons.includes(SAISON_DEFAUT)) saisons.push(SAISON_DEFAUT);
+    for(const s of saisons){
+      const ligne = (s===SAISON_DEFAUT) ? base : base+':'+s;
+      try{
+        const {data}=await sb.from('carnet').select('data').eq('id',ligne).maybeSingle();
+        lireUsage(data && data.data, cible, s);
+      }catch(e){}
+    }
+  }
+}
+/* Le suffixe que les carnets accolent au nom du club : « EQUIPE 1 Senior ».
+   Meme regle que dans championnat/coupes, sinon les deux ne se reconnaitraient pas. */
+function suffixeEquipe(eq){
+  const type=(eq.type||"").trim(), cat=(eq.cat||"").trim();
+  const bouts=[];
+  if(type) bouts.push(type);
+  if(cat && cat!==type) bouts.push(cat);
+  return bouts.join(" ");
+}
+/* Les competitions d'UNE equipe precise du club. */
+function htmlUsageEquipe(club, eq){
+  const suf=suffixeEquipe(eq);
+  if(!suf) return '';
+  const attendu=(club+" \u2014 "+suf).toLowerCase();
+  const liste=(usageDetail.get(club)||[]).filter(e=>(e.equipe||'').toLowerCase()===attendu);
+  if(!liste.length) return `<div class="ee-ou"><span class="ee-rien">pas encore engag\u00e9e</span></div>`;
+  const vues=new Set(); let html="";
+  liste.slice().sort((a,b)=>(b.saison||'').localeCompare(a.saison||'') || a.libelle.localeCompare(b.libelle,'fr'))
+    .forEach(e=>{
+      const cle=e.type+'|'+e.libelle+'|'+e.saison;
+      if(vues.has(cle)) return;
+      vues.add(cle);
+      const autre = e.saison && e.saison!==SAISON_DEFAUT;
+      html += `<span class="tag ${e.type==='champ'?'champ':'coupe'}">${esc(e.libelle)}`
+            + (autre?` <span class="tag-saison">${esc(e.saison)}</span>`:'') + `</span>`;
+    });
+  return `<div class="ee-ou">${html}</div>`;
+}
+/* Les competitions rattachees au club lui-meme, c'est-a-dire celles ou il apparait
+   sans suffixe d'equipe. Les autres sont affichees sous l'equipe concernee. */
+function htmlUsageClub(club){
+  const toutes=usageDetail.get(club)||[];
+  if(!toutes.length) return `<span class="tag libre">pas encore utilis\u00e9</span>`;
+  const sansSuffixe=toutes.filter(e=>(e.equipe||'')===club);
+  if(!sansSuffixe.length) return '';
+  const vues=new Set(); let html="";
+  sansSuffixe.slice().sort((a,b)=>(b.saison||'').localeCompare(a.saison||'') || a.libelle.localeCompare(b.libelle,'fr'))
+    .forEach(e=>{
+      const cle=e.type+'|'+e.libelle+'|'+e.saison;
+      if(vues.has(cle)) return;
+      vues.add(cle);
+      const autre = e.saison && e.saison!==SAISON_DEFAUT;
+      html += `<span class="tag ${e.type==='champ'?'champ':'coupe'}">${esc(e.libelle)}`
+            + (autre?` <span class="tag-saison">${esc(e.saison)}</span>`:'') + `</span>`;
+    });
+  return html;
+}
+/* Les competitions d'un club, mises en forme pour l'affichage. */
+function htmlUsage(club){
+  const l=usageDetail.get(club)||[];
+  if(!l.length) return `<span class="tag libre">pas encore utilis\u00e9</span>`;
+  const vues=new Set(); let html="";
+  l.slice().sort((a,b)=> (b.saison||'').localeCompare(a.saison||'') || a.libelle.localeCompare(b.libelle,'fr'))
+   .forEach(e=>{
+     const cle=e.type+'|'+e.libelle+'|'+e.saison;
+     if(vues.has(cle)) return;
+     vues.add(cle);
+     const autreSaison = e.saison && e.saison!==SAISON_DEFAUT;
+     html += `<span class="tag ${e.type==='champ'?'champ':'coupe'}">${esc(e.libelle)}`
+           + (autreSaison?` <span class="tag-saison">${esc(e.saison)}</span>`:'')
+           + `</span>`;
+   });
+  return html;
+}
+/* Les équipes utilisées ailleurs rejoignent la liste toutes seules */
+function alimenter(){
+  // sécurité : si la bibliothèque n'est pas encore prête, on ne fait rien
+  if(!biblio || typeof biblio!=='object') return;
+  if(!biblio.equipes || typeof biblio.equipes!=='object') biblio.equipes={};
+  let neuf=false;
+  [...usageChamp, ...usageCoupes].forEach(brut=>{
+    const n=clubDeNom(brut);
+    if(!n) return;
+    if(!biblio.equipes[n]){ biblio.equipes[n]={logo:"",ville:"",equipes:[{id:uid(),type:"Équipe 1",cat:"Senior"}]}; neuf=true; }
+  });
+  if(neuf) sauverBiblio();
+}
+
+async function initSync(){
+  if(typeof supabase==="undefined"){ setSync("⚠ synchro indisponible (hors ligne)","warn"); buildListe(); return; }
+  try{
+    sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    // 1) la bibliothèque
+    const {data}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
+    biblioLue=true;   // lecture reussie : on a le droit d'ecrire a partir de maintenant
+    if(data && data.data && data.data.equipes){
+      appliBiblio=true;
+      biblio=Object.assign({},data.data); delete biblio._src; assurerListes(biblio);
+      biblioStamp=data.updated_at?new Date(data.updated_at).getTime():0;
+      localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+      appliBiblio=false;
+    }
+    // 2) où joue chaque équipe
+    await lireTousLesCarnets();
+    alimenter();
+    setSync("☁ synchronisé","ok");
+    buildListe();
+    // 3) rester à l'écoute
+    sb.channel('mes-equipes-live').on('postgres_changes',
+      {event:'*',schema:'public',table:'carnet'},
+      (p)=>{
+        if(!p.new || !p.new.id) return;
+        if(p.new.id===BIBLIO_ID){
+          const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
+          if(stamp<=biblioStamp) return;
+          // notre propre écho (même onglet) : on note le passage et on ne touche à rien
+          if(p.new.data && p.new.data._src===CLIENT_ID){ biblioStamp=stamp; return; }
+          const recu=JSON.stringify(p.new.data);
+          if(recu===dernierEnvoiBiblio){ biblioStamp=stamp; return; }
+          appliBiblio=true;
+          // on n'accepte les données du cloud que si elles sont valides, sinon on garde l'existant
+          if(p.new.data && typeof p.new.data==='object'){
+            const recuNet=Object.assign({},p.new.data); delete recuNet._src;
+            biblio=assurerListes(recuNet);
+          }
+          biblioStamp=stamp;
+          localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+          appliBiblio=false;
+          redessinerSiPossible();
+        }else if(String(p.new.id).indexOf(CHAMP_ID)===0 || String(p.new.id).indexOf(COUPES_ID)===0){
+          // un carnet a bouge, quelle que soit sa saison : on relit tout
+          lireTousLesCarnets().then(()=>{ alimenter(); redessinerSiPossible(); });
+        }
+      }).subscribe();
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); buildListe(); }
+}
+
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',()=>{ brancherModaleListes(); buildListe(); initSync(); });
+}else{
+  brancherModaleListes(); buildListe(); initSync();
+}
+</script>
+<div class="modal-back" id="listeModal" hidden>
+  <div class="modal-box">
+    <button class="modal-x" id="listeClose">✕</button>
+    <h2 id="listeTitre">Gérer</h2>
+    <p class="hint" id="listeHint"></p>
+    <div id="listeItems"></div>
+    <div class="liste-ajout">
+      <input type="text" id="listeNouveau" placeholder="ajouter une valeur…" maxlength="40">
+      <button class="act gold" id="listeAdd">+ Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-back" id="histModal" hidden>
+  <div class="modal-box">
+    <button class="modal-x" id="histClose">✕</button>
+    <h2>🕐 Versions précédentes</h2>
+    <p class="hint">Ton appareil garde une photo de tes équipes à chaque modification.
+      Si quelque chose a disparu, retrouve ici une version d'avant. Récupérer n'efface jamais
+      rien : ça ne fait qu'ajouter ce qui manque.</p>
+    <div id="histItems"></div>
+  </div>
+</div>
+</body>
+</html>
