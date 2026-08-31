@@ -1,0 +1,53 @@
+# Instantané quotidien des carnets, déposé dans sauvegardes/.
+# Tourne chez GitHub : ni le PC d'Olivier ni une session Claude n'ont besoin d'être allumés.
+name: Sauvegarde des carnets
+
+on:
+  schedule:
+    - cron: "15 3 * * *"      # tous les jours à 3h15 UTC
+  workflow_dispatch:           # ...et à la demande, depuis l'onglet Actions
+
+permissions:
+  contents: write
+
+jobs:
+  sauvegarder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Récupérer les carnets depuis Supabase
+        env:
+          SUPABASE_URL: https://hoyxgmmbngrjigjqptnr.supabase.co
+          # Le secret de dépôt s'il existe, sinon la clé publishable déjà présente
+          # en clair dans les pages de ce même dépôt public — aucune exposition en plus.
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'sb_publishable_y9KhYDWM2zyYFC_wtbBhlQ_BcqV9CR9' }}
+        run: |
+          set -euo pipefail
+          jour=$(date -u +%Y-%m-%d)
+          mkdir -p sauvegardes
+          curl -sS --fail \
+            -H "apikey: $SUPABASE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            "$SUPABASE_URL/rest/v1/carnet?select=*" \
+            -o "sauvegardes/carnets_$jour.json"
+          # une sauvegarde vide ou minuscule est un échec, pas une sauvegarde
+          taille=$(wc -c < "sauvegardes/carnets_$jour.json")
+          if [ "$taille" -lt 500 ]; then
+            echo "Réponse trop courte ($taille octets) — on n'écrase rien." >&2
+            exit 1
+          fi
+          cp "sauvegardes/carnets_$jour.json" sauvegardes/carnets_derniere.json
+          echo "Sauvegarde du $jour : $taille octets"
+
+      - name: Ne garder que les 30 derniers jours
+        run: |
+          ls -1t sauvegardes/carnets_20*.json | tail -n +31 | xargs -r rm --
+
+      - name: Déposer dans le dépôt
+        run: |
+          git config user.name  "Sauvegarde automatique"
+          git config user.email "actions@github.com"
+          git add sauvegardes
+          git diff --staged --quiet || git commit -m "Sauvegarde des carnets du $(date -u +%Y-%m-%d)"
+          git push
