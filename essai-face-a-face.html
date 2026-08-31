@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Essai — ce que la FFF sait de ton match</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0d1117;color:#ccc7bd;font-family:'Segoe UI',system-ui,sans-serif;padding:20px}
+  .page{max-width:900px;margin:0 auto}
+  h1{color:#C8A24B;font-size:1.4rem;margin:0 0 4px}
+  .sous{color:#8a6d3b;font-size:.9rem;margin:0 0 24px}
+  .carte{background:#111418;border:1px solid #2a2f36;border-radius:14px;padding:20px;margin-bottom:18px}
+  .carte h2{color:#C8A24B;font-size:1.05rem;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  .match{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:center}
+  .eq{font-weight:700;font-size:1.05rem;min-width:170px}
+  .sc{background:#C8A24B;color:#111418;font-weight:800;font-size:1.5rem;padding:6px 16px;border-radius:10px}
+  .info{margin-top:14px;font-size:.92rem;color:#a49b8c;text-align:center;line-height:1.7}
+  .ecart{color:#e0a63c}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  td{padding:7px 6px;border-bottom:1px solid #20252c}
+  td.d{color:#8a6d3b;white-space:nowrap;width:88px}
+  td.c{text-align:center;font-weight:700;white-space:nowrap}
+  td.k{color:#8a6d3b;font-size:.8rem;white-space:nowrap}
+  .G{color:#1a7a3c}.N{color:#8a6d3b}.P{color:#C8102E}
+  .pastilles{display:flex;gap:5px;margin-left:auto}
+  .p{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:.72rem;font-weight:800;color:#111418}
+  .p.G{background:#1a7a3c;color:#fff}.p.N{background:#8a6d3b}.p.P{background:#C8102E;color:#fff}
+  .vide{color:#8a6d3b;font-style:italic;padding:8px 0}
+  .colonnes{display:grid;gap:18px;grid-template-columns:1fr}
+  @media(min-width:760px){.colonnes{grid-template-columns:1fr 1fr}}
+  .attente{color:#8a6d3b}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>⚽ Essai : ce que la FFF sait de ce match</h1>
+  <p class="sous">Les données sont lues en direct sur l'API de la Fédération, depuis ton navigateur.</p>
+
+  <div class="carte">
+    <h2>📋 Le match tel que Joris l'a saisi</h2>
+    <div class="match">
+      <div class="eq">CHALON A.C.F.</div><div class="sc">3 – 0</div><div class="eq">A.S.C. DE PLOMBIERES</div>
+    </div>
+    <div class="info">30/08/2026 à 12:00 · Léo Lagranges 3, Chalon sur Saône (71100)</div>
+  </div>
+
+  <div class="carte">
+    <h2>🏛️ Ce que dit la FFF</h2>
+    <div id="officiel" class="attente">Lecture en cours…</div>
+  </div>
+
+  <div class="carte">
+    <h2>🤝 Se sont-ils déjà rencontrés ?</h2>
+    <div id="faceaface" class="attente">Lecture en cours…</div>
+  </div>
+
+  <div class="colonnes">
+    <div class="carte"><h2>📈 Forme — Chalon <span id="pastA" class="pastilles"></span></h2><div id="formeA" class="attente">…</div></div>
+    <div class="carte"><h2>📈 Forme — Plombières <span id="pastB" class="pastilles"></span></h2><div id="formeB" class="attente">…</div></div>
+  </div>
+</div>
+
+<script>
+const API="https://api-dofa.fff.fr";
+const A={nom:"CHALON A.C.F.",cl:24993};
+const B={nom:"A.S.C. DE PLOMBIERES",cl:9829};
+
+async function tousLesMatchs(cl){
+  let page=1, tout=[], garde=0;
+  while(garde++<12){
+    const r=await fetch(`${API}/api/clubs/${cl}/matchs?page=${page}`);
+    if(!r.ok) break;
+    const d=await r.json();
+    tout=tout.concat(d["hydra:member"]||[]);
+    const suite=(d["hydra:view"]||{})["hydra:next"];
+    if(!suite) break;
+    page++;
+  }
+  return tout;
+}
+const joue = m => m.home_score!==null && m.home_score!==undefined;
+const jour = s => s ? s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4) : "";
+
+function issue(m, cl){
+  const chezMoi = (m.home?.club?.cl_no)===cl;
+  const moi = chezMoi ? m.home_score : m.away_score;
+  const lui = chezMoi ? m.away_score : m.home_score;
+  return moi>lui ? "G" : moi<lui ? "P" : "N";
+}
+
+function tableauForme(ms, cl, cible, pastilles){
+  const faits = ms.filter(joue).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,6);
+  if(!faits.length){ cible.innerHTML='<div class="vide">Aucun match joué pour l\'instant cette saison.</div>'; return; }
+  cible.innerHTML = "<table>"+faits.map(m=>{
+    const i=issue(m,cl);
+    return `<tr><td class="d">${jour(m.date)}</td><td>${m.home?.short_name||"?"}</td>`+
+           `<td class="c ${i}">${m.home_score} – ${m.away_score}</td>`+
+           `<td>${m.away?.short_name||"?"}</td><td class="k">${m.competition?.name||""}</td></tr>`;
+  }).join("")+"</table>";
+  pastilles.innerHTML = faits.slice(0,5).reverse().map(m=>{
+    const i=issue(m,cl); return `<span class="p ${i}">${i}</span>`;
+  }).join("");
+}
+
+(async ()=>{
+  const [mA,mB] = await Promise.all([tousLesMatchs(A.cl), tousLesMatchs(B.cl)]);
+
+  // le match officiel : celui de A contre le club B
+  const off = mA.find(m => m.home?.club?.cl_no===B.cl || m.away?.club?.cl_no===B.cl);
+  const o=document.getElementById("officiel");
+  if(off){
+    const t=off.terrain||{};
+    const heureJoris="12:00", heureFFF=(off.time||"").replace("H",":");
+    o.classList.remove("attente");
+    o.innerHTML=`<div class="match">
+        <div class="eq">${off.home?.short_name}</div>
+        <div class="sc">${off.home_score} – ${off.away_score}</div>
+        <div class="eq">${off.away?.short_name}</div></div>
+      <div class="info">
+        ${jour(off.date)} à <b class="${heureFFF!==heureJoris?'ecart':''}">${heureFFF}</b>
+        ${heureFFF!==heureJoris?` <span class="ecart">(Joris avait noté ${heureJoris})</span>`:""}<br>
+        ${off.competition?.name||""} · tour ${off.poule_journee?.number||"?"}<br>
+        ${t.name||""}${t.city?" — "+t.city:""}${t.libelle_surface?" ("+t.libelle_surface+")":""}
+      </div>`;
+  } else o.innerHTML='<div class="vide">Match introuvable dans l\'API.</div>';
+
+  // face a face : toutes leurs rencontres connues
+  const ff = mA.filter(m => m.home?.club?.cl_no===B.cl || m.away?.club?.cl_no===B.cl);
+  const f=document.getElementById("faceaface");
+  f.classList.remove("attente");
+  const joues=ff.filter(joue);
+  f.innerHTML = joues.length
+    ? "<table>"+joues.map(m=>`<tr><td class="d">${jour(m.date)}</td><td>${m.home?.short_name}</td>`+
+        `<td class="c">${m.home_score} – ${m.away_score}</td><td>${m.away?.short_name}</td>`+
+        `<td class="k">${m.competition?.name||""}</td></tr>`).join("")+"</table>"
+        +`<div class="info">${joues.length} rencontre(s) trouvée(s) — mais uniquement sur la saison en cours : l'API ne donne pas les saisons passées par ce chemin.</div>`
+    : '<div class="vide">Aucune rencontre connue. Normal : deux clubs de districts différents ne se croisent qu\'en coupe.</div>';
+
+  tableauForme(mA, A.cl, document.getElementById("formeA"), document.getElementById("pastA"));
+  tableauForme(mB, B.cl, document.getElementById("formeB"), document.getElementById("pastB"));
+  document.querySelectorAll(".attente").forEach(e=>e.classList.remove("attente"));
+})().catch(e=>{
+  document.getElementById("officiel").textContent="Erreur : "+e;
+});
+</script>
+</body>
+</html>
