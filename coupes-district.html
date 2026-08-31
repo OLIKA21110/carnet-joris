@@ -158,6 +158,22 @@
   .h2h-r.v{border-color:#bfe3c6}
   .h2h-r.d{border-color:#f0cfcf}
   .h2h-r small{color:#aaa}
+  .fff-l{flex-basis:100%;text-align:center;margin-top:5px;font-size:.75rem;color:#8a8578;
+         background:#fbfaf8;border-radius:10px;padding:6px 11px}
+  .fff-l b{color:var(--noir)}
+  .fff-att{color:#c0bbb2;font-style:italic}
+  .fff-src{color:#b3ada2;font-size:.68rem}
+  .fff-plus{margin-left:7px;background:#fff;border:1px solid #e6e2dc;border-radius:8px;padding:2px 9px;
+            font-family:inherit;font-size:.7rem;font-weight:bold;color:#8a6d3b;cursor:pointer}
+  .fff-plus:hover{background:#f4f0e6}
+  .fff-detail{display:none;margin-top:7px;text-align:left}
+  .fff-detail.on{display:block}
+  .fff-detail table{width:100%;border-collapse:collapse;font-size:.72rem}
+  .fff-detail td{padding:3px 3px;border-bottom:1px solid #ece7db}
+  .fff-detail tr:last-child td{border-bottom:none}
+  .fff-dt{color:#b3ada2;white-space:nowrap;width:72px}
+  .fff-sc{text-align:center;font-weight:bold;white-space:nowrap;width:50px;color:var(--noir)}
+  .fff-cp{color:#b3ada2;text-align:right}
   .h2h-plus{color:#aaa}
   .av-filtres{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px}
   .av-ligne{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px}
@@ -396,7 +412,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 30 août · vue croisée ✓</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 31 août · face à face FFF ✓</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -1147,7 +1163,7 @@ function htmlTour(c,t){
         <input class="sc" type="number" min="0" data-id="${m.id}" data-side="rext" value="${sc.rext||""}" title="Buts de ${esc(m.ext)} au match retour">
         <span class="ar-cumul" data-cumul="${m.id}">${htmlCumul(m)}</span>
       </div>`:''}
-${htmlFaceAFace(m)}${htmlForme(m)}
+${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
       <div class="date-line">
         ${m.ar?`<span class="manche">ALLER</span>`:''}
         <input type="date" class="din" data-id="${m.id}" data-f="date" value="${dt.date||""}">
@@ -1713,6 +1729,124 @@ function htmlAutreCarnet(){
   });
   return html;
 }
+/* ===== Ce que la Federation sait de ces deux clubs =====
+   Complete le face a face maison (htmlFaceAFace, juste dessous) : celui-la ne connait
+   que les matchs saisis par Joris, celui-ci va lire l'API de la FFF.
+   Elle autorise les appels depuis un navigateur (verifie le 31/08/2026) ; il faut le
+   numero FFF des deux clubs, renseigne dans « Mes equipes ».
+   La ligne ne se remplit QU'A l'apparition du match a l'ecran : un tour de coupe fait
+   20 matchs, on ne veut pas 40 requetes au chargement. */
+const FFF_API = "https://api-dofa.fff.fr";
+const ffCache = new Map();       // cl_no -> Promise<liste | null>
+let ffObserver = null;
+
+function ffMatchsDuClub(cl){
+  if(!ffCache.has(cl)){
+    ffCache.set(cl, (async ()=>{
+      let page=1, tout=[], garde=0;
+      while(garde++ < 8){
+        const r = await fetch(FFF_API+"/api/clubs/"+cl+"/matchs?page="+page);
+        if(!r.ok) break;
+        const d = await r.json();
+        tout = tout.concat(d["hydra:member"]||[]);
+        if(!(d["hydra:view"]||{})["hydra:next"]) break;
+        page++;
+      }
+      return tout;
+    })().catch(()=>null));
+  }
+  return ffCache.get(cl);
+}
+function ffJoue(x){ return x.home_score!==null && x.home_score!==undefined; }
+function ffJour(d){ return d ? d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4) : ""; }
+function ffClub(c){ return (c && c.club && c.club.cl_no) || 0; }
+
+function htmlFffLine(m){
+  if(!m.dom || !m.ext) return '';
+  const cd=clubDeNom(m.dom), ce=clubDeNom(m.ext);
+  const fd=(biblio.equipes[cd]||{}).fff, fe=(biblio.equipes[ce]||{}).fff;
+  if(!fd || !fe) return '';        // un club sans numero : pas de ligne du tout
+  const dtm=(state.dates[m.id]||{}).date||'';   // pour ne pas compter ce match-ci
+  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}" data-fdate="${esc(dtm)}">
+      <span class="fff-corps"><span class="fff-att">\u{1F91D} recherche chez la F\u00e9d\u00e9ration\u2026</span></span>
+      <div class="fff-detail"></div>
+    </div>`;
+}
+
+function ffRemplir(zone){
+  const fd=+zone.dataset.fd, fe=+zone.dataset.fe, nom=zone.dataset.fnom;
+  const dateDuMatch=zone.dataset.fdate||'';   // le match affiche n'est pas son propre passe
+  const corps=zone.querySelector('.fff-corps'), detail=zone.querySelector('.fff-detail');
+  ffMatchsDuClub(fd).then(liste=>{
+    if(liste===null){
+      corps.innerHTML='<span class="fff-att">\u{1F91D} Fed\u00e9ration injoignable pour l\'instant</span>';
+      return;
+    }
+    const duels = liste
+      .filter(x=>ffJoue(x) && (ffClub(x.home)===fe || ffClub(x.away)===fe))
+      // meme jour = c'est la rencontre qu'on est en train de regarder, pas un souvenir
+      .filter(x=>!(dateDuMatch && (x.date||'').slice(0,10)===dateDuMatch))
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    if(!duels.length){
+      corps.innerHTML='\u{1F91D} <b>Jamais rencontr\u00e9s</b> <span class="fff-src">\u2014 d\'apr\u00e8s la F\u00e9d\u00e9ration</span>';
+      return;
+    }
+    let v=0,n=0,d=0;
+    duels.forEach(x=>{
+      const chez = ffClub(x.home)===fd;
+      const pour = chez ? x.home_score : x.away_score;
+      const contre = chez ? x.away_score : x.home_score;
+      if(pour>contre) v++; else if(pour<contre) d++; else n++;
+    });
+    const der=duels[0];
+    corps.innerHTML = '\u{1F91D} Chez la F\u00e9d\u00e9ration : <b>'+duels.length+' rencontre'+(duels.length>1?'s':'')+'</b>'
+      + ' \u2014 '+esc(nom)+' '+v+'V '+n+'N '+d+'D'
+      + ' \u00b7 derni\u00e8re le '+ffJour(der.date)+' ('+der.home_score+'\u2013'+der.away_score+')'
+      + ' <button type="button" class="fff-plus">d\u00e9tail</button>';
+    detail.innerHTML = '<table>'+duels.map(x=>
+      '<tr><td class="fff-dt">'+ffJour(x.date)+'</td><td>'+esc((x.home&&x.home.short_name)||'?')+'</td>'
+      +'<td class="fff-sc">'+x.home_score+' \u2013 '+x.away_score+'</td>'
+      +'<td>'+esc((x.away&&x.away.short_name)||'?')+'</td>'
+      +'<td class="fff-cp">'+esc(((x.competition&&x.competition.name)||'').slice(0,22))+'</td></tr>').join('')+'</table>';
+    const bouton=corps.querySelector('.fff-plus');
+    bouton.addEventListener('click',()=>{
+      detail.classList.toggle('on');
+      bouton.textContent = detail.classList.contains('on') ? 'masquer' : 'd\u00e9tail';
+    });
+  });
+}
+
+/* On ne remplit qu'a l'apparition a l'ecran. */
+function brancherFff(){
+  if(!('IntersectionObserver' in window)){
+    document.querySelectorAll('[data-fff]').forEach(z=>{ z.removeAttribute('data-fff'); ffRemplir(z); });
+    return;
+  }
+  if(!ffObserver){
+    ffObserver = new IntersectionObserver(entrees=>{
+      entrees.forEach(e=>{
+        if(!e.isIntersecting) return;
+        ffObserver.unobserve(e.target);
+        e.target.removeAttribute('data-fff');
+        ffRemplir(e.target);
+      });
+    }, {rootMargin:'200px'});
+  }
+  document.querySelectorAll('[data-fff]').forEach(z=>ffObserver.observe(z));
+  // Filet : certains navigateurs ne declenchent pas l'observateur sur un onglet
+  // jamais affiche. Deux secondes plus tard, on remplit ce qui est a l'ecran.
+  setTimeout(()=>{
+    document.querySelectorAll('[data-fff]').forEach(z=>{
+      const r=z.getBoundingClientRect();
+      if(r.bottom>0 && r.top<(window.innerHeight||800)){
+        if(ffObserver) ffObserver.unobserve(z);
+        z.removeAttribute('data-fff');
+        ffRemplir(z);
+      }
+    });
+  }, 2000);
+}
+
 function htmlFaceAFace(m){
   if(!m.dom || !m.ext) return '';
   const sc=state.scores[m.id]||{};
@@ -2078,6 +2212,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ redessi
 
 /* ===== Branchement des évènements du corps ===== */
 function brancherBody(){
+  setTimeout(brancherFff, 0);   // une fois le corps pose dans la page
   const box=document.getElementById('divBody');
   // coupes
   box.querySelectorAll('[data-editcoupe]').forEach(b=>b.addEventListener('click',()=>ouvrirCoupeModal(b.dataset.editcoupe)));
