@@ -3,62 +3,107 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Essai — ce que la FFF sait de ton match</title>
+<title>Trois façons d'afficher le face à face</title>
 <style>
   *{box-sizing:border-box}
-  body{margin:0;background:#0d1117;color:#ccc7bd;font-family:'Segoe UI',system-ui,sans-serif;padding:20px}
-  .page{max-width:900px;margin:0 auto}
-  h1{color:#C8A24B;font-size:1.4rem;margin:0 0 4px}
-  .sous{color:#8a6d3b;font-size:.9rem;margin:0 0 24px}
-  .carte{background:#111418;border:1px solid #2a2f36;border-radius:14px;padding:20px;margin-bottom:18px}
-  .carte h2{color:#C8A24B;font-size:1.05rem;margin:0 0 14px;display:flex;align-items:center;gap:8px}
-  .match{display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:center}
-  .eq{font-weight:700;font-size:1.05rem;min-width:170px}
-  .sc{background:#C8A24B;color:#111418;font-weight:800;font-size:1.5rem;padding:6px 16px;border-radius:10px}
-  .info{margin-top:14px;font-size:.92rem;color:#a49b8c;text-align:center;line-height:1.7}
-  .ecart{color:#e0a63c}
-  table{width:100%;border-collapse:collapse;font-size:.9rem}
-  td{padding:7px 6px;border-bottom:1px solid #20252c}
-  td.d{color:#8a6d3b;white-space:nowrap;width:88px}
-  td.c{text-align:center;font-weight:700;white-space:nowrap}
-  td.k{color:#8a6d3b;font-size:.8rem;white-space:nowrap}
-  .G{color:#1a7a3c}.N{color:#8a6d3b}.P{color:#C8102E}
-  .pastilles{display:flex;gap:5px;margin-left:auto}
-  .p{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:.72rem;font-weight:800;color:#111418}
-  .p.G{background:#1a7a3c;color:#fff}.p.N{background:#8a6d3b}.p.P{background:#C8102E;color:#fff}
-  .vide{color:#8a6d3b;font-style:italic;padding:8px 0}
-  .colonnes{display:grid;gap:18px;grid-template-columns:1fr}
-  @media(min-width:760px){.colonnes{grid-template-columns:1fr 1fr}}
-  .attente{color:#8a6d3b}
+  body{margin:0;background:#161a1f;color:#ccc7bd;font-family:'Segoe UI',system-ui,sans-serif;padding:20px}
+  .page{max-width:820px;margin:0 auto}
+  h1{color:#C8A24B;font-size:1.35rem;margin:0 0 4px}
+  .intro{color:#8a6d3b;font-size:.9rem;margin:0 0 26px;line-height:1.6}
+  .etiquette{display:flex;align-items:baseline;gap:10px;margin:0 0 10px}
+  .lettre{background:#C8A24B;color:#161a1f;font-weight:800;width:26px;height:26px;border-radius:7px;display:grid;place-items:center;flex:none}
+  .titre{color:#C8A24B;font-weight:700}
+  .avis{color:#8a6d3b;font-size:.85rem;margin:8px 0 30px;line-height:1.55}
+
+  /* carte de match, dans le style du carnet */
+  .carte{background:#fdfcf8;color:#2a2a2a;border-radius:12px;padding:16px 18px;border:1px solid #e2ddd2}
+  .duel{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap}
+  .nom{font-weight:800;font-size:1rem;min-width:150px;text-align:center}
+  .nom.dom{color:#1a7a3c}.nom.ext{color:#2a2a2a}
+  .cat{display:block;font-weight:600;font-size:.72rem;color:#3a63b8}
+  .lieu{display:block;font-weight:400;font-size:.7rem;color:#999}
+  .but{background:#fff;border:1px solid #d8d2c4;border-radius:8px;padding:5px 14px;font-weight:800;font-size:1.15rem}
+  .quand{text-align:center;color:#8a8578;font-size:.8rem;margin-top:10px}
+
+  /* A : ligne discrete */
+  .ligneA{margin-top:12px;padding-top:10px;border-top:1px dashed #e2ddd2;text-align:center;font-size:.87rem;color:#6b6558}
+  .ligneA b{color:#8a6d3b}
+
+  /* B : bloc depliable */
+  .btnB{margin-top:12px;width:100%;background:#f4f0e6;border:1px solid #ddd6c6;border-radius:9px;padding:9px;
+        font-family:inherit;font-size:.87rem;font-weight:700;color:#8a6d3b;cursor:pointer}
+  .btnB:hover{background:#efe9da}
+  .deplieB{margin-top:10px;display:none}
+  .deplieB.ouvert{display:block}
+
+  /* C : encart bilan */
+  .bilanC{margin-top:12px;background:#f7f4ec;border:1px solid #e2ddd2;border-radius:10px;padding:12px}
+  .titreC{font-size:.8rem;font-weight:700;color:#8a6d3b;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;
+          display:flex;align-items:center;gap:8px}
+  .scoreC{display:flex;justify-content:center;gap:22px;margin-bottom:10px}
+  .colC{text-align:center}
+  .chiffreC{font-size:1.5rem;font-weight:800;line-height:1}
+  .labelC{font-size:.7rem;color:#8a8578;text-transform:uppercase}
+  .V{color:#1a7a3c}.N{color:#8a6d3b}.D{color:#C8102E}
+
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  td{padding:5px 4px;border-bottom:1px solid #ece7db}
+  tr:last-child td{border-bottom:none}
+  td.dt{color:#9a9385;white-space:nowrap;width:78px}
+  td.sc{text-align:center;font-weight:800;white-space:nowrap;width:56px}
+  td.cp{color:#9a9385;font-size:.75rem;text-align:right}
+  .rien{color:#9a9385;font-style:italic;font-size:.85rem;text-align:center;padding:4px 0}
+  .pastilles{display:inline-flex;gap:4px;margin-left:auto}
+  .p{width:19px;height:19px;border-radius:5px;display:grid;place-items:center;font-size:.65rem;font-weight:800;color:#fff}
+  .p.V{background:#1a7a3c}.p.N{background:#b09a5e}.p.D{background:#C8102E}
+  .attente{color:#9a9385;font-size:.85rem;text-align:center;padding:6px}
 </style>
 </head>
 <body>
 <div class="page">
-  <h1>⚽ Essai : ce que la FFF sait de ce match</h1>
-  <p class="sous">Les données sont lues en direct sur l'API de la Fédération, depuis ton navigateur.</p>
+  <h1>🤝 Trois façons d'afficher le face à face</h1>
+  <p class="intro">Le même match de Joris, présenté de trois manières. Les rencontres sont lues en direct chez la FFF.<br>
+  Dis-moi laquelle tu préfères — ou ce que tu prendrais dans chacune.</p>
 
+  <div class="etiquette"><span class="lettre">A</span><span class="titre">Une ligne, toujours visible</span></div>
   <div class="carte">
-    <h2>📋 Le match tel que Joris l'a saisi</h2>
-    <div class="match">
-      <div class="eq">CHALON A.C.F.</div><div class="sc">3 – 0</div><div class="eq">A.S.C. DE PLOMBIERES</div>
+    <div class="duel">
+      <div class="nom dom">CHALON A.C.F.<span class="cat">EQUIPE 1 Senior</span><span class="lieu">Saône-et-Loire</span></div>
+      <div class="but">3</div><div class="but">0</div>
+      <div class="nom ext">A.S.C. DE PLOMBIERES<span class="cat">EQUIPE 1 Senior</span><span class="lieu">Côte-d'Or</span></div>
     </div>
-    <div class="info">30/08/2026 à 12:00 · Léo Lagranges 3, Chalon sur Saône (71100)</div>
+    <div class="quand">30/08/2026 · 12:00 · Léo Lagranges 3</div>
+    <div class="ligneA" id="A"><span class="attente">Lecture chez la FFF…</span></div>
   </div>
+  <p class="avis">Rien à cliquer, rien qui pousse la page. Mais une seule phrase : pas de détail, et il faut interroger la FFF pour chaque match affiché — sur un tour de coupe à 20 matchs, ça fait 40 requêtes au chargement.</p>
 
+  <div class="etiquette"><span class="lettre">B</span><span class="titre">Un bouton qui déplie</span></div>
   <div class="carte">
-    <h2>🏛️ Ce que dit la FFF</h2>
-    <div id="officiel" class="attente">Lecture en cours…</div>
+    <div class="duel">
+      <div class="nom dom">CHALON A.C.F.<span class="cat">EQUIPE 1 Senior</span><span class="lieu">Saône-et-Loire</span></div>
+      <div class="but">3</div><div class="but">0</div>
+      <div class="nom ext">A.S.C. DE PLOMBIERES<span class="cat">EQUIPE 1 Senior</span><span class="lieu">Côte-d'Or</span></div>
+    </div>
+    <div class="quand">30/08/2026 · 12:00 · Léo Lagranges 3</div>
+    <button class="btnB" id="btnB">🤝 Voir le face à face</button>
+    <div class="deplieB" id="B"></div>
   </div>
+  <p class="avis">La FFF n'est interrogée que si Joris le demande : la page reste rapide même avec 20 matchs. En échange, il faut un clic — et il ne saura pas qu'il y a quelque chose à voir avant de cliquer.</p>
 
+  <div class="etiquette"><span class="lettre">C</span><span class="titre">Un encart bilan</span></div>
   <div class="carte">
-    <h2>🤝 Se sont-ils déjà rencontrés ?</h2>
-    <div id="faceaface" class="attente">Lecture en cours…</div>
+    <div class="duel">
+      <div class="nom dom">CHALON A.C.F.<span class="cat">EQUIPE 1 Senior</span><span class="lieu">Saône-et-Loire</span></div>
+      <div class="but">3</div><div class="but">0</div>
+      <div class="nom ext">A.S.C. DE PLOMBIERES<span class="cat">EQUIPE 1 Senior</span><span class="lieu">Côte-d'Or</span></div>
+    </div>
+    <div class="quand">30/08/2026 · 12:00 · Léo Lagranges 3</div>
+    <div class="bilanC">
+      <div class="titreC">🤝 Face à face <span id="pastC" class="pastilles"></span></div>
+      <div id="C"><div class="attente">Lecture chez la FFF…</div></div>
+    </div>
   </div>
-
-  <div class="colonnes">
-    <div class="carte"><h2>📈 Forme — Chalon <span id="pastA" class="pastilles"></span></h2><div id="formeA" class="attente">…</div></div>
-    <div class="carte"><h2>📈 Forme — Plombières <span id="pastB" class="pastilles"></span></h2><div id="formeB" class="attente">…</div></div>
-  </div>
+  <p class="avis">Le plus parlant : le bilan se lit d'un coup d'œil, avec les pastilles de forme. Le plus encombrant aussi, surtout quand il n'y a rien à montrer.</p>
 </div>
 
 <script>
@@ -66,15 +111,14 @@ const API="https://api-dofa.fff.fr";
 const A={nom:"CHALON A.C.F.",cl:24993};
 const B={nom:"A.S.C. DE PLOMBIERES",cl:9829};
 
-async function tousLesMatchs(cl){
-  let page=1, tout=[], garde=0;
-  while(garde++<12){
+async function matchsDuClub(cl){
+  let page=1,tout=[],g=0;
+  while(g++<12){
     const r=await fetch(`${API}/api/clubs/${cl}/matchs?page=${page}`);
     if(!r.ok) break;
     const d=await r.json();
     tout=tout.concat(d["hydra:member"]||[]);
-    const suite=(d["hydra:view"]||{})["hydra:next"];
-    if(!suite) break;
+    if(!(d["hydra:view"]||{})["hydra:next"]) break;
     page++;
   }
   return tout;
@@ -82,66 +126,53 @@ async function tousLesMatchs(cl){
 const joue = m => m.home_score!==null && m.home_score!==undefined;
 const jour = s => s ? s.slice(8,10)+"/"+s.slice(5,7)+"/"+s.slice(0,4) : "";
 
-function issue(m, cl){
-  const chezMoi = (m.home?.club?.cl_no)===cl;
-  const moi = chezMoi ? m.home_score : m.away_score;
-  const lui = chezMoi ? m.away_score : m.home_score;
-  return moi>lui ? "G" : moi<lui ? "P" : "N";
+function issuePour(m,cl){
+  const chez=(m.home?.club?.cl_no)===cl;
+  const moi=chez?m.home_score:m.away_score, lui=chez?m.away_score:m.home_score;
+  return moi>lui?"V":moi<lui?"D":"N";
 }
-
-function tableauForme(ms, cl, cible, pastilles){
-  const faits = ms.filter(joue).sort((a,b)=>(b.date||"").localeCompare(a.date||"")).slice(0,6);
-  if(!faits.length){ cible.innerHTML='<div class="vide">Aucun match joué pour l\'instant cette saison.</div>'; return; }
-  cible.innerHTML = "<table>"+faits.map(m=>{
-    const i=issue(m,cl);
-    return `<tr><td class="d">${jour(m.date)}</td><td>${m.home?.short_name||"?"}</td>`+
-           `<td class="c ${i}">${m.home_score} – ${m.away_score}</td>`+
-           `<td>${m.away?.short_name||"?"}</td><td class="k">${m.competition?.name||""}</td></tr>`;
-  }).join("")+"</table>";
-  pastilles.innerHTML = faits.slice(0,5).reverse().map(m=>{
-    const i=issue(m,cl); return `<span class="p ${i}">${i}</span>`;
-  }).join("");
+function lignes(ms){
+  return "<table>"+ms.map(m=>
+    `<tr><td class="dt">${jour(m.date)}</td><td>${m.home?.short_name}</td>`+
+    `<td class="sc">${m.home_score} – ${m.away_score}</td><td>${m.away?.short_name}</td>`+
+    `<td class="cp">${(m.competition?.name||"").slice(0,26)}</td></tr>`).join("")+"</table>";
 }
 
 (async ()=>{
-  const [mA,mB] = await Promise.all([tousLesMatchs(A.cl), tousLesMatchs(B.cl)]);
+  const mA = await matchsDuClub(A.cl);
+  const duels = mA.filter(m => (m.home?.club?.cl_no===B.cl || m.away?.club?.cl_no===B.cl) && joue(m))
+                  .sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const n=duels.length;
+  const bilan={V:0,N:0,D:0};
+  duels.forEach(m=>bilan[issuePour(m,A.cl)]++);
 
-  // le match officiel : celui de A contre le club B
-  const off = mA.find(m => m.home?.club?.cl_no===B.cl || m.away?.club?.cl_no===B.cl);
-  const o=document.getElementById("officiel");
-  if(off){
-    const t=off.terrain||{};
-    const heureJoris="12:00", heureFFF=(off.time||"").replace("H",":");
-    o.classList.remove("attente");
-    o.innerHTML=`<div class="match">
-        <div class="eq">${off.home?.short_name}</div>
-        <div class="sc">${off.home_score} – ${off.away_score}</div>
-        <div class="eq">${off.away?.short_name}</div></div>
-      <div class="info">
-        ${jour(off.date)} à <b class="${heureFFF!==heureJoris?'ecart':''}">${heureFFF}</b>
-        ${heureFFF!==heureJoris?` <span class="ecart">(Joris avait noté ${heureJoris})</span>`:""}<br>
-        ${off.competition?.name||""} · tour ${off.poule_journee?.number||"?"}<br>
-        ${t.name||""}${t.city?" — "+t.city:""}${t.libelle_surface?" ("+t.libelle_surface+")":""}
-      </div>`;
-  } else o.innerHTML='<div class="vide">Match introuvable dans l\'API.</div>';
+  // A
+  document.getElementById("A").innerHTML = n
+    ? `🤝 Déjà rencontrés <b>${n} fois</b> — Chalon ${bilan.V}V ${bilan.N}N ${bilan.D}D · dernière : ${jour(duels[0].date)}, ${duels[0].home_score}–${duels[0].away_score}`
+    : `🤝 <b>Jamais rencontrés</b> — c'est leur première fois.`;
 
-  // face a face : toutes leurs rencontres connues
-  const ff = mA.filter(m => m.home?.club?.cl_no===B.cl || m.away?.club?.cl_no===B.cl);
-  const f=document.getElementById("faceaface");
-  f.classList.remove("attente");
-  const joues=ff.filter(joue);
-  f.innerHTML = joues.length
-    ? "<table>"+joues.map(m=>`<tr><td class="d">${jour(m.date)}</td><td>${m.home?.short_name}</td>`+
-        `<td class="c">${m.home_score} – ${m.away_score}</td><td>${m.away?.short_name}</td>`+
-        `<td class="k">${m.competition?.name||""}</td></tr>`).join("")+"</table>"
-        +`<div class="info">${joues.length} rencontre(s) trouvée(s) — mais uniquement sur la saison en cours : l'API ne donne pas les saisons passées par ce chemin.</div>`
-    : '<div class="vide">Aucune rencontre connue. Normal : deux clubs de districts différents ne se croisent qu\'en coupe.</div>';
+  // B
+  const corpsB = n
+    ? lignes(duels)+`<div class="rien" style="font-style:normal;margin-top:8px">Chalon : ${bilan.V} victoire(s), ${bilan.N} nul(s), ${bilan.D} défaite(s).</div>`
+    : '<div class="rien">Aucune rencontre connue entre ces deux clubs.</div>';
+  document.getElementById("btnB").onclick = e => {
+    const d=document.getElementById("B");
+    d.innerHTML=corpsB; d.classList.toggle("ouvert");
+    e.target.textContent = d.classList.contains("ouvert") ? "🤝 Masquer le face à face" : "🤝 Voir le face à face";
+  };
 
-  tableauForme(mA, A.cl, document.getElementById("formeA"), document.getElementById("pastA"));
-  tableauForme(mB, B.cl, document.getElementById("formeB"), document.getElementById("pastB"));
-  document.querySelectorAll(".attente").forEach(e=>e.classList.remove("attente"));
+  // C
+  document.getElementById("C").innerHTML = n
+    ? `<div class="scoreC">
+         <div class="colC"><div class="chiffreC V">${bilan.V}</div><div class="labelC">gagnés</div></div>
+         <div class="colC"><div class="chiffreC N">${bilan.N}</div><div class="labelC">nuls</div></div>
+         <div class="colC"><div class="chiffreC D">${bilan.D}</div><div class="labelC">perdus</div></div>
+       </div>`+lignes(duels)
+    : '<div class="rien">Première rencontre entre ces deux clubs.</div>';
+  document.getElementById("pastC").innerHTML = duels.slice(0,5).reverse()
+    .map(m=>{const i=issuePour(m,A.cl);return `<span class="p ${i}">${i}</span>`}).join("");
 })().catch(e=>{
-  document.getElementById("officiel").textContent="Erreur : "+e;
+  document.querySelectorAll(".attente").forEach(x=>x.textContent="Erreur : "+e);
 });
 </script>
 </body>
