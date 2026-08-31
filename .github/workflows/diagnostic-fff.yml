@@ -1,0 +1,70 @@
+# Test jetable : les pages de la FFF sont-elles lisibles depuis un serveur GitHub ?
+# À supprimer une fois la réponse obtenue.
+name: Diagnostic FFF
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Interroger la FFF de plusieurs façons
+        run: |
+          set +e
+          UA_NAV="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
+          PAGE="https://epreuves.fff.fr/competition/engagement/439339-u15-d1/phase/1/1/classement"
+          R=_diagnostic-fff.txt
+          : > $R
+
+          dire(){ echo "$@" | tee -a $R; }
+
+          dire "===== Diagnostic FFF du $(date -u '+%Y-%m-%d %H:%M UTC') ====="
+          dire ""
+
+          essai(){   # $1=libelle  $2=url  $3=ua
+            local code taille f=$(mktemp)
+            if [ -n "$3" ]; then
+              code=$(curl -sS -m 25 -A "$3" -o "$f" -w "%{http_code}" "$2" 2>>$R)
+            else
+              code=$(curl -sS -m 25 -o "$f" -w "%{http_code}" "$2" 2>>$R)
+            fi
+            taille=$(wc -c < "$f")
+            dire "--- $1"
+            dire "    HTTP $code, $taille octets"
+            # les noms d'equipes sont-ils dans le HTML brut ?
+            for mot in CHEMINOTS GEVREY QUETIGHY QUETIGNY MARSANNAY; do
+              n=$(grep -o -i "$mot" "$f" | wc -l)
+              [ "$n" -gt 0 ] && dire "    trouve '$mot' x$n"
+            done
+            grep -qi "<app-root\|ng-version\|main-[a-z0-9]*\.js" "$f" && dire "    (coquille Angular detectee)"
+            dire "    debut : $(head -c 180 "$f" | tr '\n' ' ' | tr -s ' ')"
+            dire ""
+            rm -f "$f"
+          }
+
+          essai "Page classement, curl nu"            "$PAGE" ""
+          essai "Page classement, avec UA navigateur" "$PAGE" "$UA_NAV"
+
+          for api in \
+            "https://api-dofa.fff.fr/api/compets/439339/phases/1/poules/1/classement_journees" \
+            "https://api-dofa.fff.fr/api/compets/439339" \
+            "https://epreuves.fff.fr/api/data/matches?cpNo=439339&phNo=1&gpNo=1" ; do
+            essai "API : $api" "$api" "$UA_NAV"
+          done
+
+          dire "===== fin ====="
+          echo "::group::rapport"; cat $R; echo "::endgroup::"
+
+      - name: Déposer le rapport
+        run: |
+          git config user.name  "Diagnostic"
+          git config user.email "actions@github.com"
+          git add _diagnostic-fff.txt
+          git diff --staged --quiet || git commit -m "Rapport de diagnostic FFF"
+          git push
