@@ -1766,7 +1766,8 @@ function htmlFffLine(m){
   const cd=clubDeNom(m.dom), ce=clubDeNom(m.ext);
   const fd=(biblio.equipes[cd]||{}).fff, fe=(biblio.equipes[ce]||{}).fff;
   if(!fd || !fe) return '';        // un club sans numero : pas de ligne du tout
-  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}">
+  const dtm=(state.dates[m.id]||{}).date||'';   // pour ne pas compter ce match-ci
+  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}" data-fdate="${esc(dtm)}">
       <span class="fff-corps"><span class="fff-att">\u{1F91D} recherche chez la F\u00e9d\u00e9ration\u2026</span></span>
       <div class="fff-detail"></div>
     </div>`;
@@ -1774,14 +1775,18 @@ function htmlFffLine(m){
 
 function ffRemplir(zone){
   const fd=+zone.dataset.fd, fe=+zone.dataset.fe, nom=zone.dataset.fnom;
+  const dateDuMatch=zone.dataset.fdate||'';   // le match affiche n'est pas son propre passe
   const corps=zone.querySelector('.fff-corps'), detail=zone.querySelector('.fff-detail');
   ffMatchsDuClub(fd).then(liste=>{
     if(liste===null){
       corps.innerHTML='<span class="fff-att">\u{1F91D} Fed\u00e9ration injoignable pour l\'instant</span>';
       return;
     }
-    const duels = liste.filter(x=>ffJoue(x) && (ffClub(x.home)===fe || ffClub(x.away)===fe))
-                       .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const duels = liste
+      .filter(x=>ffJoue(x) && (ffClub(x.home)===fe || ffClub(x.away)===fe))
+      // meme jour = c'est la rencontre qu'on est en train de regarder, pas un souvenir
+      .filter(x=>!(dateDuMatch && (x.date||'').slice(0,10)===dateDuMatch))
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     if(!duels.length){
       corps.innerHTML='\u{1F91D} <b>Jamais rencontr\u00e9s</b> <span class="fff-src">\u2014 d\'apr\u00e8s la F\u00e9d\u00e9ration</span>';
       return;
