@@ -20,7 +20,7 @@ on:
       budget:
         description: "Nombre d'appels maximum, garde-fou"
         required: false
-        default: "6000"
+        default: "9000"
 
 permissions:
   contents: write

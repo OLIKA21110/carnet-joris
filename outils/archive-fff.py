@@ -79,7 +79,15 @@ NOS = set(suivis.values())
 print("Clubs suivis : %d" % len(NOS), flush=True)
 
 # ---------------------------------------------------------------- le balayage
-retenues, saisons = [], {}
+#
+# ATTENTION — piege coute 800 appels le 01/09/2026 : on filtrait d'abord sur
+# /api/engagements?competition.cp_no=..., pour ne lire les matchs que des competitions
+# ou l'un de nos clubs joue. Or CET ENDPOINT NE REPOND QUE POUR LA SAISON EN COURS :
+# sur une competition passee il renvoie totalItems 0. Le pre-filtre ecartait donc
+# exactement ce qu'on venait chercher. On lit maintenant les matchs directement et on
+# trie dessus. C'est la plage de numeros qui delimite le travail, rien d'autre.
+#
+trouvees, saisons = [], {}
 print("Balayage des identifiants %d a %d" % (DEBUT, FIN), flush=True)
 for cp in range(DEBUT, FIN):
     d = get("/api/compets/%d" % cp)
@@ -87,32 +95,28 @@ for cp in range(DEBUT, FIN):
         continue
     saison = d.get("season")
     saisons[saison] = saisons.get(saison, 0) + 1
-    # une competition nous interesse si l'un de nos clubs y est engage
-    eng = pages("/api/engagements?competition.cp_no=%d" % cp, maxi=4)
-    presents = {clno(e.get("equipe")) for e in eng} & NOS
-    if not presents:
-        continue
-    retenues.append(d)
-    print("  %s  %s (%s, saison %s) — %d de nos clubs" %
-          (cp, d.get("name"), d.get("type"), saison, len(presents)), flush=True)
+    trouvees.append(d)
 
-print("\n%d competitions retenues sur la plage. Saisons rencontrees : %s"
-      % (len(retenues), dict(sorted(saisons.items(), key=lambda x: str(x[0])))), flush=True)
+print("\n%d competitions trouvees. Saisons rencontrees : %s"
+      % (len(trouvees), dict(sorted(saisons.items(), key=lambda x: str(x[0])))), flush=True)
 
 # ---------------------------------------------------------------- les matchs
+retenues = []
 moisson = {}   # cl_no -> liste de matchs allegés
-for d in retenues:
+for d in trouvees:
     cp = d["cp_no"]
+    pris = 0
     for ph in (d.get("phases") or []):
         for gr in (ph.get("groups") or []):
             ms = pages("/api/compets/%d/phases/%s/poules/%s/matchs"
-                       % (cp, ph.get("number"), gr.get("stage_number")))
+                       % (cp, ph.get("number"), gr.get("stage_number")), maxi=6)
             for m in ms:
                 if not joue(m):
                     continue
                 a, b = clno(m.get("home")), clno(m.get("away"))
                 if not (a in NOS or b in NOS):
                     continue
+                pris += 1
                 leger = {
                     "id":   m.get("ma_no"),
                     "date": (m.get("date") or "")[:10],
@@ -126,6 +130,10 @@ for d in retenues:
                 for c in (a, b):
                     if c in NOS:
                         moisson.setdefault(c, []).append(leger)
+    if pris:
+        retenues.append(d)
+        print("  %s  %-34s (%s, saison %s) — %d matchs pour nous"
+              % (cp, (d.get("name") or "")[:34], d.get("type"), d.get("season"), pris), flush=True)
 
 # ---------------------------------------------------------------- fusion et ecriture
 os.makedirs(os.path.join(DOSSIER, "clubs"), exist_ok=True)
@@ -163,7 +171,8 @@ index["clubs"] = sorted(int(f[:-5]) for f in os.listdir(os.path.join(DOSSIER, "c
 json.dump(index, open(chemin_index, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 print("\n=== Termine ===")
-print("Competitions retenues : %d" % len(retenues))
+print("Competitions trouvees : %d" % len(trouvees))
+print("Dont utiles           : %d" % len(retenues))
 print("Clubs touches         : %d" % len(moisson))
 print("Matchs nouveaux       : %d" % total_neufs)
 print("Appels a la FFF       : %d" % appels)
