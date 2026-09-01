@@ -108,10 +108,20 @@ for cp in range(DEBUT, FIN, PAS):
 print("\n%d competitions trouvees. Saisons rencontrees : %s"
       % (len(trouvees), dict(sorted(saisons.items(), key=lambda x: str(x[0])))), flush=True)
 
-print("\n=== Carte des blocs : saison / district / plage observee ===", flush=True)
+lignes = ["=== Carte des blocs : saison / district / plage observee ===",
+          "balayage %d -> %d, pas de %d, le %s" % (DEBUT, FIN, PAS,
+          time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())), ""]
 for (sa, cg, nom), (a, b, n) in sorted(carte.items(), key=lambda x: (str(x[0][0]), x[1][0])):
-    print("  saison %-6s  cg %-5s  %-40s  %d -> %d  (%d vues)"
-          % (sa, cg, (nom or "")[:40], a, b, n), flush=True)
+    lignes.append("  saison %-6s  cg %-5s  %-40s  %d -> %d  (%d vues)"
+                  % (sa, cg, (nom or "")[:40], a, b, n))
+texte = "\n".join(lignes)
+print("\n" + texte, flush=True)
+os.makedirs(DOSSIER, exist_ok=True)
+# on ecrit la carte dans le depot : les journaux d'action ne sont pas telechargeables
+# depuis une session (le proxy refuse objects.githubusercontent.com)
+io_nom = os.path.join(DOSSIER, "carte-blocs.txt")
+anc = open(io_nom, encoding="utf-8").read() if os.path.exists(io_nom) else ""
+open(io_nom, "w", encoding="utf-8").write((anc + "\n\n" if anc else "") + texte + "\n")
 
 if PAS > 1:
     print("\nMode reperage : on s'arrete la, aucun match n'est lu.", flush=True)

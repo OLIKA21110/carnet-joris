@@ -52,4 +52,8 @@ jobs:
           git config user.email "actions@github.com"
           git add archives
           git diff --staged --quiet || git commit -m "Archive FFF : plage ${{ inputs.debut }}-${{ inputs.fin }}"
-          git push
+          # le depot a pu bouger pendant les vingt minutes de moisson
+          for essai in 1 2 3; do
+            git pull --rebase origin main && git push && break
+            echo "tentative $essai echouee, on recommence"; sleep 5
+          done
