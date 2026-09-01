@@ -22,6 +22,7 @@ PAUSE    = float(os.environ.get("PAUSE", "0.40"))     # secondes entre deux appe
 BUDGET   = int(os.environ.get("BUDGET", "6000"))      # garde-fou : appels maximum
 DEBUT    = int(os.environ["DEBUT"])
 FIN      = int(os.environ["FIN"])
+PAS      = int(os.environ.get("PAS", "1"))   # >1 : mode reperage, on ne lit aucun match
 RACINE   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOSSIER  = os.path.join(RACINE, "archives")
 
@@ -88,17 +89,33 @@ print("Clubs suivis : %d" % len(NOS), flush=True)
 # trie dessus. C'est la plage de numeros qui delimite le travail, rien d'autre.
 #
 trouvees, saisons = [], {}
-print("Balayage des identifiants %d a %d" % (DEBUT, FIN), flush=True)
-for cp in range(DEBUT, FIN):
+carte = {}     # (saison, district) -> [premier vu, dernier vu, combien]
+print("Balayage des identifiants %d a %d (pas de %d)" % (DEBUT, FIN, PAS), flush=True)
+for cp in range(DEBUT, FIN, PAS):
     d = get("/api/compets/%d" % cp)
     if not d or not d.get("cp_no"):
         continue
     saison = d.get("season")
     saisons[saison] = saisons.get(saison, 0) + 1
+    cdg = d.get("cdg") or {}
+    cle = (saison, cdg.get("cg_no"), cdg.get("name"))
+    if cle in carte:
+        carte[cle][1] = cp; carte[cle][2] += 1
+    else:
+        carte[cle] = [cp, cp, 1]
     trouvees.append(d)
 
 print("\n%d competitions trouvees. Saisons rencontrees : %s"
       % (len(trouvees), dict(sorted(saisons.items(), key=lambda x: str(x[0])))), flush=True)
+
+print("\n=== Carte des blocs : saison / district / plage observee ===", flush=True)
+for (sa, cg, nom), (a, b, n) in sorted(carte.items(), key=lambda x: (str(x[0][0]), x[1][0])):
+    print("  saison %-6s  cg %-5s  %-40s  %d -> %d  (%d vues)"
+          % (sa, cg, (nom or "")[:40], a, b, n), flush=True)
+
+if PAS > 1:
+    print("\nMode reperage : on s'arrete la, aucun match n'est lu.", flush=True)
+    raise SystemExit(0)
 
 # ---------------------------------------------------------------- les matchs
 retenues = []
