@@ -1891,9 +1891,13 @@ function ffRemplir(zone){
 
     if(memes.length){
       const der=memes[0];
+      // le score se lit du point de vue du club qu'on vient de nommer, sinon
+      // « FAUVERNEY 0V 1N 1D ... (10-1) » se lit comme une victoire 10-1
+      const derChez = der.cd===fd;
+      const derPour = derChez ? der.bd : der.be, derContre = derChez ? der.be : der.bd;
       corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b>'
         + ' \u2014 '+esc(nom)+' '+v+'V '+n+'N '+d+'D'
-        + ' \u00b7 derni\u00e8re le '+ffJour(der.date)+' ('+der.bd+'\u2013'+der.be+')'
+        + ' \u00b7 derni\u00e8re le '+ffJour(der.date)+' ('+derPour+'\u2013'+derContre+')'
         + ' <button type="button" class="fff-plus">d\u00e9tail</button>';
     }else{
       // ils se sont croises, mais pas dans cette categorie : le dire plutot que d'additionner
