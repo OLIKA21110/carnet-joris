@@ -1,0 +1,50 @@
+# Constitue l'archive des saisons passees. A lancer a la main, une plage a la fois.
+# Ne tourne jamais tout seul : c'est un travail ponctuel, pas un entretien quotidien.
+name: Archive des saisons passées
+
+on:
+  workflow_dispatch:
+    inputs:
+      debut:
+        description: "Premier identifiant de compétition à sonder (ex. 439150)"
+        required: true
+        default: "439150"
+      fin:
+        description: "Dernier identifiant, exclu (ex. 439700). Garde la plage sous 1500."
+        required: true
+        default: "439700"
+      pause:
+        description: "Pause entre deux appels, en secondes. Monte-la si la FFF coupe."
+        required: false
+        default: "0.40"
+      budget:
+        description: "Nombre d'appels maximum, garde-fou"
+        required: false
+        default: "6000"
+
+permissions:
+  contents: write
+
+jobs:
+  archiver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Moissonner
+        env:
+          DEBUT:  ${{ inputs.debut }}
+          FIN:    ${{ inputs.fin }}
+          PAUSE:  ${{ inputs.pause }}
+          BUDGET: ${{ inputs.budget }}
+        run: python3 outils/archive-fff.py
+
+      - name: Déposer l'archive
+        if: always()
+        run: |
+          git config user.name  "Archive FFF"
+          git config user.email "actions@github.com"
+          git add archives
+          git diff --staged --quiet || git commit -m "Archive FFF : plage ${{ inputs.debut }}-${{ inputs.fin }}"
+          git push
