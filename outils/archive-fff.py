@@ -23,6 +23,10 @@ BUDGET   = int(os.environ.get("BUDGET", "6000"))      # garde-fou : appels maxim
 DEBUT    = int(os.environ["DEBUT"])
 FIN      = int(os.environ["FIN"])
 PAS      = int(os.environ.get("PAS", "1"))   # >1 : mode reperage, on ne lit aucun match
+# Districts a moissonner (numeros cg_no, separes par des virgules). Vide = tous.
+# Indispensable des que la plage est large : sans ce filtre on lirait les matchs de
+# tous les districts de France croises au passage.
+CDGS = {int(x) for x in os.environ.get("CDGS", "").replace(" ", "").split(",") if x}
 RACINE   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOSSIER  = os.path.join(RACINE, "archives")
 
@@ -132,6 +136,8 @@ retenues = []
 moisson = {}   # cl_no -> liste de matchs allegés
 for d in trouvees:
     cp = d["cp_no"]
+    if CDGS and (d.get("cdg") or {}).get("cg_no") not in CDGS:
+        continue
     pris = 0
     for ph in (d.get("phases") or []):
         for gr in (ph.get("groups") or []):
@@ -199,6 +205,7 @@ json.dump(index, open(chemin_index, "w", encoding="utf-8"), ensure_ascii=False, 
 
 print("\n=== Termine ===")
 print("Competitions trouvees : %d" % len(trouvees))
+if CDGS: print("Districts retenus     : %s" % sorted(CDGS))
 print("Dont utiles           : %d" % len(retenues))
 print("Clubs touches         : %d" % len(moisson))
 print("Matchs nouveaux       : %d" % total_neufs)

@@ -17,6 +17,10 @@ on:
         description: "Pas du balayage. 1 = complet. Mets 25 pour un simple repérage des blocs de saisons (rapide, ne lit aucun match)."
         required: false
         default: "1"
+      cdgs:
+        description: "Districts à moissonner (cg_no séparés par des virgules). Côte-d'Or = 28, Saône-et-Loire = 30. Vide = tous."
+        required: false
+        default: ""
       pause:
         description: "Pause entre deux appels, en secondes. Monte-la si la FFF coupe."
         required: false
@@ -41,6 +45,7 @@ jobs:
           DEBUT:  ${{ inputs.debut }}
           FIN:    ${{ inputs.fin }}
           PAS:    ${{ inputs.pas }}
+          CDGS:   ${{ inputs.cdgs }}
           PAUSE:  ${{ inputs.pause }}
           BUDGET: ${{ inputs.budget }}
         run: python3 outils/archive-fff.py
