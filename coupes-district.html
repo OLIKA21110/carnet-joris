@@ -1804,7 +1804,7 @@ function htmlFffLine(m){
   if(!fd || !fe) return '';        // un club sans numero : pas de ligne du tout
   const dtm=(state.dates[m.id]||{}).date||'';   // pour ne pas compter ce match-ci
   const cat=ffCategorie(m.dom) || ffCategorie(m.ext) || '';
-  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}" data-fdate="${esc(dtm)}" data-fcat="${esc(cat)}">
+  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}" data-fnom2="${esc(ce)}" data-fdate="${esc(dtm)}" data-fcat="${esc(cat)}">
       <span class="fff-corps"><span class="fff-att">\u{1F91D} recherche chez la F\u00e9d\u00e9ration\u2026</span></span>
       <div class="fff-detail"></div>
     </div>`;
@@ -1854,7 +1854,7 @@ function ffTableau(liste, classe){
 }
 
 function ffRemplir(zone){
-  const fd=+zone.dataset.fd, fe=+zone.dataset.fe, nom=zone.dataset.fnom;
+  const fd=+zone.dataset.fd, fe=+zone.dataset.fe, nom=zone.dataset.fnom, nom2=zone.dataset.fnom2||'';
   const dateDuMatch=zone.dataset.fdate||'';     // le match affiche n'est pas son propre passe
   const catMatch=zone.dataset.fcat||'';         // '' = on ne sait pas, on ne filtre pas
   const corps=zone.querySelector('.fff-corps'), detail=zone.querySelector('.fff-detail');
@@ -1895,8 +1895,11 @@ function ffRemplir(zone){
       // « FAUVERNEY 0V 1N 1D ... (10-1) » se lit comme une victoire 10-1
       const derChez = der.cd===fd;
       const derPour = derChez ? der.bd : der.be, derContre = derChez ? der.be : der.bd;
-      corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b>'
-        + ' \u2014 '+esc(nom)+' '+v+'V '+n+'N '+d+'D'
+      // on nomme les DEUX clubs : « GEVREY 2 - 0 nul - 1 ST APOLLINAIRE ».
+      // Avec un seul nom, Joris devait deduire les victoires de l'adversaire.
+      const nuls = n+' nul'+(n>1?'s':'');
+      corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b> \u2014 '
+        + esc(nom)+' <b>'+v+'</b> \u2013 '+nuls+' \u2013 <b>'+d+'</b> '+esc(nom2)
         + ' \u00b7 derni\u00e8re le '+ffJour(der.date)+' ('+derPour+'\u2013'+derContre+')'
         + ' <button type="button" class="fff-plus">d\u00e9tail</button>';
     }else{
