@@ -32,6 +32,17 @@
    "clubs_touches": 76,
    "matchs_nouveaux": 5649,
    "appels": 2466
+  },
+  {
+   "le": "2026-09-01 15:57 UTC",
+   "plage": [
+    407100,
+    413000
+   ],
+   "competitions_retenues": 33,
+   "clubs_touches": 76,
+   "matchs_nouveaux": 5618,
+   "appels": 6051
   }
  ],
  "clubs": [
@@ -39,12 +50,14 @@
   2967,
   2970,
   2971,
+  2976,
   2983,
   2984,
   2985,
   3848,
   4086,
   5107,
+  5776,
   5899,
   6012,
   6994,
