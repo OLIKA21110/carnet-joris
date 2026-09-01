@@ -13,6 +13,10 @@ on:
         description: "Dernier identifiant, exclu (ex. 439700). Garde la plage sous 1500."
         required: true
         default: "439700"
+      pas:
+        description: "Pas du balayage. 1 = complet. Mets 25 pour un simple repérage des blocs de saisons (rapide, ne lit aucun match)."
+        required: false
+        default: "1"
       pause:
         description: "Pause entre deux appels, en secondes. Monte-la si la FFF coupe."
         required: false
@@ -36,6 +40,7 @@ jobs:
         env:
           DEBUT:  ${{ inputs.debut }}
           FIN:    ${{ inputs.fin }}
+          PAS:    ${{ inputs.pas }}
           PAUSE:  ${{ inputs.pause }}
           BUDGET: ${{ inputs.budget }}
         run: python3 outils/archive-fff.py
