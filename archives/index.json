@@ -1,0 +1,16 @@
+{
+ "passages": [
+  {
+   "le": "2026-09-01 07:36 UTC",
+   "plage": [
+    439150,
+    439700
+   ],
+   "competitions_retenues": 0,
+   "clubs_touches": 0,
+   "matchs_nouveaux": 0,
+   "appels": 799
+  }
+ ],
+ "clubs": []
+}
