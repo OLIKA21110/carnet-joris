@@ -681,3 +681,8 @@ balayage 439150 -> 439700, pas de 1, le 2026-09-02 07:57 UTC
   saison 2025    cg 89     DISTRICT ESCAUT                           439637 -> 439662  (14 vues)
   saison 2025    cg 5      DISTRICT DE LA GIRONDE                    439683 -> 439683  (1 vues)
   saison 2025    cg 15     DISTRICT MAINE ET LOIRE                   439685 -> 439699  (8 vues)
+
+
+=== Carte des blocs : saison / district / plage observee ===
+balayage 421600 -> 422250, pas de 1, le 2026-09-02 16:06 UTC
+
