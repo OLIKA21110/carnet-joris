@@ -112,6 +112,17 @@ for cp in range(DEBUT, FIN, PAS):
 print("\n%d competitions trouvees. Saisons rencontrees : %s"
       % (len(trouvees), dict(sorted(saisons.items(), key=lambda x: str(x[0])))), flush=True)
 
+# Garde-fou : si on a beaucoup appele et rien trouve, ce n'est pas que la plage est
+# vide — c'est que la Federation nous refuse. Le 02/09/2026 un passage a rendu
+# « 0 competition » pour 1300 appels sur 650 identifiants : deux essais par appel,
+# donc tout echouait. L'action se terminait en succes, en silence, et l'archive
+# semblait a jour alors qu'elle n'avait pas bouge. Mieux vaut echouer bruyamment.
+attendus = max(1, (FIN - DEBUT) // PAS)
+if not trouvees and appels > attendus * 1.5:
+    raise SystemExit("ECHEC : %d appels pour %d identifiants et aucune competition "
+                     "trouvee. La FFF refuse les requetes — reessayer plus tard, "
+                     "avec une PAUSE plus longue." % (appels, attendus))
+
 lignes = ["=== Carte des blocs : saison / district / plage observee ===",
           "balayage %d -> %d, pas de %d, le %s" % (DEBUT, FIN, PAS,
           time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())), ""]
