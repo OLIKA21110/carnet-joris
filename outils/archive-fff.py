@@ -158,6 +158,10 @@ for d in trouvees:
                     "dom":  (m.get("home") or {}).get("short_name"),
                     "ext":  (m.get("away") or {}).get("short_name"),
                     "cd":   a, "ce": b,
+                    # numero d'equipe : « code » chez la FFF (1 = l'equipe premiere,
+                    # 2 = la reserve...). Sans lui le carnet melangerait les reserves.
+                    "qd":   (m.get("home") or {}).get("code"),
+                    "qe":   (m.get("away") or {}).get("code"),
                     "bd":   m.get("home_score"), "be": m.get("away_score"),
                 }
                 for c in (a, b):
@@ -179,10 +183,12 @@ for cl, liste in moisson.items():
             anciens = json.load(open(chemin, encoding="utf-8"))
         except Exception:
             anciens = []
-    vus = {m.get("id") for m in anciens}
-    neufs = [m for m in liste if m.get("id") not in vus]
-    total_neufs += len(neufs)
-    fusion = sorted(anciens + neufs, key=lambda m: (m.get("date") or ""), reverse=True)
+    # on remplace les entrees deja connues plutot que de les ignorer : sinon une
+    # archive faite avant l'ajout d'un champ resterait indefiniment incomplete
+    fraiches = {m.get("id"): m for m in liste}
+    total_neufs += sum(1 for m in liste if m.get("id") not in {x.get("id") for x in anciens})
+    gardes = [m for m in anciens if m.get("id") not in fraiches]
+    fusion = sorted(gardes + list(fraiches.values()), key=lambda m: (m.get("date") or ""), reverse=True)
     json.dump(fusion, open(chemin, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
 
 index = {}
