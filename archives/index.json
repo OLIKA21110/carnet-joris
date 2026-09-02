@@ -43,6 +43,17 @@
    "clubs_touches": 76,
    "matchs_nouveaux": 5618,
    "appels": 6051
+  },
+  {
+   "le": "2026-09-02 07:59 UTC",
+   "plage": [
+    439150,
+    439700
+   ],
+   "competitions_retenues": 25,
+   "clubs_touches": 74,
+   "matchs_nouveaux": 0,
+   "appels": 685
   }
  ],
  "clubs": [
