@@ -206,6 +206,9 @@
   .fff-titre{margin:9px 0 4px;font-size:.7rem;font-weight:bold;color:#b3ada2;
              text-transform:uppercase;letter-spacing:.4px}
   .fff-autre td{opacity:.62}
+  .fff-eq{color:#b3ada2;font-size:.68rem;font-weight:normal}
+  .fff-pc{color:#8a6d3b;cursor:help}
+  .fff-pc b{color:var(--noir)}
   .av-filtres{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px}
   .av-ligne{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px}
   .av-ligne:last-child{margin-bottom:0}
@@ -1050,7 +1053,12 @@ function buildFavReminder(){
 }
 
 /* ===== Forme d'une équipe : ses N derniers matchs joués ===== */
-function formeEquipe(poule, team, n){
+/* ATTENTION — cette fonction s'appelait « formeEquipe », exactement comme celle du
+   face a face plus bas dans le fichier. La seconde ecrasait celle-ci en silence, et
+   l'appel des stats partait en « (nom || '').indexOf is not a function ». Present des
+   la premiere version du 31/08, corrige le 01/09/2026. Ne pas lui redonner un nom
+   deja pris : verifier avec grep avant d'ajouter une fonction. */
+function formePouleEquipe(poule, team, n){
   const res=[];
   poule.matchs.filter(m=>m.dom===team||m.ext===team).forEach(m=>{
     const sc=state.scores[m.id]; if(!sc||!num(sc.h)||!num(sc.a)) return;
@@ -1072,7 +1080,7 @@ function htmlStats(p){
   const parBC=[...cl].sort((a,b)=>a.bc-b.bc);
   // forme sur les 5 derniers
   const forme=eqs.map(e=>{
-    const f=formeEquipe(p,e,5);
+    const f=formePouleEquipe(p,e,5);
     return {c:e, f, pts:pointsForme(f), joues:f.length};
   }).filter(x=>x.joues>0).sort((a,b)=>b.pts-a.pts || b.joues-a.joues || a.c.localeCompare(b.c));
 
@@ -2297,6 +2305,9 @@ function htmlAutreCarnet(){
    que les matchs saisis par Joris, celui-ci va lire l'API de la FFF.
    Elle autorise les appels depuis un navigateur (verifie le 31/08/2026) ; il faut le
    numero FFF des deux clubs, renseigne dans « Mes equipes ».
+   On filtre sur DEUX criteres, sinon le bilan est faux :
+     - la categorie (un match senior ne doit pas compter les rencontres des U13) ;
+     - le numero d'equipe (l'equipe 1 n'est pas la reserve).
    La ligne ne se remplit QU'A l'apparition du match a l'ecran : un tour de coupe fait
    20 matchs, on ne veut pas 40 requetes au chargement. */
 const FFF_API = "https://api-dofa.fff.fr";
@@ -2325,7 +2336,6 @@ function ffAppel(url){
         if(!r.ok) throw new Error("HTTP "+r.status);
         ok(await r.json());
       }catch(e1){
-        // un seul rattrapage, apres une pause : le refus est presque toujours passager
         await new Promise(z=>setTimeout(z, 2500));
         try{
           const r2 = await fetch(url);
@@ -2357,29 +2367,21 @@ function ffJoue(x){ return x.home_score!==null && x.home_score!==undefined; }
 function ffJour(d){ return d ? d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4) : ""; }
 function ffClub(c){ return (c && c.club && c.club.cl_no) || 0; }
 
-function htmlFffLine(m){
-  if(!m.dom || !m.ext) return '';
-  const cd=clubDeNom(m.dom), ce=clubDeNom(m.ext);
-  const fd=(biblio.equipes[cd]||{}).fff, fe=(biblio.equipes[ce]||{}).fff;
-  if(!fd || !fe) return '';        // un club sans numero : pas de ligne du tout
-  const dtm=(state.dates[m.id]||{}).date||'';   // pour ne pas compter ce match-ci
-  const cat=ffCategorie(m.dom) || ffCategorie(m.ext) || '';
-  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}" data-fnom2="${esc(ce)}" data-fdate="${esc(dtm)}" data-fcat="${esc(cat)}">
-      <span class="fff-corps"><span class="fff-att">\u{1F91D} recherche chez la F\u00e9d\u00e9ration\u2026</span></span>
-      <div class="fff-detail"></div>
-    </div>`;
-}
-
 /* Categorie d'une equipe : « … — EQUIPE 1 Senior » -> SENIOR, « … — U15 » -> U15.
-   Meme lecture sur le nom d'une competition (« SENIORS D3 », « U13 D2 »), pour pouvoir
-   comparer les deux. Sans ca, le face a face d'un match senior afficherait les
-   resultats des U13 du meme club : faux, et Joris s'en servirait pour de vrai. */
+   Meme lecture sur le nom d'une competition (« SENIORS D3 », « U13 D2 »). */
 function ffCategorie(texte){
   const t=(texte||'').toUpperCase();
   const u=t.match(/\bU\s?(\d{2})\b/);
   if(u) return 'U'+u[1];
   if(t.indexOf('SENIOR')>=0 || t.indexOf('SEM')>=0) return 'SENIOR';
   return '';
+}
+/* Numero d'equipe lu dans le nom du carnet : « GEVREY — EQUIPE 2 Senior » -> 2.
+   Cote Federation c'est le champ « code » de chaque equipe du match. Attention a ne
+   PAS le deduire du nom : « J D F 21 » est un club, pas une equipe 21. */
+function ffNumEquipe(nom){
+  const m=(nom||'').toUpperCase().match(/EQUIPE\s*(\d+)/);
+  return m ? +m[1] : 0;         // 0 = inconnu, on ne filtre pas dessus
 }
 
 /* L'archive des saisons passees, deposee dans le depot par l'action « Archive des
@@ -2395,50 +2397,83 @@ function ffArchive(cl){
   return ffArchiveCache.get(cl);
 }
 
-/* Ramene les deux sources a la meme forme. */
+/* Ramene les deux sources a la meme forme. qd/qe = numeros d'equipe. */
 function ffNormaliserDirect(x){
   return { id:x.ma_no, date:(x.date||'').slice(0,10),
            dom:(x.home||{}).short_name, ext:(x.away||{}).short_name,
            cd:ffClub(x.home), ce:ffClub(x.away),
+           qd:(x.home||{}).code, qe:(x.away||{}).code,
            bd:x.home_score, be:x.away_score,
            cp:(x.competition||{}).name||'' };
 }
 
+function ffNomEquipe(x, cote){
+  const n = cote==='d' ? x.dom : x.ext, q = cote==='d' ? x.qd : x.qe;
+  return esc(n||'?') + (q>1 ? ' <span class="fff-eq">éq.'+q+'</span>' : '');
+}
 function ffTableau(liste, classe){
   return '<table>'+liste.map(x=>
     '<tr class="'+(classe||'')+'"><td class="fff-dt">'+ffJour(x.date)+'</td>'
-    +'<td>'+esc(x.dom||'?')+'</td>'
-    +'<td class="fff-sc">'+x.bd+' \u2013 '+x.be+'</td>'
-    +'<td>'+esc(x.ext||'?')+'</td>'
+    +'<td>'+ffNomEquipe(x,'d')+'</td>'
+    +'<td class="fff-sc">'+x.bd+' – '+x.be+'</td>'
+    +'<td>'+ffNomEquipe(x,'e')+'</td>'
     +'<td class="fff-cp">'+esc((x.cp||'').slice(0,22))+'</td></tr>').join('')+'</table>';
 }
 
+/* Le bloc, vide, pose sous le match. Rempli plus tard, a l'apparition. */
+function htmlFffLine(m){
+  const cd=clubDeNom(m.dom), ce=clubDeNom(m.ext);
+  if(!cd || !ce) return "";
+  const fd=(biblio.equipes[cd]||{}).fff, fe=(biblio.equipes[ce]||{}).fff;
+  if(!fd || !fe) return '';        // un club sans numero : pas de ligne du tout
+  const dtm=(state.dates[m.id]||{}).date||'';   // pour ne pas compter ce match-ci
+  const cat=ffCategorie(m.dom) || ffCategorie(m.ext) || '';
+  const eq1=ffNumEquipe(m.dom), eq2=ffNumEquipe(m.ext);
+  return `<div class="fff-l" data-fff data-fd="${fd}" data-fe="${fe}" data-fnom="${esc(cd)}" data-fnom2="${esc(ce)}" data-fdate="${esc(dtm)}" data-fcat="${esc(cat)}" data-feq="${eq1}" data-feq2="${eq2}">
+      <span class="fff-corps"><span class="fff-att">\u{1F91D} recherche chez la Fédération…</span></span>
+      <div class="fff-detail"></div>
+    </div>`;
+}
+
 function ffRemplir(zone){
-  const fd=+zone.dataset.fd, fe=+zone.dataset.fe, nom=zone.dataset.fnom, nom2=zone.dataset.fnom2||'';
+  const fd=+zone.dataset.fd, fe=+zone.dataset.fe;
+  const nom=zone.dataset.fnom, nom2=zone.dataset.fnom2||'';
   const dateDuMatch=zone.dataset.fdate||'';     // le match affiche n'est pas son propre passe
   const catMatch=zone.dataset.fcat||'';         // '' = on ne sait pas, on ne filtre pas
+  const eqA=+zone.dataset.feq||0, eqB=+zone.dataset.feq2||0;
   const corps=zone.querySelector('.fff-corps'), detail=zone.querySelector('.fff-detail');
+
+  // Vrai si la rencontre oppose bien LES MEMES equipes (pas la reserve).
+  // Quand un numero manque — archive d'avant le 01/09, ou nom sans « EQUIPE n » —
+  // on ne filtre pas : mieux vaut montrer un peu trop que de vider a tort.
+  function memesEquipes(x){
+    if(!eqA || !eqB) return true;
+    const qA = x.cd===fd ? x.qd : x.qe;
+    const qB = x.cd===fd ? x.qe : x.qd;
+    if(!qA || !qB) return true;
+    return qA===eqA && qB===eqB;
+  }
 
   Promise.all([ffMatchsDuClub(fd), ffArchive(fd)]).then(([direct, archive])=>{
     if(direct===null && !(archive||[]).length){
-      corps.innerHTML='<span class="fff-att">\u{1F91D} F\u00e9d\u00e9ration injoignable pour l\'instant</span>';
+      corps.innerHTML='<span class="fff-att">\u{1F91D} Fédération injoignable pour l\'instant</span>';
       return;
     }
-    // saison en cours (lue en direct) + saisons passees (archive), sans doublon
     const vus=new Set(); const tout=[];
     (direct||[]).forEach(x=>{ if(ffJoue(x)){ const n=ffNormaliserDirect(x); if(!vus.has(n.id)){vus.add(n.id); tout.push(n);} } });
     (archive||[]).forEach(x=>{ if(!vus.has(x.id)){ vus.add(x.id); tout.push(x); } });
 
     const duels = tout
       .filter(x=>x.cd===fe || x.ce===fe)
-      .filter(x=>!(dateDuMatch && x.date===dateDuMatch))   // pas le match qu'on regarde
+      .filter(x=>!(dateDuMatch && x.date===dateDuMatch))
       .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
-    const memes  = catMatch ? duels.filter(x=>ffCategorie(x.cp)===catMatch) : duels;
-    const autres = catMatch ? duels.filter(x=>ffCategorie(x.cp)!==catMatch) : [];
+    const bonneCat = x => !catMatch || ffCategorie(x.cp)===catMatch;
+    const memes  = duels.filter(x=>bonneCat(x) && memesEquipes(x));
+    const autres = duels.filter(x=>!(bonneCat(x) && memesEquipes(x)));
 
     if(!memes.length && !autres.length){
-      corps.innerHTML='\u{1F91D} <b>Jamais rencontr\u00e9s</b> <span class="fff-src">\u2014 d\'apr\u00e8s la F\u00e9d\u00e9ration</span>';
+      corps.innerHTML='\u{1F91D} <b>Jamais rencontrés</b> <span class="fff-src">— d\'après la Fédération</span>';
       return;
     }
 
@@ -2449,34 +2484,38 @@ function ffRemplir(zone){
       if(pour>contre) v++; else if(pour<contre) d++; else n++;
     });
 
+    const etiq = (t, q) => esc(t) + (q ? ' <span class="fff-eq">éq.'+q+'</span>' : '');
+
     if(memes.length){
       const der=memes[0];
-      // le score se lit du point de vue du club qu'on vient de nommer, sinon
-      // « FAUVERNEY 0V 1N 1D ... (10-1) » se lit comme une victoire 10-1
       const derChez = der.cd===fd;
       const derPour = derChez ? der.bd : der.be, derContre = derChez ? der.be : der.bd;
-      // on nomme les DEUX clubs : « GEVREY 2 - 0 nul - 1 ST APOLLINAIRE ».
-      // Avec un seul nom, Joris devait deduire les victoires de l'adversaire.
+      // Estimation prudente : (V + 0,5) / (total + 1,5). Un simple V/total donnerait
+      // 100 % apres une seule victoire — faux, et Joris le prendrait pour argent
+      // comptant. Ici une victoire sur un match donne 60 %, cinq sur cinq donnent 85 %.
+      const pc = Math.round(100*(v+0.5)/(memes.length+1.5));
       const nuls = n+' nul'+(n>1?'s':'');
-      corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b> \u2014 '
-        + esc(nom)+' <b>'+v+'</b> \u2013 '+nuls+' \u2013 <b>'+d+'</b> '+esc(nom2)
-        + ' \u00b7 derni\u00e8re le '+ffJour(der.date)+' ('+derPour+'\u2013'+derContre+')'
-        + ' <button type="button" class="fff-plus">d\u00e9tail</button>';
+      corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b> — '
+        + etiq(nom,eqA)+' <b>'+v+'</b> – '+nuls+' – <b>'+d+'</b> '+etiq(nom2,eqB)
+        + ' · dernière le '+ffJour(der.date)+' ('+derPour+'–'+derContre+')'
+        + ' · <span class="fff-pc" title="Estimation d\'après ces '+memes.length
+        + ' rencontre(s) seulement. C\'est une tendance, pas une prédiction du match.">'
+        + '\u{1F3B2} '+esc(nom)+' ≈ <b>'+pc+' %</b></span>'
+        + ' <button type="button" class="fff-plus">détail</button>';
     }else{
-      // ils se sont croises, mais pas dans cette categorie : le dire plutot que d'additionner
-      corps.innerHTML = '\u{1F91D} <b>Jamais rencontr\u00e9s</b> dans cette cat\u00e9gorie'
+      corps.innerHTML = '\u{1F91D} <b>Jamais rencontrés</b> dans cette catégorie'
         + ' <span class="fff-src">(mais '+autres.length+' fois ailleurs)</span>'
-        + ' <button type="button" class="fff-plus">d\u00e9tail</button>';
+        + ' <button type="button" class="fff-plus">détail</button>';
     }
 
     detail.innerHTML = (memes.length ? ffTableau(memes,'') : '')
-      + (autres.length ? '<div class="fff-titre">Autres cat\u00e9gories, pour information</div>'
+      + (autres.length ? '<div class="fff-titre">Autres équipes ou catégories, pour information</div>'
                         + ffTableau(autres,'fff-autre') : '');
 
     const bouton=corps.querySelector('.fff-plus');
     if(bouton) bouton.addEventListener('click',()=>{
       detail.classList.toggle('on');
-      bouton.textContent = detail.classList.contains('on') ? 'masquer' : 'd\u00e9tail';
+      bouton.textContent = detail.classList.contains('on') ? 'masquer' : 'détail';
     });
   });
 }
