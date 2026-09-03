@@ -122,6 +122,10 @@
   .eq-fff input:focus{outline:none;border-color:var(--rouge)}
   .fff-ok{font-size:.7rem;color:#2ea043;font-weight:bold}
   .fff-non{font-size:.7rem;color:#c0bbb2}
+  .fff-off{font-size:.78rem;font-weight:bold;color:#2a2a2a;background:#f4f0e6;
+           border:1px solid #e2ddd2;border-radius:6px;padding:3px 9px}
+  .fff-att2{font-size:.72rem;color:#c0bbb2;font-style:italic}
+  .fff-cle{font-size:.66rem;color:#bbb}
   .lieu-tete{display:flex;align-items:center;gap:6px;margin:7px 0 3px}
   .lieu-num{font-size:.66rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
   .lieu-del{border:none;background:#fdeaea;color:#c0392b;border-radius:6px;width:22px;height:22px;font-size:.68rem;cursor:pointer;flex:none;line-height:1}
@@ -181,7 +185,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 31 août · numéros FFF ✓</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · numéro officiel FFF ✓</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -612,6 +616,40 @@ function remplirFff(){
   });
   return change;
 }
+/* Le numero que Joris lit sur le site de la Federation n'est PAS celui que l'API
+   utilise dans ses adresses. Quetigny : « cl_no » 8110 pour l'API, « affiliation_number »
+   522263 sur fff.fr. Les deux sont justes, ils ne designent pas la meme chose.
+   On affiche donc le numero officiel, verifiable, et on garde la cle technique
+   en petit — c'est elle qui sert a interroger l'API. */
+const AFF_API = "https://api-dofa.fff.fr";
+let affEnCours = false;
+async function completerNumerosOfficiels(){
+  if(affEnCours) return;
+  const aFaire = Object.keys(biblio.equipes||{}).filter(nom=>{
+    const inf=biblio.equipes[nom];
+    return inf && inf.fff && !inf.fffAff && !inf.fffAffNon;
+  });
+  if(!aFaire.length) return;
+  affEnCours = true;
+  let change=false;
+  // deux a la fois, espaces : la Federation coupe l'acces si on la bouscule
+  for(let i=0;i<aFaire.length;i+=2){
+    const lot = aFaire.slice(i,i+2);
+    await Promise.all(lot.map(async nom=>{
+      const inf=biblio.equipes[nom]; if(!inf) return;
+      try{
+        const r = await fetch(AFF_API+"/api/clubs/"+inf.fff);
+        if(!r.ok) throw 0;
+        const d = await r.json();
+        if(d && d.affiliation_number){ inf.fffAff = d.affiliation_number; change=true; }
+        else inf.fffAffNon = true;
+      }catch(e){ /* on reessaiera au prochain chargement */ }
+    }));
+    await new Promise(z=>setTimeout(z,180));
+  }
+  affEnCours = false;
+  if(change){ sauverBiblio(); buildListe(); }
+}
 function remplirDepts(){
   let change=false;
   Object.values(biblio.equipes||{}).forEach(inf=>{
@@ -670,6 +708,7 @@ function buildListe(){
   const chgDept  = remplirDepts();
   const chgSport = remplirSports();
   const chgFff   = remplirFff();
+  setTimeout(completerNumerosOfficiels, 400);   // en tache de fond, apres l'affichage
   if(chgLieux || chgDept || chgSport || chgFff) sauverBiblio();
   migrerEquipes();
   const box=document.getElementById('eqListe');
@@ -744,9 +783,13 @@ function buildListe(){
         </div>
         ${sportDuClub(n)==='foot' ? `<div class="eq-fff">
           <label>N° FFF</label>
-          <input data-fff="${esc(n)}" value="${esc(inf.fff||"")}" placeholder="—" inputmode="numeric"
-                 title="Le numéro de ce club à la Fédération. C'est lui qui permet de retrouver ses anciennes rencontres.">
+          ${inf.fffAff
+            ? `<span class="fff-off" title="Le numéro officiel du club, celui affiché sur le site de la Fédération.">${inf.fffAff}</span>`
+            : (inf.fff ? '<span class="fff-att2">recherche…</span>' : '')}
           ${inf.fff?'<span class="fff-ok">✓ relié</span>':'<span class="fff-non">pas relié</span>'}
+          <span class="fff-cle" title="Clé interne de l'API de la Fédération. Différente du numéro officiel, c'est elle qui sert à retrouver les rencontres. À ne changer que si le club est mal relié.">clé</span>
+          <input data-fff="${esc(n)}" value="${esc(inf.fff||"")}" placeholder="—" inputmode="numeric"
+                 title="Clé interne de l'API. Ce n'est pas le numéro officiel affiché à côté.">
         </div>` : ''}
         <div class="eq-equipes">
           <div class="ee-titre">Ses équipes : <button class="ee-gerer" data-gerer="types">✎ types</button> <button class="ee-gerer" data-gerer="categories">✎ catégories</button></div>
@@ -919,6 +962,8 @@ function brancher(){
     const v=inp.value.replace(/[^0-9]/g,'');
     if(v){ delete inf.fffNon; inf.fff=+v; }
     else { delete inf.fff; inf.fffNon=true; }   // vide a la main = on ne le repropose pas
+    // la cle a change : le numero officiel affiche ne correspond plus, on le refera
+    delete inf.fffAff; delete inf.fffAffNon;
     sauverBiblio();                              // pas de redessin : le curseur reste en place
   }));
   document.querySelectorAll('[data-addlieu]').forEach(b=>b.addEventListener('click',()=>{
