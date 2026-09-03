@@ -185,7 +185,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · clubs reliés tout seuls ✓</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · anti-écrasement ✓</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -692,7 +692,12 @@ async function affDepuisLeNom(){
     const t = a.parNom[annNorm(nom)];
     if(t){ const inf=biblio.equipes[nom]; inf.fff=t[0]; inf.fffAff=t[1]; delete inf.fffKo; change=true; }
   });
-  if(change){ sauverBiblio(); buildListe(); }
+  // ON NE SAUVEGARDE PAS. sauverBiblio() reecrit la bibliotheque ENTIERE : si le
+  // championnat ou les coupes ont ajoute des equipes pendant qu'on cherchait, on
+  // les effacerait. C'est ce qui a coute la perte du 13/08, et ce que cette routine
+  // a reproduit le 03/09. Les numeros se retrouvent de toute facon a chaque
+  // chargement, en une fraction de seconde, puisque l'annuaire est en cache.
+  if(change) redessinerSiPossible();
   return change;
 }
 
@@ -727,7 +732,8 @@ async function completerNumerosOfficiels(){
     await new Promise(z=>setTimeout(z,180));
   }
   affEnCours = false;
-  if(change){ sauverBiblio(); buildListe(); }
+  // meme raison : pas de sauvegarde globale depuis une routine de fond
+  if(change) redessinerSiPossible();
 }
 function remplirDepts(){
   let change=false;
@@ -786,9 +792,9 @@ function buildListe(){
   const chgLieux = migrerLieux();
   const chgDept  = remplirDepts();
   const chgSport = remplirSports();
-  const chgFff   = remplirFff();
+  remplirFff();   // pose les numeros connus en memoire, sans sauvegarder
   setTimeout(()=>{ affDepuisLeNom().then(()=>completerNumerosOfficiels()); }, 400);
-  if(chgLieux || chgDept || chgSport || chgFff) sauverBiblio();
+  if(chgLieux || chgDept || chgSport) sauverBiblio();
   migrerEquipes();
   const box=document.getElementById('eqListe');
   // on lit toujours la valeur réelle du champ de recherche (source unique de vérité)
