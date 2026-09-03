@@ -3646,14 +3646,33 @@ function initialesEquipe(nom){
   if(mots.length===1) return mots[0].slice(0,2).toUpperCase();
   return (mots[0][0]+mots[1][0]).toUpperCase();
 }
+/* ===== Logo officiel de la Federation, en secours =====
+   Chaque club affilie a son ecusson chez la FFF, a une adresse deduite de son numero
+   officiel. Quand Joris n'a pas mis de logo, on affiche celui-la plutot que les
+   initiales : il n'a plus a les remettre un par un apres une mesaventure.
+   Si l'image manque, lgSecours() repose les initiales — jamais de carre vide. */
+function logoFff(inf){
+  return (inf && inf.fffAff) ? "https://cdn-transverse.azureedge.net/phlogos/BC"+inf.fffAff+".jpg" : "";
+}
+window.lgSecours = function(img){
+  try{
+    const club = img.dataset.club || "";
+    const s = document.createElement('span');
+    s.className = 'lg lg-txt';
+    s.setAttribute('style', img.getAttribute('style')+";background:"+couleurEquipe(club));
+    s.textContent = initialesEquipe(club);
+    img.replaceWith(s);
+  }catch(e){ img.style.visibility='hidden'; }
+};
 function htmlLogo(nom, taille){
   // 22 px paraissait riquiqui a cote des champs et des noms elargis pour le handball.
   // On reste modeste par defaut (tableaux de classement, listes) et on agrandit
   // franchement la ou Joris regarde : la ligne du match.
   const t = taille || 24;
   const club = clubDeNom(nom);
-  const src = equipeInfo(nom).logo;
-  if(src) return `<img class="lg" src="${src}" alt="" style="width:${t}px;height:${t}px">`;
+  const inf = equipeInfo(nom);
+  const src = inf.logo || logoFff(inf);
+  if(src) return `<img class="lg" src="${src}" alt="" data-club="${esc(club)}" onerror="lgSecours(this)" style="width:${t}px;height:${t}px">`;
   return `<span class="lg lg-txt" style="width:${t}px;height:${t}px;background:${couleurEquipe(club)};font-size:${Math.round(t*0.4)}px">${esc(initialesEquipe(club))}</span>`;
 }
 /* Réduit l'image : sinon la bibliothèque devient lourde à synchroniser */
