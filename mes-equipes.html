@@ -616,34 +616,58 @@ function remplirFff(){
   });
   return change;
 }
-/* Le numero que Joris lit sur le site de la Federation n'est PAS celui que l'API
-   utilise dans ses adresses. Quetigny : « cl_no » 8110 pour l'API, « affiliation_number »
-   522263 sur fff.fr. Les deux sont justes, ils ne designent pas la meme chose.
-   On affiche donc le numero officiel, verifiable, et on garde la cle technique
-   en petit — c'est elle qui sert a interroger l'API. */
+/* DEUX numeros, et il ne faut pas les confondre :
+     - « affiliation_number » : le numero OFFICIEL, celui que Joris lit sur fff.fr
+       (Quetigny = 522263). C'est celui qu'on affiche et qu'il saisit.
+     - « cl_no » : la cle interne de l'API (Quetigny = 8110). C'est elle qui sert a
+       interroger la Federation, mais elle ne figure nulle part sur le site public.
+   Premiere version : le champ modifiable contenait la cle, avec l'etiquette « N° FFF ».
+   Joris y a naturellement saisi les numeros officiels — 41 clubs se sont retrouves
+   debranches. Desormais il saisit le numero officiel et le carnet retrouve la cle,
+   grace a /api/clubs?affiliation_number=... qui repond (la collection nue, elle,
+   renvoie 400 : c'est le filtre qui l'ouvre).
+   Le code repare aussi tout seul les fiches ou les deux valeurs ont ete interverties. */
 const AFF_API = "https://api-dofa.fff.fr";
 let affEnCours = false;
+
+async function affJson(chemin){
+  try{ const r = await fetch(AFF_API+chemin); return r.ok ? await r.json() : null; }
+  catch(e){ return null; }
+}
+/* numero officiel -> cle interne */
+async function affCleDepuisOfficiel(num){
+  const d = await affJson("/api/clubs?affiliation_number="+num);
+  const l = d && (d["hydra:member"]||[]);
+  return (l && l.length && l[0].cl_no) ? l[0].cl_no : 0;
+}
+
+/* Met chaque fiche d'aplomb : cle valide d'un cote, numero officiel de l'autre. */
 async function completerNumerosOfficiels(){
   if(affEnCours) return;
   const aFaire = Object.keys(biblio.equipes||{}).filter(nom=>{
     const inf=biblio.equipes[nom];
-    return inf && inf.fff && !inf.fffAff && !inf.fffAffNon;
+    if(!inf || sportDuClub(nom)!=='foot') return false;
+    if(inf.fffKo) return false;                       // deja signale introuvable
+    return (inf.fff && !inf.fffAff) || (inf.fffAff && !inf.fff);
   });
   if(!aFaire.length) return;
   affEnCours = true;
   let change=false;
-  // deux a la fois, espaces : la Federation coupe l'acces si on la bouscule
-  for(let i=0;i<aFaire.length;i+=2){
-    const lot = aFaire.slice(i,i+2);
-    await Promise.all(lot.map(async nom=>{
+  for(let i=0;i<aFaire.length;i+=2){                  // deux a la fois, espaces
+    await Promise.all(aFaire.slice(i,i+2).map(async nom=>{
       const inf=biblio.equipes[nom]; if(!inf) return;
-      try{
-        const r = await fetch(AFF_API+"/api/clubs/"+inf.fff);
-        if(!r.ok) throw 0;
-        const d = await r.json();
-        if(d && d.affiliation_number){ inf.fffAff = d.affiliation_number; change=true; }
-        else inf.fffAffNon = true;
-      }catch(e){ /* on reessaiera au prochain chargement */ }
+      if(inf.fff && !inf.fffAff){
+        const d = await affJson("/api/clubs/"+inf.fff);
+        if(d && d.affiliation_number){ inf.fffAff = d.affiliation_number; change=true; return; }
+        // la cle ne repond pas : c'etait sans doute un numero officiel mal place
+        const cle = await affCleDepuisOfficiel(inf.fff);
+        if(cle){ inf.fffAff = inf.fff; inf.fff = cle; change=true; }
+        else { inf.fffKo = true; change=true; }
+      }else if(inf.fffAff && !inf.fff){
+        const cle = await affCleDepuisOfficiel(inf.fffAff);
+        if(cle){ inf.fff = cle; delete inf.fffKo; change=true; }
+        else { inf.fffKo = true; change=true; }
+      }
     }));
     await new Promise(z=>setTimeout(z,180));
   }
@@ -783,13 +807,13 @@ function buildListe(){
         </div>
         ${sportDuClub(n)==='foot' ? `<div class="eq-fff">
           <label>N° FFF</label>
-          ${inf.fffAff
-            ? `<span class="fff-off" title="Le numéro officiel du club, celui affiché sur le site de la Fédération.">${inf.fffAff}</span>`
-            : (inf.fff ? '<span class="fff-att2">recherche…</span>' : '')}
-          ${inf.fff?'<span class="fff-ok">✓ relié</span>':'<span class="fff-non">pas relié</span>'}
-          <span class="fff-cle" title="Clé interne de l'API de la Fédération. Différente du numéro officiel, c'est elle qui sert à retrouver les rencontres. À ne changer que si le club est mal relié.">clé</span>
-          <input data-fff="${esc(n)}" value="${esc(inf.fff||"")}" placeholder="—" inputmode="numeric"
-                 title="Clé interne de l'API. Ce n'est pas le numéro officiel affiché à côté.">
+          <input data-fffaff="${esc(n)}" value="${esc(inf.fffAff||"")}" placeholder="—" inputmode="numeric"
+                 title="Le numéro officiel du club, celui affiché sur le site de la Fédération. Le carnet retrouve tout seul de quoi aller chercher ses matchs.">
+          ${inf.fffKo ? '<span class="fff-non">club introuvable</span>'
+            : (inf.fff && inf.fffAff) ? '<span class="fff-ok">✓ relié</span>'
+            : (inf.fff || inf.fffAff) ? '<span class="fff-att2">recherche…</span>'
+            : '<span class="fff-non">pas relié</span>'}
+          ${inf.fff?`<span class="fff-cle" title="Clé interne de l'API, retrouvée automatiquement. Rien à faire avec.">clé ${inf.fff}</span>`:''}
         </div>` : ''}
         <div class="eq-equipes">
           <div class="ee-titre">Ses équipes : <button class="ee-gerer" data-gerer="types">✎ types</button> <button class="ee-gerer" data-gerer="categories">✎ catégories</button></div>
@@ -957,15 +981,20 @@ function brancher(){
     inf.dept=sel.value.trim();   // vide = automatique, devine depuis le code postal
     sauverBiblio();
   }));
-  document.querySelectorAll('[data-fff]').forEach(inp=>inp.addEventListener('input',()=>{
-    const inf=biblio.equipes[inp.dataset.fff]; if(!inf) return;
-    const v=inp.value.replace(/[^0-9]/g,'');
-    if(v){ delete inf.fffNon; inf.fff=+v; }
-    else { delete inf.fff; inf.fffNon=true; }   // vide a la main = on ne le repropose pas
-    // la cle a change : le numero officiel affiche ne correspond plus, on le refera
-    delete inf.fffAff; delete inf.fffAffNon;
-    sauverBiblio();                              // pas de redessin : le curseur reste en place
-  }));
+  document.querySelectorAll('[data-fffaff]').forEach(inp=>{
+    let minuteur=null;
+    inp.addEventListener('input',()=>{
+      const inf=biblio.equipes[inp.dataset.fffaff]; if(!inf) return;
+      const v=inp.value.replace(/[^0-9]/g,'');
+      delete inf.fffKo;
+      if(v){ delete inf.fffNon; inf.fffAff=+v; delete inf.fff; }
+      else { delete inf.fffAff; delete inf.fff; inf.fffNon=true; }  // vide a la main
+      sauverBiblio();                            // pas de redessin : le curseur reste
+      // on attend qu'il ait fini de taper avant d'aller chercher la cle
+      clearTimeout(minuteur);
+      minuteur = setTimeout(completerNumerosOfficiels, 900);
+    });
+  });
   document.querySelectorAll('[data-addlieu]').forEach(b=>b.addEventListener('click',()=>{
     const inf=biblio.equipes[b.dataset.addlieu]; if(!inf) return;
     assurerLieux(inf).push({id:uid(), ville:"", cp:"", stade:""});
