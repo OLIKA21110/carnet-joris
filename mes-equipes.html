@@ -396,6 +396,53 @@ function restaurerHistorique(s){
   document.getElementById('histModal').hidden=true;
   alert(`R\u00e9cup\u00e9ration termin\u00e9e !\n\n${nc} club(s)\n${ne} \u00e9quipe(s)\n${nl} type(s)/cat\u00e9gorie(s)`);
 }
+/* ===== Ne jamais ecraser ce qui a ete ajoute ailleurs =====
+   sauverBiblio() renvoie la bibliotheque ENTIERE. Si le championnat, les coupes ou
+   un autre appareil ont ajoute un club ou une equipe pendant que cette page etait
+   ouverte, l'envoi les effacait. C'est le mecanisme de la perte du 13/08/2026, et il
+   frappait encore le 03/09.
+   On relit donc la version en ligne juste avant d'envoyer, et on recupere ce qui
+   nous manque. Pour que les suppressions VOLONTAIRES restent possibles, on garde une
+   liste des clubs et equipes que Joris a lui-meme supprimes (« pierres tombales ») :
+   celles-la ne reviennent pas. Elles sont oubliees au bout de 60 jours. */
+function tombePoser(quoi, cle){
+  biblio._supprimes = biblio._supprimes || {};
+  biblio._supprimes[quoi+":"+cle] = Date.now();
+}
+function tombePresente(quoi, cle){
+  const t = (biblio._supprimes||{})[quoi+":"+cle];
+  return !!t && (Date.now()-t) < 60*24*3600*1000;
+}
+function tombeNettoyer(){
+  const t = biblio._supprimes; if(!t) return;
+  const limite = Date.now() - 60*24*3600*1000;
+  Object.keys(t).forEach(k=>{ if(t[k] < limite) delete t[k]; });
+}
+async function fusionnerAvantEnvoi(){
+  if(!sb) return;
+  try{
+    const {data} = await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
+    const dist = data && data.data && data.data.equipes;
+    if(!dist) return;
+    tombeNettoyer();
+    Object.keys(dist).forEach(nom=>{
+      if(!biblio.equipes[nom]){
+        if(!tombePresente('club', nom)) biblio.equipes[nom] = dist[nom];   // club ajoute ailleurs
+        return;
+      }
+      const ici = biblio.equipes[nom], la = dist[nom];
+      if(!ici || !la || typeof la!=='object') return;
+      const vus = new Set((ici.equipes||[]).map(e=>e && e.id));
+      (la.equipes||[]).forEach(e=>{
+        if(e && e.id && !vus.has(e.id) && !tombePresente('eq', nom+"/"+e.id)){
+          ici.equipes = ici.equipes || [];
+          ici.equipes.push(e);                                            // equipe ajoutee ailleurs
+        }
+      });
+    });
+  }catch(e){ /* hors ligne : on envoie tel quel, c'est le comportement d'avant */ }
+}
+
 function sauverBiblio(){
   localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
   noterHistorique();
@@ -404,6 +451,7 @@ function sauverBiblio(){
   biblioTimer=setTimeout(async()=>{
     try{
       setSync("↑ envoi…");
+      await fusionnerAvantEnvoi();     // ne jamais effacer ce qui a ete ajoute ailleurs
       const envoi=Object.assign({},biblio,{_src:CLIENT_ID});
       dernierEnvoiBiblio=JSON.stringify(envoi); // filet de secours, en plus du tampon _src
       await sb.from('carnet').upsert({id:BIBLIO_ID,data:envoi,updated_at:new Date().toISOString()});
@@ -1018,6 +1066,7 @@ function brancher(){
   document.querySelectorAll('[data-eqdel]').forEach(b=>b.addEventListener('click',()=>{
     const n=b.dataset.eqdel;
     if(!confirm(`Supprimer « ${n} » ?\n\n(Ce club ne joue aucun match, tu peux le remettre plus tard.)`)) return;
+    tombePoser('club', n);            // suppression voulue : la fusion ne le fera pas revenir
     delete biblio.equipes[n];
     sauverBiblio(); buildListe();
   }));
@@ -1106,6 +1155,7 @@ function brancher(){
     const arr=biblio.equipes[club].equipes||[];
     const eq=arr.find(e=>e.id===eqid);
     if(eq && confirm(`Enlever l'équipe « ${[eq.type,eq.cat].filter(Boolean).join(" ")||"?"} » de ${club} ?`)){
+      tombePoser('eq', club+"/"+eqid);   // suppression voulue
       biblio.equipes[club].equipes=arr.filter(e=>e.id!==eqid);
       sauverBiblio(); buildListe();
     }
