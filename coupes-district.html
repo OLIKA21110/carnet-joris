@@ -1932,12 +1932,13 @@ function ffRemplir(zone){
     const pV = Math.round(100*(v+0.5)/den);
     const pN = Math.round(100*(n+0.5)/den);
     const pD = Math.max(0, 100 - pV - pN);          // pour que la somme fasse pile 100
-    const trois = [pV,pN,pD].slice().sort((a,b)=>b-a);
-    // 51 contre 49 ne designe pas un favori : on le dit plutot que de trancher a tort
-    const serre = (trois[0] - trois[1]) < 8;
-    const verdict = serre ? 'Match serr\u00e9'
-                  : (trois[0]===pV ? 'Avantage '+esc(nom)
-                  : (trois[0]===pD ? 'Avantage '+esc(nom2) : 'Le nul est probable'));
+    // Le verdict compare les DEUX EQUIPES entre elles. En comparant les trois
+    // chiffres, on annoncait « Match serre » des que le nul talonnait le favori,
+    // alors qu'une equipe etait tres au-dessus de l'autre : trompeur.
+    // « Le nul est probable » ne sort que s'il domine vraiment les deux equipes.
+    const verdict = (pN > pV && pN > pD) ? 'Le nul est probable'
+                  : (Math.abs(pV - pD) < 8) ? 'Match serr\u00e9'
+                  : (pV > pD ? 'Avantage '+esc(nom) : 'Avantage '+esc(nom2));
 
     const etiq = (t, q) => esc(t) + (q ? ' <span class="fff-eq">éq.'+q+'</span>' : '');
 
