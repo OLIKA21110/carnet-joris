@@ -1841,6 +1841,7 @@ function ffArchive(cl){
 /* Ramene les deux sources a la meme forme. qd/qe = numeros d'equipe. */
 function ffNormaliserDirect(x){
   return { id:x.ma_no, date:(x.date||'').slice(0,10),
+           sa:(x.competition||{}).season,
            dom:(x.home||{}).short_name, ext:(x.away||{}).short_name,
            cd:ffClub(x.home), ce:ffClub(x.away),
            qd:(x.home||{}).code, qe:(x.away||{}).code,
@@ -1925,13 +1926,35 @@ function ffRemplir(zone){
       if(pour>contre) v++; else if(pour<contre) d++; else n++;
     });
 
-    // Trois chances, pas une : la question de Joris est « qui part favori, et le nul
-    // est-il jouable ? ». Lissage (x + 0,5) / (total + 1,5) : sans lui, une victoire
-    // sur un seul match afficherait 100 %, ce qu'il prendrait pour argent comptant.
-    const den = memes.length + 1.5;
-    const pV = Math.round(100*(v+0.5)/den);
-    const pN = Math.round(100*(n+0.5)/den);
-    const pD = Math.max(0, 100 - pV - pN);          // pour que la somme fasse pile 100
+    // Chaque rencontre ne pese pas le meme poids. Premiere version : on comptait
+    // seulement V/N/D, donc un 1-0 et un 8-2 comptaient pareil — Gevrey/Beaune sortait
+    // « Match serre » alors que Beaune avait passe 8 buts. Deux corrections :
+    //   - l'ampleur du score : 1 but d'ecart -> poids 1 ; 4 buts et plus -> poids 2
+    //   - l'anciennete : la saison la plus recente compte 1, la precedente 0,7, etc.
+    // Le lissage (+0,5 / +1,5) reste : sans lui, une seule victoire donnerait 100 %.
+    const saisonMax = Math.max.apply(null, memes.map(x=>+x.sa||0));
+    let wV=0, wN=0, wD=0;
+    memes.forEach(x=>{
+      const chez = x.cd===fd;
+      const pour = chez ? x.bd : x.be, contre = chez ? x.be : x.bd;
+      const recul = Math.max(0, saisonMax - (+x.sa||saisonMax));
+      const age = Math.pow(0.7, recul);
+      if(pour===contre){ wN += age; return; }
+      const poids = age * (1 + Math.min(Math.abs(pour-contre)-1, 3)/3);
+      if(pour>contre) wV += poids; else wD += poids;
+    });
+    const den = wV + wN + wD + 1.5;
+    let pV = Math.round(100*(wV+0.5)/den);
+    let pN = Math.round(100*(wN+0.5)/den);
+    let pD = Math.round(100*(wD+0.5)/den);
+    // les trois arrondis ne tombent pas toujours a 100 : on corrige sur le plus grand,
+    // plutot que de donner systematiquement le reste a l'equipe exterieure
+    const ecartSomme = 100 - (pV+pN+pD);
+    if(ecartSomme){
+      if(pV>=pN && pV>=pD) pV += ecartSomme;
+      else if(pD>=pN) pD += ecartSomme;
+      else pN += ecartSomme;
+    }
     // Le verdict compare les DEUX EQUIPES entre elles. En comparant les trois
     // chiffres, on annoncait « Match serre » des que le nul talonnait le favori,
     // alors qu'une equipe etait tres au-dessus de l'autre : trompeur.
@@ -1951,10 +1974,12 @@ function ffRemplir(zone){
       // comptant. Ici une victoire sur un match donne 60 %, cinq sur cinq donnent 85 %.
       const nuls = n+' nul'+(n>1?'s':'');
       corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b> — '
-        + etiq(nom,eqA)+' <b>'+v+'</b> – '+nuls+' – <b>'+d+'</b> '+etiq(nom2,eqB)
+        + etiq(nom,eqA)+' <b>'+v+'</b> victoire'+(v>1?'s':'')+' · '+nuls+' · '
+        + etiq(nom2,eqB)+' <b>'+d+'</b> victoire'+(d>1?'s':'')
         + ' · dernière le '+ffJour(der.date)+' ('+derPour+'–'+derContre+')'
         + ' · <span class="fff-pc" title="Estimation d\'après ces '+memes.length
-        + ' rencontre(s) seulement. C\'est une tendance, pas une prédiction du match.">'
+        + ' rencontre(s) seulement, en tenant compte de l\'écart de buts et de '
+        + 'l\'ancienneté. C\'est une tendance, pas une prédiction du match.">'
         + '\u{1F3B2} <b>'+verdict+'</b> — '+esc(nom)+' '+pV+' % · nul '+pN+' % · '
         + esc(nom2)+' '+pD+' %</span>'
         + ' <button type="button" class="fff-plus">détail</button>';
