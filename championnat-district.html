@@ -2523,8 +2523,10 @@ function ffRemplir(zone){
         + esc(nom2)+' '+pD+' %</span>'
         + ' <button type="button" class="fff-plus">détail</button>';
     }else{
-      corps.innerHTML = '\u{1F91D} <b>Jamais rencontrés</b> dans cette catégorie'
-        + ' <span class="fff-src">(mais '+autres.length+' fois ailleurs)</span>'
+      // ecartees soit par la categorie, soit par le numero d'equipe : on ne nomme
+      // donc pas la raison, on dit ce qui est vrai dans les deux cas
+      corps.innerHTML = '\u{1F91D} <b>Ces deux équipes ne se sont jamais rencontrées</b>'
+        + ' <span class="fff-src">(mais leurs clubs, '+autres.length+' fois)</span>'
         + ' <button type="button" class="fff-plus">détail</button>';
     }
 
