@@ -634,11 +634,17 @@ async function affJson(chemin){
   try{ const r = await fetch(AFF_API+chemin); return r.ok ? await r.json() : null; }
   catch(e){ return null; }
 }
-/* numero officiel -> cle interne */
+/* numero officiel -> cle interne.
+   PIEGE, paye cher le 03/09/2026 : /api/clubs?affiliation_number=X repond 200 mais
+   NE FILTRE PAS — il renvoie la premiere page des 15 525 clubs de France. En prenant
+   le premier element, on collait la cle 82 (le club « GERS ») a quarante clubs, qui
+   se retrouvaient debranches. On ne retient donc un resultat QUE si son numero
+   officiel est bien celui demande. Sans quoi : rien, et le club reste signale. */
 async function affCleDepuisOfficiel(num){
-  const d = await affJson("/api/clubs?affiliation_number="+num);
-  const l = d && (d["hydra:member"]||[]);
-  return (l && l.length && l[0].cl_no) ? l[0].cl_no : 0;
+  const d = await affJson("/api/clubs?affiliation_number="+num+"&page=1");
+  const l = (d && d["hydra:member"]) || [];
+  const bon = l.find(c => +c.affiliation_number === +num);
+  return bon ? bon.cl_no : 0;
 }
 
 /* Met chaque fiche d'aplomb : cle valide d'un cote, numero officiel de l'autre. */
