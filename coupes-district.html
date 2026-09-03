@@ -180,6 +180,12 @@
   .fff-eq{color:#b3ada2;font-size:.68rem;font-weight:normal}
   .fff-pc{color:#8a6d3b;cursor:help}
   .fff-pc b{color:var(--noir)}
+  .fff-barre{display:flex;height:19px;border-radius:6px;overflow:hidden;margin:3px 0 2px}
+  .fff-barre span{display:grid;place-items:center;color:#fff;font-size:.62rem;font-weight:bold;min-width:0}
+  .fff-barre .bV{background:#1a7a3c}
+  .fff-barre .bN{background:#b09a5e}
+  .fff-barre .bD{background:#C8102E}
+  .fff-leg{display:flex;justify-content:space-between;font-size:.64rem;color:#b3ada2;margin-bottom:4px}
   .h2h-plus{color:#aaa}
   .av-filtres{background:#fff;border-radius:12px;padding:12px 14px;margin-bottom:12px}
   .av-ligne{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:7px}
@@ -1919,6 +1925,20 @@ function ffRemplir(zone){
       if(pour>contre) v++; else if(pour<contre) d++; else n++;
     });
 
+    // Trois chances, pas une : la question de Joris est « qui part favori, et le nul
+    // est-il jouable ? ». Lissage (x + 0,5) / (total + 1,5) : sans lui, une victoire
+    // sur un seul match afficherait 100 %, ce qu'il prendrait pour argent comptant.
+    const den = memes.length + 1.5;
+    const pV = Math.round(100*(v+0.5)/den);
+    const pN = Math.round(100*(n+0.5)/den);
+    const pD = Math.max(0, 100 - pV - pN);          // pour que la somme fasse pile 100
+    const trois = [pV,pN,pD].slice().sort((a,b)=>b-a);
+    // 51 contre 49 ne designe pas un favori : on le dit plutot que de trancher a tort
+    const serre = (trois[0] - trois[1]) < 8;
+    const verdict = serre ? 'Match serr\u00e9'
+                  : (trois[0]===pV ? 'Avantage '+esc(nom)
+                  : (trois[0]===pD ? 'Avantage '+esc(nom2) : 'Le nul est probable'));
+
     const etiq = (t, q) => esc(t) + (q ? ' <span class="fff-eq">éq.'+q+'</span>' : '');
 
     if(memes.length){
@@ -1928,14 +1948,14 @@ function ffRemplir(zone){
       // Estimation prudente : (V + 0,5) / (total + 1,5). Un simple V/total donnerait
       // 100 % apres une seule victoire — faux, et Joris le prendrait pour argent
       // comptant. Ici une victoire sur un match donne 60 %, cinq sur cinq donnent 85 %.
-      const pc = Math.round(100*(v+0.5)/(memes.length+1.5));
       const nuls = n+' nul'+(n>1?'s':'');
       corps.innerHTML = '\u{1F91D} <b>'+memes.length+' rencontre'+(memes.length>1?'s':'')+'</b> — '
         + etiq(nom,eqA)+' <b>'+v+'</b> – '+nuls+' – <b>'+d+'</b> '+etiq(nom2,eqB)
         + ' · dernière le '+ffJour(der.date)+' ('+derPour+'–'+derContre+')'
         + ' · <span class="fff-pc" title="Estimation d\'après ces '+memes.length
         + ' rencontre(s) seulement. C\'est une tendance, pas une prédiction du match.">'
-        + '\u{1F3B2} '+esc(nom)+' ≈ <b>'+pc+' %</b></span>'
+        + '\u{1F3B2} <b>'+verdict+'</b> — '+esc(nom)+' '+pV+' % · nul '+pN+' % · '
+        + esc(nom2)+' '+pD+' %</span>'
         + ' <button type="button" class="fff-plus">détail</button>';
     }else{
       corps.innerHTML = '\u{1F91D} <b>Jamais rencontrés</b> dans cette catégorie'
@@ -1943,7 +1963,14 @@ function ffRemplir(zone){
         + ' <button type="button" class="fff-plus">détail</button>';
     }
 
-    detail.innerHTML = (memes.length ? ffTableau(memes,'') : '')
+    const barre = memes.length
+      ? '<div class="fff-titre">Chances estim\u00e9es</div><div class="fff-barre">'
+        + '<span class="bV" style="width:'+pV+'%">'+(pV>11?pV+'%':'')+'</span>'
+        + '<span class="bN" style="width:'+pN+'%">'+(pN>11?pN+'%':'')+'</span>'
+        + '<span class="bD" style="width:'+pD+'%">'+(pD>11?pD+'%':'')+'</span></div>'
+        + '<div class="fff-leg"><span>'+esc(nom)+'</span><span>nul</span><span>'+esc(nom2)+'</span></div>'
+      : '';
+    detail.innerHTML = barre + (memes.length ? ffTableau(memes,'') : '')
       + (autres.length ? '<div class="fff-titre">Autres équipes ou catégories, pour information</div>'
                         + ffTableau(autres,'fff-autre') : '');
 
