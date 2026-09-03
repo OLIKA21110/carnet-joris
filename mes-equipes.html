@@ -185,7 +185,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · numéro officiel FFF ✓</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · clubs reliés tout seuls ✓</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -634,6 +634,31 @@ async function affJson(chemin){
   try{ const r = await fetch(AFF_API+chemin); return r.ok ? await r.json() : null; }
   catch(e){ return null; }
 }
+/* L'annuaire des 15 489 clubs de France, releve une fois depuis le navigateur et
+   range dans Supabase (ligne « annuaire_fff »), a cote des carnets. Il donne, pour
+   chaque club : son numero officiel, sa cle d'API et son nom.
+   Pourquoi ce detour : l'API ne sait PAS chercher un club, ni par numero officiel
+   ni par nom — tous les filtres sont ignores. Il a donc fallu la lire page par page.
+   L'annuaire sert a deux choses : convertir un numero officiel saisi par Joris, et
+   reconnaitre un club a son seul nom quand il vient d'etre cree. */
+let annuaire = null, annuaireEnCours = null;
+async function chargerAnnuaire(){
+  if(annuaire) return annuaire;
+  if(annuaireEnCours) return annuaireEnCours;
+  annuaireEnCours = (async ()=>{
+    try{
+      const {data} = await sb.from('carnet').select('data').eq('id','annuaire_fff').maybeSingle();
+      if(data && data.data && data.data.parAff) annuaire = data.data;
+    }catch(e){ /* pas d'annuaire : on se rabat sur les saisies a la main */ }
+    annuaireEnCours = null;
+    return annuaire;
+  })();
+  return annuaireEnCours;
+}
+function annNorm(s){
+  return (s||'').normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+}
+
 /* numero officiel -> cle interne.
    PIEGE, paye cher le 03/09/2026 : /api/clubs?affiliation_number=X repond 200 mais
    NE FILTRE PAS — il renvoie la premiere page des 15 525 clubs de France. En prenant
@@ -641,10 +666,34 @@ async function affJson(chemin){
    se retrouvaient debranches. On ne retient donc un resultat QUE si son numero
    officiel est bien celui demande. Sans quoi : rien, et le club reste signale. */
 async function affCleDepuisOfficiel(num){
+  const a = await chargerAnnuaire();
+  if(a && a.parAff && a.parAff[num]) return a.parAff[num];
+  // secours : l'API, en verifiant que le club rendu porte bien ce numero
   const d = await affJson("/api/clubs?affiliation_number="+num+"&page=1");
   const l = (d && d["hydra:member"]) || [];
   const bon = l.find(c => +c.affiliation_number === +num);
   return bon ? bon.cl_no : 0;
+}
+
+/* Reconnait un club a son nom, a sa creation. On ne retient que les noms UNIQUES
+   dans toute la France : « ST REMY » existe dans plusieurs departements, et relier
+   Joris au mauvais club serait pire que de ne rien relier. Les 163 noms ambigus
+   restent donc a saisir a la main. */
+async function affDepuisLeNom(){
+  const aChercher = Object.keys(biblio.equipes||{}).filter(nom=>{
+    const inf=biblio.equipes[nom];
+    return inf && sportDuClub(nom)==='foot' && !inf.fff && !inf.fffAff && !inf.fffNon;
+  });
+  if(!aChercher.length) return false;
+  const a = await chargerAnnuaire();
+  if(!a || !a.parNom) return false;
+  let change=false;
+  aChercher.forEach(nom=>{
+    const t = a.parNom[annNorm(nom)];
+    if(t){ const inf=biblio.equipes[nom]; inf.fff=t[0]; inf.fffAff=t[1]; delete inf.fffKo; change=true; }
+  });
+  if(change){ sauverBiblio(); buildListe(); }
+  return change;
 }
 
 /* Met chaque fiche d'aplomb : cle valide d'un cote, numero officiel de l'autre. */
@@ -738,7 +787,7 @@ function buildListe(){
   const chgDept  = remplirDepts();
   const chgSport = remplirSports();
   const chgFff   = remplirFff();
-  setTimeout(completerNumerosOfficiels, 400);   // en tache de fond, apres l'affichage
+  setTimeout(()=>{ affDepuisLeNom().then(()=>completerNumerosOfficiels()); }, 400);
   if(chgLieux || chgDept || chgSport || chgFff) sauverBiblio();
   migrerEquipes();
   const box=document.getElementById('eqListe');
