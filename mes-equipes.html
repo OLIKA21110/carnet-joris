@@ -126,6 +126,9 @@
            border:1px solid #e2ddd2;border-radius:6px;padding:3px 9px}
   .fff-att2{font-size:.72rem;color:#c0bbb2;font-style:italic}
   .fff-cle{font-size:.66rem;color:#bbb}
+  .relier-ligne{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
+  .relier-mot{font-size:.8rem;color:#8a6d3b}
+  .relier-mot.ok{color:#2ea043;font-weight:bold}
   .lieu-tete{display:flex;align-items:center;gap:6px;margin:7px 0 3px}
   .lieu-num{font-size:.66rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
   .lieu-del{border:none;background:#fdeaea;color:#c0392b;border-radius:6px;width:22px;height:22px;font-size:.68rem;cursor:pointer;flex:none;line-height:1}
@@ -185,7 +188,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · anti-écrasement ✓</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · bouton Relier ✓</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -197,6 +200,10 @@
     <div class="recherche">
       <input type="text" id="chercher" placeholder="🔎 Chercher un club…">
       <span class="compteur" id="compteur"></span>
+    </div>
+    <div class="relier-ligne">
+      <button class="act" id="relierFff">🔗 Relier les clubs à la Fédération</button>
+      <span class="relier-mot" id="relierMot"></span>
     </div>
     <div class="sport-filtre" id="sportFiltre"></div>
     <div style="text-align:right;margin:-6px 0 8px">
@@ -1056,6 +1063,37 @@ function ajouterValeurListe(silencieux){
   sauverBiblio(); dessinerListe(); buildListe();
   return true;
 }
+/* Le bouton « Relier les clubs a la Federation ».
+   Les routines de fond travaillent en memoire et ne sauvegardent pas (elles
+   pourraient ecraser un ajout fait ailleurs). Ici c'est Joris qui demande : on
+   enregistre donc pour de bon, et sauverBiblio() relit le nuage avant d'envoyer,
+   donc rien n'est perdu. */
+function brancherBoutonRelier(){
+  const b=document.getElementById('relierFff'), mot=document.getElementById('relierMot');
+  if(!b || b.dataset.pret) return;
+  b.dataset.pret='1';
+  b.addEventListener('click', async ()=>{
+    const foot = () => Object.entries(biblio.equipes||{}).filter(([n])=>sportDuClub(n)==='foot');
+    const avant = foot().filter(([,i])=>i.fff && i.fffAff).length;
+    b.disabled=true; mot.className='relier-mot'; mot.textContent='recherche chez la Fédération…';
+    try{
+      await affDepuisLeNom();            // par le nom, pour les clubs tout juste créés
+      await completerNumerosOfficiels(); // par le numéro, pour ceux déjà renseignés
+      const apres = foot().filter(([,i])=>i.fff && i.fffAff).length;
+      const restants = foot().filter(([,i])=>!(i.fff && i.fffAff));
+      sauverBiblio();                    // geste voulu : on enregistre
+      buildListe();
+      const neufs = apres - avant;
+      mot.className='relier-mot ok';
+      mot.textContent = (neufs>0 ? neufs+' club'+(neufs>1?'s':'')+' relié'+(neufs>1?'s':'') : 'rien de nouveau')
+        + ' · ' + apres + ' relié' + (apres>1?'s':'') + ' en tout'
+        + (restants.length ? ' · ' + restants.length + ' à saisir à la main' : '');
+    }catch(e){
+      mot.className='relier-mot'; mot.textContent='la Fédération n\'a pas répondu, réessaie plus tard';
+    }
+    b.disabled=false;
+  });
+}
 function brancherModaleListes(){
   document.getElementById('listeAdd').addEventListener('click',()=>ajouterValeurListe(false));
   document.getElementById('listeNouveau').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('listeAdd').click(); });
@@ -1519,7 +1557,8 @@ async function initSync(){
 if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',()=>{ brancherModaleListes(); buildListe(); initSync(); });
 }else{
-  brancherModaleListes(); buildListe(); initSync();
+  brancherModaleListes();
+  brancherBoutonRelier(); buildListe(); initSync();
 }
 </script>
 <div class="modal-back" id="listeModal" hidden>
