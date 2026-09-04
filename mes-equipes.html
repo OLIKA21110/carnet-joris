@@ -987,6 +987,7 @@ function buildListe(){
   }).join("")+`</div>
   <p class="hint" style="margin-top:12px">${nbLogos} club${nbLogos>1?'s ont':' a'} un logo sur ${total}. Les clubs utilisés dans un match ne peuvent pas être supprimés.</p>`;
   brancher();
+  brancherBoutonRelier();   // le bouton peut ne pas avoir existe au demarrage : idempotent
   // après chaque reconstruction, on réapplique le filtre de recherche pour rester cohérent
   if(typeof appliquerFiltreRecherche==='function') appliquerFiltreRecherche();
 }
