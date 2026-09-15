@@ -129,6 +129,16 @@
   .relier-ligne{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 10px}
   .relier-mot{font-size:.8rem;color:#8a6d3b}
   .relier-mot.ok{color:#2ea043;font-weight:bold}
+  .sup-barre{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;background:#fdecea;border:1px solid #f3c6c0;border-radius:10px;padding:8px 12px}
+  .sup-barre .sup-cpt{font-size:.8rem;color:#8a3b30;font-weight:bold;margin-right:auto}
+  .sup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}
+  .sup-ligne{align-items:center!important;gap:10px;cursor:pointer;padding:8px 12px!important;user-select:none}
+  .sup-ligne.pris{background:#fdecea;box-shadow:inset 0 0 0 2px #e6a79f}
+  .sup-ligne.bloc{opacity:.5;cursor:default}
+  .sup-ligne input[type=checkbox]{width:19px;height:19px;flex:none;accent-color:#c0392b;cursor:pointer;margin:0}
+  .sup-ligne .eq-nom{font-weight:bold;font-size:.85rem;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sup-mot{font-size:.68rem;color:#b9b2a6;flex:none}
+  .sup-barre button[disabled]{opacity:.45;cursor:default}
   .lieu-tete{display:flex;align-items:center;gap:6px;margin:7px 0 3px}
   .lieu-num{font-size:.66rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
   .lieu-del{border:none;background:#fdeaea;color:#c0392b;border-radius:6px;width:22px;height:22px;font-size:.68rem;cursor:pointer;flex:none;line-height:1}
@@ -188,7 +198,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 3 sept · bouton Relier ✓</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 15 sept · effacement rapide ✓</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -204,6 +214,14 @@
     <div class="relier-ligne">
       <button class="act" id="relierFff">🔗 Relier les clubs à la Fédération</button>
       <span class="relier-mot" id="relierMot"></span>
+      <button class="act" id="supprMode">☑️ Effacement rapide</button>
+    </div>
+    <div class="sup-barre" id="supBarre" style="display:none">
+      <span class="sup-cpt" id="supCpt">Coche les clubs à effacer</span>
+      <button class="mini" id="supTous">Tout cocher</button>
+      <button class="mini" id="supRien">Tout décocher</button>
+      <button class="mini danger" id="supGo">🗑 Supprimer la sélection</button>
+      <button class="mini" id="supFin">Quitter</button>
     </div>
     <div class="sport-filtre" id="sportFiltre"></div>
     <div style="text-align:right;margin:-6px 0 8px">
@@ -862,6 +880,92 @@ function htmlSportClub(nom){
     <button data-sport="${esc(nom)}" data-val="hand" class="${s==='hand'?'on':''}" title="Handball">🏐</button>
   </span>`;
 }
+/* ===== Effacement rapide : une liste à cocher =====
+   Les clubs qui jouent un match restent protégés (même règle que la corbeille d'une carte).
+   Chaque suppression pose une pierre tombale : la fusion avec le téléphone ne les fera pas revenir. */
+let modeSuppr = false;
+const selSuppr = new Set();
+
+function supEffacable(n){ return !(usageDetail.get(n)||[]).length; }
+
+function supMajBarre(){
+  const barre = document.getElementById('supBarre');
+  if(barre) barre.style.display = modeSuppr ? 'flex' : 'none';
+  const b = document.getElementById('supprMode');
+  if(b){
+    b.textContent = modeSuppr ? '✕ Fermer l\'effacement rapide' : '☑\uFE0F Effacement rapide';
+    b.classList.toggle('gold', modeSuppr);
+  }
+  const c = document.getElementById('supCpt');
+  if(c){
+    const n = selSuppr.size;
+    c.textContent = n ? (n+' club'+(n>1?'s':'')+' coch\u00e9'+(n>1?'s':'')) : 'Coche les clubs \u00e0 effacer';
+  }
+  const go = document.getElementById('supGo');
+  if(go) go.disabled = !selSuppr.size;
+}
+
+function htmlListeSuppression(noms){
+  return '<div class="sup-grid">'+noms.map(n=>{
+    const bloque = !supEffacable(n);
+    const nb = ((biblio.equipes[n]||{}).equipes||[]).length;
+    const mot = bloque ? 'prot\u00e9g\u00e9' : (nb ? nb+' \u00e9q.' : 'vide');
+    return '<div class="eq-carte sup-ligne '+(bloque?'bloc ':'')+(selSuppr.has(n)?'pris':'')+'" data-sup="'+esc(n)+'">'
+      + '<input type="checkbox" '+(bloque?'disabled ':'')+(selSuppr.has(n)?'checked':'')+'>'
+      + htmlLogo(n,32)
+      + '<span class="eq-nom">'+esc(n)+'</span>'
+      + '<span class="sup-mot">'+mot+'</span>'
+      + '</div>';
+  }).join('')+'</div>'
+  + '<p class="hint" style="margin-top:12px">Les clubs marqu\u00e9s \u00ab prot\u00e9g\u00e9 \u00bb jouent un match : efface d\'abord le match si tu veux les enlever.</p>';
+}
+
+function brancherSuppression(){
+  document.querySelectorAll('#eqListe [data-sup]').forEach(row=>{
+    if(row.classList.contains('bloc')) return;
+    row.addEventListener('click', ()=>{
+      const n = row.dataset.sup;
+      if(selSuppr.has(n)) selSuppr.delete(n); else selSuppr.add(n);
+      const c = row.querySelector('input');
+      if(c) c.checked = selSuppr.has(n);          // on remet la case d'accord avec la liste
+      row.classList.toggle('pris', selSuppr.has(n));
+      supMajBarre();
+    });
+  });
+}
+
+function brancherBarreSuppression(){
+  const pose = (id, fn)=>{
+    const el = document.getElementById(id);
+    if(!el || el.dataset.pret) return;
+    el.dataset.pret = '1';
+    el.addEventListener('click', fn);
+  };
+  pose('supprMode', ()=>{ modeSuppr = !modeSuppr; selSuppr.clear(); buildListe(); });
+  pose('supFin',    ()=>{ modeSuppr = false; selSuppr.clear(); buildListe(); });
+  pose('supRien',   ()=>{ selSuppr.clear(); buildListe(); });
+  pose('supTous',   ()=>{
+    // uniquement ce qui est visible : la recherche en cours fait foi
+    document.querySelectorAll('#eqListe [data-sup]').forEach(r=>{
+      if(r.classList.contains('bloc') || r.style.display==='none') return;
+      selSuppr.add(r.dataset.sup);
+    });
+    buildListe();
+  });
+  pose('supGo', ()=>{
+    const liste = [...selSuppr].filter(n=>biblio.equipes[n] && supEffacable(n));
+    if(!liste.length) return;
+    const apercu = liste.slice(0,12).join('\n\u2022 ');
+    const reste = liste.length>12 ? '\n\u2026et '+(liste.length-12)+' autre'+(liste.length-12>1?'s':'') : '';
+    if(!confirm('Supprimer '+liste.length+' club'+(liste.length>1?'s':'')+' ?\n\n\u2022 '+apercu+reste
+      +'\n\n(Aucun ne joue de match : tu pourras les remettre plus tard.)')) return;
+    liste.forEach(n=>{ tombePoser('club', n); delete biblio.equipes[n]; });
+    selSuppr.clear();
+    sauverBiblio();
+    buildListe();
+  });
+}
+
 function buildListe(){
   const chgLieux = migrerLieux();
   const chgDept  = remplirDepts();
@@ -906,6 +1010,15 @@ function buildListe(){
   }
   if(!noms.length){
     box.innerHTML=`<div class="empty">Aucun club ne correspond à « ${esc(filtre)} ».</div>`;
+    return;
+  }
+  if(modeSuppr){
+    box.innerHTML = htmlListeSuppression(noms);
+    brancherSuppression();
+    brancherBoutonRelier();
+    brancherBarreSuppression();
+    supMajBarre();
+    if(typeof appliquerFiltreRecherche==='function') appliquerFiltreRecherche();
     return;
   }
   const nbLogos=Object.values(biblio.equipes).filter(e=>e.logo).length;
@@ -988,6 +1101,7 @@ function buildListe(){
   <p class="hint" style="margin-top:12px">${nbLogos} club${nbLogos>1?'s ont':' a'} un logo sur ${total}. Les clubs utilisés dans un match ne peuvent pas être supprimés.</p>`;
   brancher();
   brancherBoutonRelier();   // le bouton peut ne pas avoir existe au demarrage : idempotent
+  brancherBarreSuppression(); supMajBarre();
   // après chaque reconstruction, on réapplique le filtre de recherche pour rester cohérent
   if(typeof appliquerFiltreRecherche==='function') appliquerFiltreRecherche();
 }
@@ -1559,7 +1673,7 @@ if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',()=>{ brancherModaleListes(); buildListe(); initSync(); });
 }else{
   brancherModaleListes();
-  brancherBoutonRelier(); buildListe(); initSync();
+  brancherBoutonRelier(); brancherBarreSuppression(); buildListe(); initSync();
 }
 </script>
 <div class="modal-back" id="listeModal" hidden>
