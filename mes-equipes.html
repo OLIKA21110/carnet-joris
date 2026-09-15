@@ -139,6 +139,9 @@
   .sup-ligne .eq-nom{font-weight:bold;font-size:.85rem;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sup-mot{font-size:.68rem;color:#b9b2a6;flex:none}
   .sup-barre button[disabled]{opacity:.45;cursor:default}
+  .sup-forcer{display:flex;align-items:center;gap:6px;font-size:.74rem;color:#8a3b30;cursor:pointer}
+  .sup-forcer input{width:16px;height:16px;accent-color:#c0392b;cursor:pointer;margin:0}
+  .sup-mot.joue{color:#b08a5a}
   .lieu-tete{display:flex;align-items:center;gap:6px;margin:7px 0 3px}
   .lieu-num{font-size:.66rem;color:#aaa;font-weight:bold;letter-spacing:.5px;text-transform:uppercase}
   .lieu-del{border:none;background:#fdeaea;color:#c0392b;border-radius:6px;width:22px;height:22px;font-size:.68rem;cursor:pointer;flex:none;line-height:1}
@@ -220,6 +223,9 @@
       <span class="sup-cpt" id="supCpt">Coche les clubs à effacer</span>
       <button class="mini" id="supTous">Tout cocher</button>
       <button class="mini" id="supRien">Tout décocher</button>
+      <label class="sup-forcer" title="Par défaut, un club qui apparaît dans un championnat ou une coupe est protégé. Coche ici pour pouvoir l'effacer quand même.">
+        <input type="checkbox" id="supForcer"> autoriser aussi les clubs qui jouent
+      </label>
       <button class="mini danger" id="supGo">🗑 Supprimer la sélection</button>
       <button class="mini" id="supFin">Quitter</button>
     </div>
@@ -884,9 +890,16 @@ function htmlSportClub(nom){
    Les clubs qui jouent un match restent protégés (même règle que la corbeille d'une carte).
    Chaque suppression pose une pierre tombale : la fusion avec le téléphone ne les fera pas revenir. */
 let modeSuppr = false;
+let supForcer = false;          // laisser cocher aussi les clubs qui jouent
 const selSuppr = new Set();
 
-function supEffacable(n){ return !(usageDetail.get(n)||[]).length; }
+function supLibre(n){ return !(usageDetail.get(n)||[]).length; }
+function supEffacable(n){ return supLibre(n) || supForcer; }
+function supOu(n){
+  const l = usageDetail.get(n)||[];
+  if(!l.length) return "";
+  return [...new Set(l.map(x=>x.libelle||""))].filter(Boolean).join(" \u00b7 ");
+}
 
 function supMajBarre(){
   const barre = document.getElementById('supBarre');
@@ -903,21 +916,26 @@ function supMajBarre(){
   }
   const go = document.getElementById('supGo');
   if(go) go.disabled = !selSuppr.size;
+  const f = document.getElementById('supForcer');
+  if(f) f.checked = supForcer;
 }
 
 function htmlListeSuppression(noms){
   return '<div class="sup-grid">'+noms.map(n=>{
+    const joue = !supLibre(n);
     const bloque = !supEffacable(n);
     const nb = ((biblio.equipes[n]||{}).equipes||[]).length;
-    const mot = bloque ? 'prot\u00e9g\u00e9' : (nb ? nb+' \u00e9q.' : 'vide');
-    return '<div class="eq-carte sup-ligne '+(bloque?'bloc ':'')+(selSuppr.has(n)?'pris':'')+'" data-sup="'+esc(n)+'">'
+    const ou = supOu(n);
+    const mot = joue ? (ou||'joue') : (nb ? nb+' \u00e9q.' : 'vide');
+    return '<div class="eq-carte sup-ligne '+(bloque?'bloc ':'')+(selSuppr.has(n)?'pris':'')+'" data-sup="'+esc(n)+'"'
+      + (joue?' title="'+esc(ou)+'"':'')+'>'
       + '<input type="checkbox" '+(bloque?'disabled ':'')+(selSuppr.has(n)?'checked':'')+'>'
       + htmlLogo(n,32)
       + '<span class="eq-nom">'+esc(n)+'</span>'
-      + '<span class="sup-mot">'+mot+'</span>'
+      + '<span class="sup-mot'+(joue?' joue':'')+'">'+esc(mot)+'</span>'
       + '</div>';
   }).join('')+'</div>'
-  + '<p class="hint" style="margin-top:12px">Les clubs marqu\u00e9s \u00ab prot\u00e9g\u00e9 \u00bb jouent un match : efface d\'abord le match si tu veux les enlever.</p>';
+  + '<p class="hint" style="margin-top:12px">Les clubs gris\u00e9s apparaissent dans un championnat ou une coupe : ils sont prot\u00e9g\u00e9s. Coche \u00ab autoriser aussi les clubs qui jouent \u00bb pour pouvoir les effacer quand m\u00eame.</p>';
 }
 
 function brancherSuppression(){
@@ -944,10 +962,16 @@ function brancherBarreSuppression(){
   pose('supprMode', ()=>{ modeSuppr = !modeSuppr; selSuppr.clear(); buildListe(); });
   pose('supFin',    ()=>{ modeSuppr = false; selSuppr.clear(); buildListe(); });
   pose('supRien',   ()=>{ selSuppr.clear(); buildListe(); });
+  pose('supForcer', ()=>{
+    supForcer = !!document.getElementById('supForcer').checked;
+    if(!supForcer) [...selSuppr].forEach(n=>{ if(!supLibre(n)) selSuppr.delete(n); });
+    buildListe();
+  });
   pose('supTous',   ()=>{
     // uniquement ce qui est visible : la recherche en cours fait foi
     document.querySelectorAll('#eqListe [data-sup]').forEach(r=>{
       if(r.classList.contains('bloc') || r.style.display==='none') return;
+      if(!supLibre(r.dataset.sup)) return;      // jamais d'un seul clic sur un club qui joue
       selSuppr.add(r.dataset.sup);
     });
     buildListe();
@@ -955,10 +979,14 @@ function brancherBarreSuppression(){
   pose('supGo', ()=>{
     const liste = [...selSuppr].filter(n=>biblio.equipes[n] && supEffacable(n));
     if(!liste.length) return;
+    const quiJouent = liste.filter(n=>!supLibre(n));
     const apercu = liste.slice(0,12).join('\n\u2022 ');
     const reste = liste.length>12 ? '\n\u2026et '+(liste.length-12)+' autre'+(liste.length-12>1?'s':'') : '';
-    if(!confirm('Supprimer '+liste.length+' club'+(liste.length>1?'s':'')+' ?\n\n\u2022 '+apercu+reste
-      +'\n\n(Aucun ne joue de match : tu pourras les remettre plus tard.)')) return;
+    const avert = quiJouent.length
+      ? '\n\n\u26a0\uFE0F '+quiJouent.length+' d\'entre eux apparaissent dans un championnat ou une coupe.\n'
+        +'Leur nom restera dans les matchs d\u00e9j\u00e0 cr\u00e9\u00e9s, mais tu perdras leur logo et leurs \u00e9quipes.'
+      : '\n\n(Aucun ne joue de match : tu pourras les remettre plus tard.)';
+    if(!confirm('Supprimer '+liste.length+' club'+(liste.length>1?'s':'')+' ?\n\n\u2022 '+apercu+reste+avert)) return;
     liste.forEach(n=>{ tombePoser('club', n); delete biblio.equipes[n]; });
     selSuppr.clear();
     sauverBiblio();
