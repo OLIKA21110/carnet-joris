@@ -984,7 +984,8 @@ function brancherBarreSuppression(){
     const apercu = liste.slice(0,12).join('\n\u2022 ');
     const reste = liste.length>12 ? '\n\u2026et '+(liste.length-12)+' autre'+(liste.length-12>1?'s':'') : '';
     const avert = quiJouent.length
-      ? '\n\n\u26a0\uFE0F '+quiJouent.length+' d\'entre eux apparaissent dans un championnat ou une coupe.\n'
+      ? '\n\n\u26a0\uFE0F '+(quiJouent.length>1 ? quiJouent.length+' d\'entre eux apparaissent' : 'Ce club appara\u00eet')
+        +' dans un championnat ou une coupe.\n'
         +'Leur nom restera dans les matchs d\u00e9j\u00e0 cr\u00e9\u00e9s, mais tu perdras leur logo et leurs \u00e9quipes.'
       : '\n\n(Aucun ne joue de match : tu pourras les remettre plus tard.)';
     if(!confirm('Supprimer '+liste.length+' club'+(liste.length>1?'s':'')+' ?\n\n\u2022 '+apercu+reste+avert)) return;
