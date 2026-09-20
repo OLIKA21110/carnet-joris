@@ -402,6 +402,26 @@
 
   .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
   tr.fg-row{opacity:.62}
+  .jn-pastille{display:inline-block;background:#c8102e;color:#fff;border-radius:10px;padding:0 6px;font-size:.68rem;font-weight:900;margin-left:2px}
+  .rc-lig{background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .rc-tete{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rc-j{font-weight:900;color:var(--noir);font-size:.95rem;flex:none}
+  .rc-dates{font-size:.78rem;color:#8a8578}
+  .rc-etat{margin-left:auto;font-size:.76rem;font-weight:bold;border-radius:14px;padding:3px 11px;white-space:nowrap}
+  .rc-ok{background:#e6f5ea;color:#1a7a3c}
+  .rc-warn{background:#fdecea;color:#c8102e}
+  .rc-todo{background:#f1efe9;color:#7a7568}
+  .rc-manque{margin-top:7px;border-top:1px dashed #e6e2dc;padding-top:7px}
+  .rc-m{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:.82rem;color:#444;padding:3px 0}
+  .rc-m .rc-quand{color:#c8102e;font-size:.74rem;font-weight:bold}
+  .rc-m .rc-quand.gris{color:#a9a49a;font-weight:normal}
+  .rc-vide{font-size:.76rem;color:#a9a49a;margin-top:5px}
+  .retard-box{background:#fff4e5;border:1px solid #f0c890;border-radius:14px;padding:11px 14px;margin-bottom:12px}
+  .retard-titre{font-weight:900;color:#8a5a00;font-size:.92rem;margin-bottom:7px}
+  .retard-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.83rem;color:#6b4a00;padding:3px 0}
+  .retard-item .ri-ou{font-size:.72rem;color:#a08a5a}
+  .retard-item .ri-quand{font-size:.72rem;font-weight:bold;color:#c8102e}
+  .retard-plus{font-size:.76rem;color:#a08a5a;margin-top:5px}
   .fg-match{flex-basis:100%;text-align:center;margin-top:5px;font-size:.73rem;color:#a8362c;
             background:#fdecea;border-radius:8px;padding:4px 9px}
   tr.fg-row td.club{font-style:italic}
@@ -533,7 +553,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 20 sept · forfait général ✓</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 20 sept · récap des journées ✓</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -554,6 +574,7 @@
   <div class="saisonbar" id="saisonBar"></div>
   <nav class="divtabs" id="divTabs"></nav>
 
+  <div id="retardBox" class="retard-box" hidden></div>
   <div id="favReminder" class="fav-reminder" hidden></div>
 
   <div id="divBody"></div>
@@ -1220,6 +1241,7 @@ function buildBodyInterne(){
   majHistoLocal();   // le face a face doit refleter les scores tapes a l'instant
   const box=document.getElementById('divBody');
   buildFavReminder();
+  buildRetardBox();
   if(curOnglet==='autre'){
     document.getElementById('divBody').innerHTML=htmlAutreCarnet();
     return;
@@ -1285,6 +1307,7 @@ function htmlPoule(p){
   const vue = curVue[p.id] || "matchs";
   let inner="";
   if(vue==="matchs") inner=htmlMatchs(p);
+  else if(vue==="journees") inner=htmlJournees(p);
   else if(vue==="classement") inner=htmlClassement(p);
   else if(vue==="buteurs") inner=htmlButeurs(p);
   else if(vue==="fairplay") inner=htmlFairplay(p);
@@ -1321,6 +1344,7 @@ function htmlPoule(p){
     <div class="subtabs">
       <button class="${vue==='matchs'?'active':''}" data-vue="matchs" data-p="${p.id}">Matchs &amp; saisie</button>
       <button class="${vue==='classement'?'active':''}" data-vue="classement" data-p="${p.id}">Classement</button>
+      <button class="${vue==='journees'?'active':''}" data-vue="journees" data-p="${p.id}">\uD83D\uDCC5 Journ\u00e9es${(()=>{const n=journeesEnRetard(p); return n?` <span class="jn-pastille">${n}</span>`:'';})()}</button>
       <button class="${vue==='stats'?'active':''}" data-vue="stats" data-p="${p.id}">📊 Stats</button>
       ${p.champs.buts?`<button class="${vue==='buteurs'?'active':''}" data-vue="buteurs" data-p="${p.id}">Buteurs</button>`:''}
       ${p.champs.cartons?`<button class="${vue==='fairplay'?'active':''}" data-vue="fairplay" data-p="${p.id}">Fair-play</button>`:''}
@@ -1601,6 +1625,122 @@ function htmlFgMatch(p, m){
     return `<div class="fg-match">\uD83D\uDEAB ${nom} est en forfait g\u00e9n\u00e9ral, mais ce match \u00e9tait d\u00e9j\u00e0 jou\u00e9 : il compte normalement.</div>`;
   const autre = esc(fd ? m.ext : m.dom);
   return `<div class="fg-match">\uD83D\uDEAB ${nom} est en forfait g\u00e9n\u00e9ral : au classement, ce match est perdu 0-3${autre?` (3-0 pour ${autre})`:''}.</div>`;
+}
+
+/* ===== Recapitulatif des journees =====
+   Joris (et son pere) remplissent les resultats en retard : ces fonctions disent,
+   journee par journee, ce qui manque. Un match est « en retard » quand sa date est
+   passee et que le score est encore vide. */
+function aujourdhuiISO(){
+  const d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function dateCourte(iso){
+  if(!iso) return '';
+  const d=new Date(iso+'T12:00:00');
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'});
+}
+function recapJournee(p, j){
+  const ms=p.matchs.filter(m=>m.j===j);
+  const auj=aujourdhuiISO();
+  const retards=[], sansDate=[], vides=[], dates=[];
+  let joues=0, aVenir=0;
+  ms.forEach(m=>{
+    if(!m.dom||!m.ext){ vides.push(m); return; }
+    const dt=state.dates[m.id]||{}, sc=state.scores[m.id]||{};
+    if(dt.date) dates.push(dt.date);
+    if(num(sc.h)&&num(sc.a)){ joues++; return; }
+    if(!dt.date){ sansDate.push({m}); return; }
+    if(dt.date < auj) retards.push({m, date:dt.date, heure:dt.time||''});
+    else aVenir++;
+  });
+  dates.sort();
+  return {j, total:ms.length, remplis:ms.length-vides.length, joues, aVenir,
+          retards, sansDate, vides, d1:dates[0]||'', d2:dates[dates.length-1]||''};
+}
+function journeesEnRetard(p){
+  let n=0; const total=nbJournees(p);
+  for(let j=1;j<=total;j++) n += recapJournee(p,j).retards.length;
+  return n;
+}
+function tousLesRetards(){
+  const out=[];
+  state.divisions.forEach(d=>(d.poules||[]).forEach(p=>{
+    const total=nbJournees(p);
+    for(let j=1;j<=total;j++){
+      recapJournee(p,j).retards.forEach(r=>out.push(Object.assign({},r,{div:d, poule:p})));
+    }
+  }));
+  out.sort((a,b)=> a.date<b.date ? -1 : a.date>b.date ? 1 : 0);
+  return out;
+}
+/* Le bandeau du haut : « il manque des resultats », toutes poules confondues. */
+function buildRetardBox(){
+  const box=document.getElementById('retardBox'); if(!box) return;
+  const liste=tousLesRetards();
+  if(!liste.length){ box.hidden=true; box.innerHTML=''; return; }
+  box.hidden=false;
+  const montres=liste.slice(0,6);
+  box.innerHTML=`<div class="retard-titre">\u23F0 ${liste.length} r\u00e9sultat${liste.length>1?'s':''} \u00e0 mettre</div>`
+    + montres.map(r=>`<div class="retard-item">
+        <span>${htmlLogo(r.m.dom,18)}${esc(r.m.dom)} - ${esc(r.m.ext)}${htmlLogo(r.m.ext,18)}</span>
+        <span class="ri-quand">${dateCourte(r.date)}</span>
+        <span class="ri-ou">${esc(r.div.nom)} \u00b7 ${esc(r.poule.nom)} \u00b7 J${r.m.j}</span>
+        <button class="mini" data-allerj="${r.poule.id}" data-j="${r.m.j}" data-d="${r.div.id}">Ouvrir</button>
+      </div>`).join("")
+    + (liste.length>montres.length ? `<div class="retard-plus">\u2026et ${liste.length-montres.length} autre${liste.length-montres.length>1?'s':''}, dans l'onglet \u00ab \uD83D\uDCC5 Journ\u00e9es \u00bb de chaque poule.</div>` : '');
+  box.querySelectorAll('[data-allerj]').forEach(b=>b.addEventListener('click',()=>allerAJournee(b.dataset.d, b.dataset.allerj, +b.dataset.j)));
+}
+function allerAJournee(divId, pouleId, j){
+  curOnglet='div:'+divId;
+  curPoule[divId]=pouleId;
+  curVue[pouleId]='matchs';
+  curJournee[pouleId]=j;
+  buildDivTabs(); buildBody();
+  const c=document.getElementById('divBody');
+  if(c) c.scrollIntoView({behavior:'smooth', block:'start'});
+}
+/* La vue « Journees » d'une poule : une ligne par journee, et ce qui manque dedans. */
+function htmlJournees(p){
+  const total=nbJournees(p);
+  if(!p.matchs.length) return `<div class="empty"><strong>Pas encore de matchs</strong>
+    Clique sur \u00ab \u270e \u00c9quipes \u00bb pour choisir le nombre de journ\u00e9es.</div>`;
+  let manquantsTotal=0;
+  let corps="";
+  for(let j=1;j<=total;j++){
+    const r=recapJournee(p,j);
+    manquantsTotal += r.retards.length;
+    let etat, cls;
+    if(!r.remplis){ etat='aucun match rempli'; cls='rc-todo'; }
+    else if(r.retards.length){ etat=`\u26a0\uFE0F ${r.retards.length} r\u00e9sultat${r.retards.length>1?'s':''} \u00e0 mettre`; cls='rc-warn'; }
+    else if(r.joues===r.remplis){ etat=`\u2705 compl\u00e8te (${r.joues}/${r.remplis})`; cls='rc-ok'; }
+    else etat=`\u23F3 \u00e0 venir (${r.joues}/${r.remplis})`, cls='rc-todo';
+    const dates = r.d1 ? (r.d1===r.d2 ? dateCourte(r.d1) : dateCourte(r.d1)+' \u2192 '+dateCourte(r.d2)) : 'pas de date';
+    let manque="";
+    if(r.retards.length || r.sansDate.length){
+      manque=`<div class="rc-manque">`
+        + r.retards.map(x=>`<div class="rc-m">${htmlLogo(x.m.dom,18)}${esc(x.m.dom)} - ${esc(x.m.ext)}${htmlLogo(x.m.ext,18)}
+             <span class="rc-quand">jou\u00e9 le ${dateCourte(x.date)}${x.heure?' \u00e0 '+esc(x.heure):''}</span></div>`).join("")
+        + r.sansDate.map(x=>`<div class="rc-m">${htmlLogo(x.m.dom,18)}${esc(x.m.dom)} - ${esc(x.m.ext)}${htmlLogo(x.m.ext,18)}
+             <span class="rc-quand gris">pas de date</span></div>`).join("")
+        + `</div>`;
+    }
+    corps+=`<div class="rc-lig">
+      <div class="rc-tete">
+        <span class="rc-j">Journ\u00e9e ${j}</span>
+        <span class="rc-dates">${esc(dates)}</span>
+        <span class="rc-etat ${cls}">${etat}</span>
+        <button class="mini" data-allerj="${p.id}" data-j="${j}" data-d="${(divisionDeLaPoule(p.id)||{}).id||''}">Ouvrir</button>
+      </div>
+      ${manque}
+      ${r.vides.length?`<div class="rc-vide">${r.vides.length} match${r.vides.length>1?'s':''} sans \u00e9quipe choisie.</div>`:''}
+    </div>`;
+  }
+  const tete = manquantsTotal
+    ? `<p class="hint">\u23F0 <b>${manquantsTotal} r\u00e9sultat${manquantsTotal>1?'s':''}</b> dont la date est pass\u00e9e ${manquantsTotal>1?'attendent':'attend'} encore son score.</p>`
+    : `<p class="hint">\u2705 Tout est \u00e0 jour : aucun match pass\u00e9 n'attend son r\u00e9sultat.</p>`;
+  return tete+corps;
 }
 
 function htmlMatchs(p){
@@ -3287,6 +3427,9 @@ function brancherBody(){
   box.querySelectorAll('.club.clickable').forEach(td=>td.addEventListener('click',()=>{
     ficheEquipe(td.dataset.team, td.dataset.p);
   }));
+  // récapitulatif des journées
+  box.querySelectorAll('[data-allerj]').forEach(b=>b.addEventListener('click',()=>
+    allerAJournee(b.dataset.d, b.dataset.allerj, +b.dataset.j)));
   // forfait général
   box.querySelectorAll('[data-fgdecl]').forEach(b=>b.addEventListener('click',e=>{
     e.stopPropagation();
