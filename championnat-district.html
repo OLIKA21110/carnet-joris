@@ -402,6 +402,8 @@
 
   .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
   tr.fg-row{opacity:.62}
+  .fg-match{flex-basis:100%;text-align:center;margin-top:5px;font-size:.73rem;color:#a8362c;
+            background:#fdecea;border-radius:8px;padding:4px 9px}
   tr.fg-row td.club{font-style:italic}
   .fg-tag{display:inline-block;background:#c8102e;color:#fff;border-radius:6px;padding:1px 6px;
           font-size:.6rem;font-weight:800;letter-spacing:.4px;margin-left:6px;vertical-align:middle}
@@ -1584,6 +1586,23 @@ function doublonJournee(p, m, cote){
   return n>1;
 }
 
+/* Le mot qui explique, sous un match, ce que le classement en fait quand une des
+   deux equipes est en forfait general. Sans ca, le classement bougerait sans que
+   Joris comprenne pourquoi. */
+function htmlFgMatch(p, m){
+  const ffg=ffgDe(p), fd=ffg[m.dom], fe=ffg[m.ext];
+  if(!fd && !fe) return '';
+  if(fd && fe) return `<div class="fg-match">\uD83D\uDEAB Les deux \u00e9quipes sont en forfait g\u00e9n\u00e9ral : ce match ne compte pas au classement.</div>`;
+  const nom = esc(fd ? m.dom : m.ext);
+  if(fd==='aller' || fe==='aller')
+    return `<div class="fg-match">\uD83D\uDEAB ${nom} est en forfait g\u00e9n\u00e9ral : ce match ne compte pas au classement.</div>`;
+  const sc=state.scores[m.id]||{};
+  if(num(sc.h) && num(sc.a))
+    return `<div class="fg-match">\uD83D\uDEAB ${nom} est en forfait g\u00e9n\u00e9ral, mais ce match \u00e9tait d\u00e9j\u00e0 jou\u00e9 : il compte normalement.</div>`;
+  const autre = esc(fd ? m.ext : m.dom);
+  return `<div class="fg-match">\uD83D\uDEAB ${nom} est en forfait g\u00e9n\u00e9ral : au classement, ce match est perdu 0-3${autre?` (3-0 pour ${autre})`:''}.</div>`;
+}
+
 function htmlMatchs(p){
   if(!p.matchs.length){
     return `<div class="empty"><strong>Pas encore de matchs</strong>
@@ -1611,7 +1630,7 @@ function htmlMatchs(p){
       <input class="sc" type="number" min="0" data-id="${m.id}" data-side="a" value="${sc.a||""}">
       <span class="team-pick"><span class="pick-col">${selectEquipe(p,m,'ext')}${m.ext?btnBaton(m.ext):''}</span>${m.ext?htmlLogo(m.ext,34):''}</span>
       <button class="mini danger delm" data-delmatch="${m.id}" data-p="${p.id}" title="Enlever ce match de la journée">✕</button>
-${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
+${htmlFgMatch(p,m)}${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
       <div class="date-line">
         <input type="date" class="din" data-id="${m.id}" value="${dt.date||""}">
         <button type="button" class="cal-btn" data-cal="${m.id}" title="Ouvrir le calendrier">&#128197;</button>
