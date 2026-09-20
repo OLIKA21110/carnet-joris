@@ -401,6 +401,19 @@
   .empty strong{display:block;color:var(--noir);margin-bottom:6px;font-size:1rem}
 
   .modal-back{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:14px;z-index:50}
+  tr.fg-row{opacity:.62}
+  tr.fg-row td.club{font-style:italic}
+  .fg-tag{display:inline-block;background:#c8102e;color:#fff;border-radius:6px;padding:1px 6px;
+          font-size:.6rem;font-weight:800;letter-spacing:.4px;margin-left:6px;vertical-align:middle}
+  .fg-alerte{background:#fff4e5;border:1px solid #f0c890;border-radius:10px;padding:9px 12px;margin-top:10px;
+             font-size:.84rem;color:#8a5a00;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .fg-alerte .mini{background:#c8102e;color:#fff}
+  .fg-choix{display:block;width:100%;text-align:left;border:2px solid #e2ddd2;background:#fff;border-radius:12px;
+            padding:11px 13px;font-family:inherit;font-size:.92rem;font-weight:bold;color:var(--noir);cursor:pointer;margin-bottom:9px}
+  .fg-choix:hover{border-color:var(--rouge)}
+  .fg-choix small{display:block;font-weight:normal;font-size:.78rem;color:#777;margin-top:3px;line-height:1.4}
+  .fg-sheet{margin:10px 0 0;padding:9px 12px;background:#fdecea;border:1px solid #f3c6c0;border-radius:10px;
+            font-size:.82rem;color:#8a3b30}
   .modal-back[hidden]{display:none}
   .modal{background:var(--craie);border-radius:16px;padding:18px;max-width:520px;width:100%;max-height:88vh;overflow:auto;position:relative}
   .modal h2{margin:0 0 8px;color:var(--rouge)}
@@ -518,7 +531,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er sept · face à face FFF ✓</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 20 sept · forfait général ✓</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -615,6 +628,20 @@
 </div>
 
 <!-- Modale : créer/modifier une poule -->
+<div class="modal-back" id="fgModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="fgClose">✕</button>
+    <h2>🚫 Forfait général</h2>
+    <p class="hint" id="fgQui"></p>
+    <p class="hint">À la Fédération, une équipe qui déclare <b>trois fois forfait</b> est déclarée
+      forfait général : elle quitte le championnat. Ce qui arrive à ses résultats dépend du moment.</p>
+    <div id="fgBoutons"></div>
+    <div style="margin-top:6px;text-align:right">
+      <button class="act grey" id="fgCancel">Annuler</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="pouleModal" hidden>
   <div class="modal">
     <button class="modal-x" id="pouleClose">✕</button>
@@ -942,19 +969,39 @@ function baremeDe(div){
 function divisionDeLaPoule(pid){
   return state.divisions.find(d=>(d.poules||[]).some(p=>p.id===pid)) || null;
 }
+/* Les equipes en forfait general de cette poule : {equipe: 'aller'|'retour'}.
+   A la Federation, une equipe qui declare trois fois forfait est declaree
+   forfait general : elle quitte le championnat. Ce qui arrive a ses resultats
+   depend du moment ou c'est arrive (regle des championnats FFF) :
+     - avant la fin des matchs aller  -> tous ses resultats sont annules ;
+     - pendant les matchs retour      -> ses resultats restent, et les matchs
+                                         qui restaient sont perdus 0-3.
+   Dans les deux cas elle est classee derniere. */
+function ffgDe(poule){ return (poule && poule.ffgen) || {}; }
+function estForfaitGeneral(poule, team){ return !!ffgDe(poule)[team]; }
+
 function classement(poule){
   const bar=baremeDe(divisionDeLaPoule(poule.id));
+  const ffg=ffgDe(poule);
   const t={};
   equipesDeLaPoule(poule).forEach(e=>t[e]={pts:0,j:0,g:0,n:0,p:0,bp:0,bc:0,pen:0,forf:0});
   poule.matchs.forEach(m=>{
-    const sc=state.scores[m.id]; if(!sc) return;
     if(!t[m.dom]||!t[m.ext]) return;
-    if(num(sc.penh)) t[m.dom].pen += +sc.penh;
-    if(num(sc.pena)) t[m.ext].pen += +sc.pena;
-    if(sc.forfh) t[m.dom].forf++;
-    if(sc.forfa) t[m.ext].forf++;
-    if(!num(sc.h)||!num(sc.a)) return;
-    const h=+sc.h, a=+sc.a;
+    const fd=ffg[m.dom], fe=ffg[m.ext];
+    if(fd==='aller' || fe==='aller') return;      // resultats annules
+    const sc=state.scores[m.id];
+    if(sc){
+      if(num(sc.penh)) t[m.dom].pen += +sc.penh;
+      if(num(sc.pena)) t[m.ext].pen += +sc.pena;
+      if(sc.forfh) t[m.dom].forf++;
+      if(sc.forfa) t[m.ext].forf++;
+    }
+    let h, a;
+    if(sc && num(sc.h) && num(sc.a)){ h=+sc.h; a=+sc.a; }
+    else if((fd==='retour') !== (fe==='retour')){
+      h = fd==='retour' ? 0 : 3;                  // match qui restait a jouer : perdu 0-3
+      a = fe==='retour' ? 0 : 3;
+    }else return;
     t[m.dom].j++; t[m.ext].j++;
     t[m.dom].bp+=h; t[m.dom].bc+=a; t[m.ext].bp+=a; t[m.ext].bc+=h;
     if(h>a){ t[m.dom].g++; t[m.dom].pts+=bar.v; t[m.ext].p++; t[m.ext].pts+=bar.d; }
@@ -962,8 +1009,9 @@ function classement(poule){
     else { t[m.dom].n++; t[m.ext].n++; t[m.dom].pts+=bar.n; t[m.ext].pts+=bar.n; }
   });
   Object.keys(t).forEach(e=>{ t[e].pts -= t[e].pen; t[e].pts -= t[e].forf; });
-  const arr = Object.keys(t).map(e=>({c:e,...t[e],dif:t[e].bp-t[e].bc}));
-  arr.sort((x,y)=> y.pts-x.pts || y.dif-x.dif || y.bp-x.bp || x.c.localeCompare(y.c));
+  const arr = Object.keys(t).map(e=>({c:e,...t[e],dif:t[e].bp-t[e].bc,fg:ffg[e]||""}));
+  // une equipe en forfait general est toujours derniere
+  arr.sort((x,y)=> (x.fg?1:0)-(y.fg?1:0) || y.pts-x.pts || y.dif-x.dif || y.bp-x.bp || x.c.localeCompare(y.c));
   return arr;
 }
 
@@ -1914,9 +1962,22 @@ function htmlClassement(p){
     const cls=zoneDuRang(rank);
     const fav=isFav(r.c)?" row-fav":"";
     const star=isFav(r.c)?"⭐ ":"";
-    html+=`<tr class="${cls}${fav}"><td>${rank}</td><td class="club clickable" data-team="${esc(r.c)}" data-p="${p.id}">${star}${htmlLogo(r.c)}${esc(r.c)}</td><td class="pts">${r.pts}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp}</td><td>${r.bc}</td><td>${r.dif>0?'+':''}${r.dif}</td>${p.champs.pen?`<td class="pen-col">${r.pen?('-'+r.pen):'—'}</td>`:''}${p.champs.forf?`<td class="forf-col">${r.forf?('-'+r.forf):'—'}</td>`:''}</tr>`;
+    html+=`<tr class="${cls}${fav}${r.fg?' fg-row':''}"><td>${rank}</td><td class="club clickable" data-team="${esc(r.c)}" data-p="${p.id}">${star}${htmlLogo(r.c)}${esc(r.c)}${r.fg?`<span class="fg-tag" title="${r.fg==='aller'?'Forfait g\u00e9n\u00e9ral pendant les matchs aller : ses r\u00e9sultats sont annul\u00e9s.':'Forfait g\u00e9n\u00e9ral pendant les matchs retour : ses matchs restants sont perdus 0-3.'}">FORFAIT G\u00c9N\u00c9RAL</span>`:''}</td><td class="pts">${r.pts}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp}</td><td>${r.bc}</td><td>${r.dif>0?'+':''}${r.dif}</td>${p.champs.pen?`<td class="pen-col">${r.pen?('-'+r.pen):'—'}</td>`:''}${p.champs.forf?`<td class="forf-col">${r.forf?('-'+r.forf):'—'}</td>`:''}</tr>`;
   });
   html+=`</tbody></table>`;
+  // rappel : a trois forfaits, la Federation declare le forfait general
+  arr.filter(r=>!r.fg && r.forf>=3).forEach(r=>{
+    html+=`<div class="fg-alerte">\u26a0\uFE0F <span><b>${esc(r.c)}</b> a ${r.forf} forfaits.
+      \u00c0 la F\u00e9d\u00e9ration, \u00e0 partir de trois, l'\u00e9quipe est d\u00e9clar\u00e9e <b>forfait g\u00e9n\u00e9ral</b> et quitte le championnat.</span>
+      <button class="mini" data-fgdecl="${esc(r.c)}" data-p="${p.id}">\uD83D\uDEAB D\u00e9clarer le forfait g\u00e9n\u00e9ral</button></div>`;
+  });
+  arr.filter(r=>r.fg).forEach(r=>{
+    html+=`<div class="fg-alerte"><span>\uD83D\uDEAB <b>${esc(r.c)}</b> est en forfait g\u00e9n\u00e9ral ${
+      r.fg==='aller' ? "(d\u00e9clar\u00e9 pendant les matchs aller) : tous ses r\u00e9sultats sont annul\u00e9s."
+                     : "(d\u00e9clar\u00e9 pendant les matchs retour) : ses r\u00e9sultats comptent, et les matchs qui restaient sont perdus 0-3."
+    }</span>
+      <button class="mini" data-fgdecl="${esc(r.c)}" data-p="${p.id}">\u270e Changer</button></div>`;
+  });
   // légende : seulement les zones activées
   const legendes=[];
   if(z.montees) legendes.push(`<span><i class="lg-montee"></i> Montée (${z.montees})</span>`);
@@ -3207,6 +3268,11 @@ function brancherBody(){
   box.querySelectorAll('.club.clickable').forEach(td=>td.addEventListener('click',()=>{
     ficheEquipe(td.dataset.team, td.dataset.p);
   }));
+  // forfait général
+  box.querySelectorAll('[data-fgdecl]').forEach(b=>b.addEventListener('click',e=>{
+    e.stopPropagation();
+    ouvrirFgModal(b.dataset.p, b.dataset.fgdecl);
+  }));
 }
 
 /* ===== Modale championnat ===== */
@@ -3302,6 +3368,42 @@ document.getElementById('zonesClose').addEventListener('click',()=>document.getE
 
 /* ===== Modale poule ===== */
 let pouleEnCours=null, divDeLaPoule=null;
+/* ===== Forfait general : declarer, changer, enlever ===== */
+let fgPoule=null, fgTeam=null;
+function ouvrirFgModal(pid, team){
+  fgPoule=pid; fgTeam=team;
+  const p=getPoule(pid); if(!p) return;
+  const actuel=ffgDe(p)[team]||"";
+  document.getElementById('fgQui').innerHTML = actuel
+    ? `<b>${esc(team)}</b> est déjà en forfait général (${actuel==='aller'?'matchs aller':'matchs retour'}). Tu peux changer ou l'enlever.`
+    : `Pour <b>${esc(team)}</b>, dans ${esc(p.nom)}. Quand le forfait général est-il arrivé ?`;
+  document.getElementById('fgBoutons').innerHTML =
+    `<button class="fg-choix" data-fgv="aller">Avant la fin des matchs aller
+       <small>Tous ses résultats sont annulés : ses matchs ne comptent plus pour personne.</small></button>
+     <button class="fg-choix" data-fgv="retour">Pendant les matchs retour
+       <small>Ses résultats déjà joués restent, et les matchs qui restaient sont perdus 0-3.</small></button>
+     ${actuel?`<button class="fg-choix" data-fgv="" style="border-color:#2ea043">Enlever le forfait général
+       <small>L'équipe revient au classement normalement.</small></button>`:''}`;
+  document.getElementById('fgBoutons').querySelectorAll('[data-fgv]').forEach(b=>
+    b.addEventListener('click',()=>appliquerFg(b.dataset.fgv)));
+  document.getElementById('fgModal').hidden=false;
+}
+function appliquerFg(valeur){
+  const p=getPoule(fgPoule);
+  if(p){
+    p.ffgen = p.ffgen || {};
+    if(valeur) p.ffgen[fgTeam]=valeur;
+    else delete p.ffgen[fgTeam];
+    save();
+  }
+  document.getElementById('fgModal').hidden=true;
+  document.getElementById('teamModal').hidden=true;
+  buildBody();
+}
+document.getElementById('fgClose').addEventListener('click',()=>document.getElementById('fgModal').hidden=true);
+document.getElementById('fgCancel').addEventListener('click',()=>document.getElementById('fgModal').hidden=true);
+document.getElementById('fgModal').addEventListener('click',e=>{ if(e.target.id==='fgModal') document.getElementById('fgModal').hidden=true; });
+
 function ouvrirPouleModal(divId, pouleId){
   divDeLaPoule=divId; pouleEnCours=pouleId;
   const p = pouleId ? getPoule(pouleId) : null;
@@ -3411,7 +3513,13 @@ function ficheEquipe(team, pid){
       <span style="background:var(--rouge);color:#fff;border-radius:20px;padding:3px 12px;font-weight:bold">${pos}ᵉ · ${esc(p.nom)}</span>
       <span>${r.pts} pts</span><span>${r.g}V ${r.n}N ${r.p}D</span><span>${r.bp}-${r.bc}</span>
     </div>
-    <table class="rank"><thead><tr><th>J</th><th></th><th>Adversaire</th><th>Score</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table>`;
+    <table class="rank"><thead><tr><th>J</th><th></th><th>Adversaire</th><th>Score</th><th>Date</th></tr></thead><tbody>${rows}</tbody></table>
+    ${r.fg ? `<p class="fg-sheet">\uD83D\uDEAB Forfait g\u00e9n\u00e9ral ${r.fg==='aller'?"d\u00e9clar\u00e9 pendant les matchs aller : ses r\u00e9sultats sont annul\u00e9s au classement.":"d\u00e9clar\u00e9 pendant les matchs retour : ses matchs restants sont perdus 0-3."}</p>` : ''}
+    <div style="margin-top:12px;text-align:right">
+      <button class="mini" data-fgdecl="${esc(team)}" data-p="${p.id}">\uD83D\uDEAB ${r.fg?'Changer le forfait g\u00e9n\u00e9ral':'Forfait g\u00e9n\u00e9ral'}</button>
+    </div>`;
+  document.getElementById('teamSheet').querySelectorAll('[data-fgdecl]').forEach(b=>
+    b.addEventListener('click',()=>ouvrirFgModal(b.dataset.p, b.dataset.fgdecl)));
   document.getElementById('teamModal').hidden=false;
 }
 document.getElementById('teamClose').addEventListener('click',()=>document.getElementById('teamModal').hidden=true);
