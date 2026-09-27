@@ -227,6 +227,22 @@
           font-weight:bold;font-size:.8rem;cursor:pointer;background:#2ea043;color:#fff}
   .corb-b:hover{background:#25883a}
   .corb-vide{color:#8a8578;font-size:.86rem;line-height:1.6}
+  .corb-titre{margin:18px 0 4px;font-size:.95rem;font-weight:900;color:var(--noir);
+              border-top:1px solid #e6e2dc;padding-top:14px}
+  .sauv-lig{background:#fff;border-radius:12px;padding:9px 12px;margin-bottom:7px;
+            display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sauv-jour{font-weight:800;color:var(--noir);font-size:.88rem}
+  .sauv-b{margin-left:auto;border:none;border-radius:16px;padding:6px 13px;font-family:inherit;
+          font-weight:bold;font-size:.78rem;cursor:pointer;background:#f0eeea;color:var(--noir)}
+  .sauv-b:hover{background:#e4e0da}
+  .sauv-det{flex-basis:100%;font-size:.8rem;color:#6b6659;background:#f7f5f1;border-radius:8px;
+            padding:8px 10px;margin-top:6px;line-height:1.6}
+  .sauv-det b{color:var(--noir)}
+  .sauv-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .sauv-go{border:none;border-radius:16px;padding:7px 14px;font-family:inherit;font-weight:bold;
+           font-size:.8rem;cursor:pointer;background:#2ea043;color:#fff}
+  .sauv-go.dur{background:#c8102e}
+  .sauv-mot{font-size:.78rem;color:#8a8578;font-style:italic}
   .corb-pastille{display:inline-block;background:#2ea043;color:#fff;border-radius:10px;padding:0 6px;
                  font-size:.68rem;font-weight:900;margin-left:4px}
   .fav-reminder{background:#fffaf0;border:1px solid var(--or);border-radius:12px;padding:12px 16px;margin-bottom:14px}
@@ -473,6 +489,10 @@
     <p class="hint">Quand une coupe ou un tour est supprimé, le carnet en garde une copie ici
       pendant trois mois, avec tous ses scores. Remettre n'efface rien de ce qui existe aujourd'hui.</p>
     <div id="corbItems"></div>
+    <h3 class="corb-titre">🌙 Les sauvegardes de la nuit</h3>
+    <p class="hint">Chaque nuit, une photo du carnet est mise de côté. Si des coupes
+      ont disparu il y a longtemps, ou autrement qu'en cliquant sur Supprimer, c'est ici qu'on les retrouve.</p>
+    <div id="sauvItems"><p class="sauv-mot">Recherche des sauvegardes…</p></div>
   </div>
 </div>
 
@@ -2743,6 +2763,157 @@ function corbeilleRestaurer(i){
   document.getElementById('corbModal').hidden=true;
   alert(ou);
 }
+
+/* ===== Les sauvegardes de la nuit =====
+   Chaque nuit, une photo de tous les carnets est deposee a cote du site, dans
+   sauvegardes/carnets_AAAA-MM-JJ.json. Meme adresse que la page : on peut la lire
+   directement, sans cle et sans rien installer. C'est le filet pour ce qui a disparu
+   avant la corbeille, ou autrement qu'en cliquant sur Supprimer. */
+const SAUV_DOSSIER = 'sauvegardes/';
+const SAUV_JOURS = 30;
+let sauvCache = {};      // jour -> {carnet, biblio}
+let sauvOuvert = "";     // le jour deplie
+
+function sauvJourISO(d){
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}
+function sauvJourFr(j){
+  const d=new Date(j+'T12:00:00');
+  return isNaN(d) ? j : d.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+}
+async function sauvLister(){
+  // l'index s'il existe, sinon on sonde les derniers jours un par un
+  try{
+    const r=await fetch(SAUV_DOSSIER+'index.json',{cache:'no-store'});
+    if(r.ok){ const l=await r.json(); if(Array.isArray(l) && l.length) return l.slice().sort().reverse(); }
+  }catch(e){ }
+  const jours=[];
+  for(let i=0;i<SAUV_JOURS;i++){
+    const d=new Date(); d.setUTCDate(d.getUTCDate()-i); jours.push(sauvJourISO(d));
+  }
+  const tests=await Promise.all(jours.map(j=>
+    fetch(SAUV_DOSSIER+'carnets_'+j+'.json',{method:'HEAD',cache:'no-store'})
+      .then(r=>r.ok?j:null).catch(()=>null)));
+  return tests.filter(Boolean);
+}
+async function sauvCharger(jour){
+  if(sauvCache[jour]) return sauvCache[jour];
+  const r=await fetch(SAUV_DOSSIER+'carnets_'+jour+'.json',{cache:'no-store'});
+  if(!r.ok) throw new Error('sauvegarde introuvable');
+  const lignes=await r.json();
+  const ligne = id => { const x=(lignes||[]).find(y=>y && y.id===id); return (x && x.data) || null; };
+  sauvCache[jour]={ carnet: ligne(CARNET_ID), biblio: ligne('equipes_district') };
+  return sauvCache[jour];
+}
+function sauvCompter(d){
+  const c=(d&&d.coupes)||[];
+  return { n:c.length, sous:c.reduce((k,x)=>k+((x.tours||[]).length),0),
+           matchs:c.reduce((k,x)=>k+(x.tours||[]).reduce((j,t)=>j+((t.matchs||[]).length),0),0),
+           res:Object.values((d&&d.scores)||{}).filter(sc=>num(sc.h)&&num(sc.a)).length };
+}
+function sauvPhrase(c){ return `${c.n} coupe${c.n>1?'s':''} \u00b7 ${c.sous} tour${c.sous>1?'s':''} \u00b7 ${c.matchs} match${c.matchs>1?'s':''} \u00b7 <b>${c.res} r\u00e9sultat${c.res>1?'s':''}</b>`; }
+function sauvLogosManquants(bib){
+  const e=(bib&&bib.equipes)||{};
+  return Object.keys(e).filter(n=>e[n].logo && !((biblio.equipes[n]||{}).logo)).length;
+}
+/* Remettre les logos et les equipes qui manquent : on n'ecrase jamais l'existant. */
+function sauvRemettreBiblio(bib){
+  const src=(bib&&bib.equipes)||{}; let n=0;
+  Object.keys(src).forEach(nom=>{
+    if(!biblio.equipes[nom]) biblio.equipes[nom]={logo:"",ville:""};
+    const cur=biblio.equipes[nom], v=src[nom];
+    if(v.logo && !cur.logo){ cur.logo=v.logo; n++; }
+    ["ville","cp","stade","dept","fff","fffAff"].forEach(k=>{ if(v[k] && !cur[k]) cur[k]=v[k]; });
+  });
+  if(n && typeof sauverBiblio==='function') sauverBiblio();
+  return n;
+}
+function sauvRemettreResultats(src){
+  ['scores','dates','pronos'].forEach(k=>{
+    const de=(src&&src[k])||{};
+    Object.keys(de).forEach(id=>{ if(!state[k][id]) state[k][id]=de[id]; });
+  });
+}
+async function sauvAfficher(){
+  const box=document.getElementById('sauvItems'); if(!box) return;
+  box.innerHTML='<p class="sauv-mot">Recherche des sauvegardes\u2026</p>';
+  let jours=[];
+  try{ jours=await sauvLister(); }catch(e){ }
+  if(!jours.length){
+    box.innerHTML='<p class="corb-vide">Aucune sauvegarde trouv\u00e9e. '
+      +'Elles arrivent chaque nuit \u2014 si le carnet est ouvert hors ligne, elles ne sont pas lisibles.</p>';
+    return;
+  }
+  box.innerHTML=jours.map(j=>`<div class="sauv-lig" data-jour="${j}">
+      <span class="sauv-jour">${esc(sauvJourFr(j))}</span>
+      <button class="sauv-b" data-voir="${j}">Voir ce qu'elle contient</button>
+      <div class="sauv-det" hidden></div>
+    </div>`).join("");
+  box.querySelectorAll('[data-voir]').forEach(b=>b.addEventListener('click',()=>sauvVoir(b.dataset.voir)));
+  if(sauvOuvert && jours.indexOf(sauvOuvert)>=0) sauvVoir(sauvOuvert);
+}
+async function sauvVoir(jour){
+  const lig=document.querySelector(`.sauv-lig[data-jour="${jour}"]`); if(!lig) return;
+  const det=lig.querySelector('.sauv-det');
+  if(!det.hidden && sauvOuvert===jour){ det.hidden=true; sauvOuvert=""; return; }
+  sauvOuvert=jour;
+  det.hidden=false; det.innerHTML='Lecture de la sauvegarde\u2026';
+  let d;
+  try{ d=await sauvCharger(jour); }
+  catch(e){ det.innerHTML='Cette sauvegarde n\'a pas pu \u00eatre lue.'; return; }
+  if(!d.carnet){ det.innerHTML='Cette sauvegarde ne contient pas ce carnet.'; return; }
+  const la=sauvCompter(d.carnet), ici=sauvCompter(state);
+  const logos=sauvLogosManquants(d.biblio);
+  det.innerHTML=`Dans la sauvegarde : ${sauvPhrase(la)}<br>
+    Aujourd'hui : ${sauvPhrase(ici)}
+    ${logos?`<br>Elle contient aussi <b>${logos} logo${logos>1?'s':''}</b> que tu n'as plus.`:''}
+    <div class="sauv-actions">
+      <button class="sauv-go" data-fus="${jour}">\u267b\uFE0F Remettre ce qui manque</button>
+      <button class="sauv-go dur" data-rem="${jour}">\u21ba Revenir \u00e0 cette version</button>
+    </div>
+    <div class="sauv-mot" style="margin-top:6px">Remettre ce qui manque n'efface rien : \u00e7a ajoute seulement ce qui
+      a disparu. Revenir \u00e0 cette version remplace tout le carnet (ce que tu as aujourd'hui part \u00e0 la corbeille).</div>`;
+  det.querySelector('[data-fus]').addEventListener('click',()=>sauvFusionner(jour));
+  det.querySelector('[data-rem]').addEventListener('click',()=>sauvRemplacer(jour));
+}
+async function sauvFusionner(jour){
+  const d=sauvCache[jour]; if(!d||!d.carnet) return;
+  const src=d.carnet;
+  if(!confirm(`Remettre ce qui manque depuis la sauvegarde du ${sauvJourFr(jour)} ?\n\n`
+    +`Rien de ce que tu as aujourd'hui ne sera effac\u00e9.`)) return;
+  const dejaC=new Set(state.coupes.map(x=>x.id));
+  let ajout=0, sous=0;
+  (src.coupes||[]).forEach(c=>{
+    if(!dejaC.has(c.id)){ state.coupes.push(JSON.parse(JSON.stringify(c))); ajout++; return; }
+    const ici=state.coupes.find(x=>x.id===c.id);
+    const vus=new Set((ici.tours||[]).map(t=>t.id));
+    (c.tours||[]).forEach(t=>{ if(!vus.has(t.id)){ ici.tours=ici.tours||[]; ici.tours.push(JSON.parse(JSON.stringify(t))); sous++; } });
+  });
+  const mot = `${ajout} coupe${ajout>1?'s':''} et ${sous} tour${sous>1?'s':''} remis`;
+  sauvRemettreResultats(src);
+  const nl=sauvRemettreBiblio(d.biblio);
+  save(); buildDivTabs(); buildBody();
+  document.getElementById('corbModal').hidden=true;
+  alert(`${mot}${nl?`, et ${nl} logo${nl>1?'s':''} retrouv\u00e9${nl>1?'s':''}`:''}.`);
+}
+async function sauvRemplacer(jour){
+  const d=sauvCache[jour]; if(!d||!d.carnet) return;
+  const la=sauvCompter(d.carnet), ici=sauvCompter(state);
+  if(!confirm(`Revenir \u00e0 la version du ${sauvJourFr(jour)} ?\n\n`
+    +`Le carnet d'aujourd'hui (${ici.n} / ${ici.res} r\u00e9sultats) sera remplac\u00e9 par celui-l\u00e0 `
+    +`(${la.n} / ${la.res} r\u00e9sultats).\n\n`
+    +`Ce que tu as aujourd'hui part \u00e0 la corbeille : tu pourras le remettre.`)) return;
+  const src=JSON.parse(JSON.stringify(d.carnet));
+  state.coupes.slice().forEach(c=>corbeilleDeposer('coupe', c.nom, null, c, matchsDeCoupe(c)));
+  const corb=corbeilleListe().slice(), favs=state.favs.slice();
+  state=normalize(src); state.favs=favs; state.corbeille=corb;
+  curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+  sauvRemettreBiblio(d.biblio);
+  save(); buildDivTabs(); buildBody();
+  document.getElementById('corbModal').hidden=true;
+  alert(`Le carnet est revenu \u00e0 la version du ${sauvJourFr(jour)}.`);
+}
+
 function ouvrirCorbeille(){
   corbeilleNettoyer();
   const box=document.getElementById('corbItems');
@@ -2762,6 +2933,7 @@ function ouvrirCorbeille(){
     box.querySelectorAll('[data-corb]').forEach(b=>b.addEventListener('click',()=>corbeilleRestaurer(+b.dataset.corb)));
   }
   document.getElementById('corbModal').hidden=false;
+  sauvAfficher();      // les sauvegardes de la nuit, en dessous
 }
 function majBoutonCorbeille(){
   const b=document.getElementById('btnCorbeille'); if(!b) return;

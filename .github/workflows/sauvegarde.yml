@@ -44,6 +44,17 @@ jobs:
         run: |
           ls -1t sauvegardes/carnets_20*.json | tail -n +31 | xargs -r rm --
 
+      - name: Lister les sauvegardes disponibles
+        # Le carnet lit cet index pour proposer les sauvegardes dans « Restaurer ».
+        # Sans lui il sonde les 30 derniers jours un par un : l'index evite ces appels.
+        run: |
+          ls -1 sauvegardes/carnets_20*.json \
+            | sed -E 's#.*carnets_([0-9-]+)\.json#\1#' \
+            | sort -r \
+            | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin if l.strip()]))' \
+            > sauvegardes/index.json
+          cat sauvegardes/index.json
+
       - name: Déposer dans le dépôt
         run: |
           git config user.name  "Sauvegarde automatique"
