@@ -217,6 +217,18 @@
   .inv{border:none;background:#eef;color:#3a3a8a;border-radius:8px;width:30px;height:30px;font-size:1rem;cursor:pointer;font-weight:bold}
   .inv:hover{background:#dde}
   .match-fav{background:linear-gradient(90deg,rgba(200,162,75,.14),rgba(200,162,75,.05));border:1px solid rgba(200,162,75,.5)}
+  .corb-item{background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .corb-nom{font-weight:900;color:var(--noir);font-size:.92rem}
+  .corb-type{font-size:.66rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
+             background:#f1efe9;color:#7a7568;border-radius:10px;padding:2px 8px}
+  .corb-quand{font-size:.75rem;color:#a9a49a;flex-basis:100%}
+  .corb-quoi{font-size:.78rem;color:#8a8578;flex-basis:100%}
+  .corb-b{margin-left:auto;border:none;border-radius:16px;padding:6px 14px;font-family:inherit;
+          font-weight:bold;font-size:.8rem;cursor:pointer;background:#2ea043;color:#fff}
+  .corb-b:hover{background:#25883a}
+  .corb-vide{color:#8a8578;font-size:.86rem;line-height:1.6}
+  .corb-pastille{display:inline-block;background:#2ea043;color:#fff;border-radius:10px;padding:0 6px;
+                 font-size:.68rem;font-weight:900;margin-left:4px}
   .fav-reminder{background:#fffaf0;border:1px solid var(--or);border-radius:12px;padding:12px 16px;margin-bottom:14px}
   .baton-form{display:grid;grid-template-columns:1.6fr 1fr 1fr .8fr auto;gap:8px;margin-top:12px}
   .baton-form input,.baton-form select{border:1.5px solid #d4d4da;border-radius:8px;padding:8px 9px;font-family:inherit;font-size:.85rem;background:#fff;min-width:0}
@@ -424,7 +436,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er sept · face à face FFF ✓</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 25 sept · corbeille ✓</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -439,6 +451,7 @@
     <button id="btnExport">↓ Exporter</button>
     <button id="btnImport">↑ Importer</button>
     <input type="file" id="fileImport" accept="application/json" hidden>
+    <button id="btnCorbeille">♻️ Restaurer</button>
     <button id="btnReset">Tout effacer</button>
   </div>
 
@@ -453,6 +466,16 @@
 </div>
 
 <!-- Modale : nommer une coupe -->
+<div class="modal-back" id="corbModal" hidden>
+  <div class="modal">
+    <button class="modal-x" id="corbClose">✕</button>
+    <h2>♻️ Restaurer</h2>
+    <p class="hint">Quand une coupe ou un tour est supprimé, le carnet en garde une copie ici
+      pendant trois mois, avec tous ses scores. Remettre n'efface rien de ce qui existe aujourd'hui.</p>
+    <div id="corbItems"></div>
+  </div>
+</div>
+
 <div class="modal-back" id="divModal" hidden>
   <div class="modal">
     <button class="modal-x" id="divClose">✕</button>
@@ -720,7 +743,8 @@ function normalize(s){
     dates: s.dates || {},
     favs: Array.isArray(s.favs) ? s.favs : [],
     aVoir: s.aVoir || {},         // matchs que Joris a decide d'aller voir
-    batons: Array.isArray(s.batons) ? s.batons : []
+    batons: Array.isArray(s.batons) ? s.batons : [],
+    corbeille: Array.isArray(s.corbeille) ? s.corbeille : []   // ce que Joris a supprime, pour pouvoir le remettre
   };
   // les 3 coupes sont créées d'office la première fois
   if(st.coupes===null){
@@ -893,6 +917,7 @@ function buildBody(){
 function buildBodyInterne(){
   majHistoLocal();   // le face a face doit refleter les scores tapes a l'instant
   buildFavReminder();
+  majBoutonCorbeille();
   if(curOnglet==='autre'){
     document.getElementById('divBody').innerHTML=htmlAutreCarnet();
     return;
@@ -2634,9 +2659,123 @@ document.getElementById('tourSave').addEventListener('click',()=>{
 document.getElementById('tourCancel').addEventListener('click',()=>document.getElementById('tourModal').hidden=true);
 document.getElementById('tourClose').addEventListener('click',()=>document.getElementById('tourModal').hidden=true);
 
+/* ===== Corbeille =====
+   Joris efface parfois une coupe ou un tour sans le vouloir. Au lieu de jeter, on
+   range une copie complete ici (avec les scores, les dates et les pronos) pendant
+   trois mois. La corbeille fait partie de `state` : elle suit la synchro comme le
+   reste, donc ce qui est efface sur l'ordinateur se rattrape depuis le telephone. */
+const CORB_MAX = 12;
+const CORB_JOURS = 90;
+
+function corbeilleListe(){
+  if(!Array.isArray(state.corbeille)) state.corbeille=[];
+  return state.corbeille;
+}
+function corbeilleNettoyer(){
+  const limite = Date.now() - CORB_JOURS*24*3600*1000;
+  state.corbeille = corbeilleListe().filter(x=>x && x.t>limite).slice(0, CORB_MAX);
+  // garde-fou : la corbeille voyage avec le carnet, elle ne doit pas le faire gonfler.
+  // Au-dela de 1,5 Mo, les plus vieilles entrees partent.
+  try{
+    while(state.corbeille.length>1 && JSON.stringify(state.corbeille).length > 1500000){
+      state.corbeille.pop();
+    }
+  }catch(e){ }
+}
+function corbeilleDeposer(type, nom, parent, data, matchs){
+  try{
+    corbeilleNettoyer();
+    const sc={}, dt={}, pr={};
+    (matchs||[]).forEach(m=>{
+      if(state.scores[m.id]) sc[m.id]=state.scores[m.id];
+      if(state.dates[m.id])  dt[m.id]=state.dates[m.id];
+      if(state.pronos[m.id]) pr[m.id]=state.pronos[m.id];
+    });
+    const remplis=Object.keys(sc).filter(k=>num(sc[k].h)&&num(sc[k].a)).length;
+    state.corbeille.unshift({ t:Date.now(), type, nom,
+      parentId:(parent&&parent.id)||"", parentNom:(parent&&parent.nom)||"",
+      data:JSON.parse(JSON.stringify(data)), scores:sc, dates:dt, pronos:pr,
+      nbMatchs:(matchs||[]).length, nbResultats:remplis });
+    state.corbeille=state.corbeille.slice(0, CORB_MAX);
+  }catch(e){ /* jamais bloquer une suppression a cause de la corbeille */ }
+}
+function matchsDeCoupe(c){
+  const out=[]; (c.tours||[]).forEach(t=>(t.matchs||[]).forEach(m=>out.push(m))); return out;
+}
+function corbeilleQuand(t){
+  const d=new Date(t);
+  return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})
+       + ' \u00e0 ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+function corbeilleRemettreResultats(e){
+  Object.keys(e.scores||{}).forEach(k=>{ if(!state.scores[k]) state.scores[k]=e.scores[k]; });
+  Object.keys(e.dates ||{}).forEach(k=>{ if(!state.dates[k])  state.dates[k] =e.dates[k]; });
+  Object.keys(e.pronos||{}).forEach(k=>{ if(!state.pronos[k]) state.pronos[k]=e.pronos[k]; });
+}
+function corbeilleRestaurer(i){
+  const e=corbeilleListe()[i]; if(!e) return;
+  if(!confirm(`Remettre \u00ab ${e.nom} \u00bb, supprim\u00e9 le ${corbeilleQuand(e.t)} ?\n\n`
+    +`${e.nbResultats} r\u00e9sultat${e.nbResultats>1?'s':''} sur ${e.nbMatchs} match${e.nbMatchs>1?'s':''} seront remis aussi.\n`
+    +`Rien de ce que tu as aujourd'hui ne sera effac\u00e9.`)) return;
+  const copie=JSON.parse(JSON.stringify(e.data));
+  let ou="";
+  if(e.type==='coupe'){
+    if(state.coupes.some(c=>c.id===copie.id)) copie.id=uid();
+    state.coupes.push(copie);
+    curOnglet='coupe:'+copie.id;
+    ou=`La coupe \u00ab ${copie.nom} \u00bb est revenue.`;
+  }else{
+    let c=state.coupes.find(x=>x.id===e.parentId);
+    if(!c) c = (curOnglet&&curOnglet.slice(0,6)==='coupe:' ? getCoupe(curOnglet.slice(6)) : null) || state.coupes[0];
+    if(!c){
+      c={id:uid(), nom:e.parentNom||'Coupe retrouv\u00e9e', champs:Object.assign({},CHAMPS_COUPE_DEFAUT), tours:[]};
+      state.coupes.push(c);
+    }
+    if(!Array.isArray(c.tours)) c.tours=[];
+    if(c.tours.some(x=>x.id===copie.id)) copie.id=uid();
+    c.tours.push(copie);
+    curOnglet='coupe:'+c.id;
+    ou=`Le tour \u00ab ${copie.nom} \u00bb est revenu dans ${c.nom}.`;
+  }
+  corbeilleRemettreResultats(e);
+  state.corbeille=corbeilleListe().filter((x,k)=>k!==i);
+  save(); buildDivTabs(); buildBody();
+  document.getElementById('corbModal').hidden=true;
+  alert(ou);
+}
+function ouvrirCorbeille(){
+  corbeilleNettoyer();
+  const box=document.getElementById('corbItems');
+  const l=corbeilleListe();
+  if(!l.length){
+    box.innerHTML='<p class="corb-vide">La corbeille est vide. '
+      +'D\u00e8s qu\'une coupe ou un tour sera supprim\u00e9, il appara\u00eetra ici '
+      +'et tu pourras le remettre d\'un clic.</p>';
+  }else{
+    box.innerHTML=l.map((e,i)=>`<div class="corb-item">
+      <span class="corb-type">${e.type==='coupe'?'coupe':'tour'}</span>
+      <span class="corb-nom">${esc(e.nom)}</span>
+      <button class="corb-b" data-corb="${i}">\u267b\uFE0F Remettre</button>
+      <span class="corb-quand">supprim\u00e9 le ${esc(corbeilleQuand(e.t))}${e.parentNom?` \u00b7 dans ${esc(e.parentNom)}`:''}</span>
+      <span class="corb-quoi">${e.type==='coupe'?`${((e.data||{}).tours||[]).length} tour${((e.data||{}).tours||[]).length>1?'s':''} \u00b7 `:''}${e.nbMatchs} match${e.nbMatchs>1?'s':''} \u00b7 ${e.nbResultats} r\u00e9sultat${e.nbResultats>1?'s':''} gard\u00e9${e.nbResultats>1?'s':''}</span>
+    </div>`).join("");
+    box.querySelectorAll('[data-corb]').forEach(b=>b.addEventListener('click',()=>corbeilleRestaurer(+b.dataset.corb)));
+  }
+  document.getElementById('corbModal').hidden=false;
+}
+function majBoutonCorbeille(){
+  const b=document.getElementById('btnCorbeille'); if(!b) return;
+  const n=corbeilleListe().length;
+  b.innerHTML='\u267b\uFE0F Restaurer'+(n?` <span class="corb-pastille">${n}</span>`:'');
+}
+document.getElementById('btnCorbeille').addEventListener('click',ouvrirCorbeille);
+document.getElementById('corbClose').addEventListener('click',()=>document.getElementById('corbModal').hidden=true);
+document.getElementById('corbModal').addEventListener('click',e=>{ if(e.target.id==='corbModal') document.getElementById('corbModal').hidden=true; });
+
 function supprimerCoupe(cid){
   const c=getCoupe(cid);
-  if(!confirm(`Supprimer la coupe « ${c.nom} » et tous ses tours ?\n\nAttention : ses scores seront perdus.`)) return;
+  if(!confirm(`Supprimer la coupe \u00ab ${c.nom} \u00bb et tous ses tours ?\n\nTu pourras la remettre avec le bouton \u00ab \u267b\uFE0F Restaurer \u00bb en haut.`)) return;
+  corbeilleDeposer('coupe', c.nom, null, c, matchsDeCoupe(c));
   c.tours.forEach(t=>t.matchs.forEach(m=>{ delete state.scores[m.id]; delete state.dates[m.id]; delete state.pronos[m.id]; }));
   state.coupes = state.coupes.filter(x=>x.id!==cid);
   curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
@@ -2645,9 +2784,11 @@ function supprimerCoupe(cid){
 
 function supprimerTour(tid){
   const t=getTour(tid);
-  if(!confirm(`Supprimer le tour « ${t.nom} » et ses matchs ?`)) return;
+  if(!confirm(`Supprimer le tour \u00ab ${t.nom} \u00bb et ses matchs ?\n\nTu pourras le remettre avec le bouton \u00ab \u267b\uFE0F Restaurer \u00bb en haut.`)) return;
+  const c=state.coupes.find(x=>(x.tours||[]).some(y=>y.id===tid));
+  corbeilleDeposer('tour', t.nom, c, t, t.matchs);
   t.matchs.forEach(m=>{ delete state.scores[m.id]; delete state.dates[m.id]; delete state.pronos[m.id]; });
-  state.coupes.forEach(c=>{ c.tours=c.tours.filter(x=>x.id!==tid); });
+  state.coupes.forEach(x=>{ x.tours=x.tours.filter(y=>y.id!==tid); });
   save(); buildBody();
 }
 
@@ -3003,9 +3144,11 @@ document.getElementById('fileImport').addEventListener('change',e=>{
   e.target.value="";
 });
 document.getElementById('btnReset').addEventListener('click',()=>{
-  if(!confirm("Tout effacer ? Tes divisions, poules et scores seront supprimés.\n(Tes équipes favorites seront gardées.)")) return;
+  if(!confirm("Tout effacer ? Tes coupes, tes tours et tes scores seront supprim\u00e9s.\n(Tes \u00e9quipes favorites seront gard\u00e9es, et tout part \u00e0 la corbeille : tu pourras remettre chaque coupe avec \u00ab \u267b\uFE0F Restaurer \u00bb.)")) return;
   const favs=state.favs.slice();
-  state=normalize({}); state.favs=favs;
+  state.coupes.slice().forEach(c=>corbeilleDeposer('coupe', c.nom, null, c, matchsDeCoupe(c)));
+  const corb=corbeilleListe().slice();
+  state=normalize({}); state.favs=favs; state.corbeille=corb;
   curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
   save(); buildDivTabs(); buildBody();
 });
