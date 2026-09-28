@@ -217,6 +217,15 @@
   .inv{border:none;background:#eef;color:#3a3a8a;border-radius:8px;width:30px;height:30px;font-size:1rem;cursor:pointer;font-weight:bold}
   .inv:hover{background:#dde}
   .match-fav{background:linear-gradient(90deg,rgba(200,162,75,.14),rgba(200,162,75,.05));border:1px solid rgba(200,162,75,.5)}
+  .rep-b{border:1px solid #d9d4ca;background:#fff;color:#7a7568;border-radius:14px;padding:4px 10px;
+         font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;white-space:nowrap}
+  .rep-b:hover{background:#f4f1ec}
+  .rep-b.on{background:#5b4fc4;border-color:#5b4fc4;color:#fff}
+  .rep-tag{flex-basis:100%;text-align:center;margin-top:5px;font-size:.76rem;font-weight:bold;color:#463c9e;
+           background:#eeecfb;border:1px solid #d5d0f3;border-radius:8px;padding:4px 9px}
+  .match.reporte{background:#faf9ff}
+  .res-item.rep{background:#eeecfb;color:#463c9e}
+  .res-titre.rep{color:#463c9e}
   .corb-item{background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .corb-nom{font-weight:900;color:var(--noir);font-size:.92rem}
   .corb-type{font-size:.66rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
@@ -452,7 +461,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 25 sept · corbeille ✓</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 28 sept · match reporté ✓</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -1100,7 +1109,8 @@ function htmlResultats(c){
   let html="";
   c.tours.forEach(t=>{
     const joues=t.matchs.filter(m=>vainqueurCoupe(m,c));
-    const attente=t.matchs.filter(m=>!vainqueurCoupe(m,c));
+    const reportes=t.matchs.filter(m=>!vainqueurCoupe(m,c) && estReporte(m.id));
+    const attente=t.matchs.filter(m=>!vainqueurCoupe(m,c) && !estReporte(m.id));
     html+=`<div class="card">
       <h3 style="margin:0 0 8px">${esc(t.nom)}</h3>`;
     if(!t.matchs.length){
@@ -1133,9 +1143,17 @@ function htmlResultats(c){
       html+=`</div></div>`;
     }
     if(attente.length){
-      html+=`<div class="res-attente"><strong>⏳ Pas encore joués (${attente.length})</strong>`;
+      html+=`<div class="res-attente"><strong>\u23f3 Pas encore jou\u00e9s (${attente.length})</strong>`;
       attente.forEach(m=>{
         html+=`<div class="res-item wait">${esc(m.dom)} - ${esc(m.ext)}</div>`;
+      });
+      html+=`</div>`;
+    }
+    if(reportes.length){
+      html+=`<div class="res-attente"><strong class="res-titre rep">\uD83D\uDCC6 Report\u00e9s (${reportes.length})</strong>`;
+      reportes.forEach(m=>{
+        const dt=state.dates[m.id]||{};
+        html+=`<div class="res-item rep">${esc(m.dom)} - ${esc(m.ext)}${dt.date?` <span class="res-sc">\u00e9tait le ${esc(dt.date.split('-').reverse().join('/'))}</span>`:''}</div>`;
       });
       html+=`</div>`;
     }
@@ -1177,6 +1195,31 @@ function htmlButeursCoupe(c){
   return html;
 }
 
+/* ===== Match report\u00e9 =====
+   Un match report\u00e9 n'a pas \u00e9t\u00e9 jou\u00e9 \u00e0 la date pr\u00e9vue : il est mis de c\u00f4t\u00e9, sans
+   \u00eatre confondu avec un match qui attend simplement son tour. D\u00e8s qu'un score est
+   saisi, le marquage s'efface tout seul. */
+function estReporte(id){
+  const sc=state.scores[id]||{};
+  if(!sc.rep) return false;
+  if(num(sc.h) && num(sc.a)) return false;
+  return true;
+}
+let repTimer=null;
+function redessinPlusTard(){ clearTimeout(repTimer); repTimer=setTimeout(()=>buildBody(), 900); }
+function basculerReporte(id){
+  if(!state.scores[id]) state.scores[id]={};
+  const sc=state.scores[id];
+  sc.rep = !sc.rep;
+  if(!sc.rep) delete sc.rep;
+  save(); buildBody();
+}
+function htmlRepMatch(m){
+  return estReporte(m.id)
+    ? `<div class="rep-tag">\uD83D\uDCC6 Match report\u00e9</div>`
+    : '';
+}
+
 function htmlTour(c,t){
   let html=`<div class="card">
     <div class="poule-head">
@@ -1195,7 +1238,7 @@ function htmlTour(c,t){
     const sc=state.scores[m.id]||{}; const dt=state.dates[m.id]||{};
     const vainq = vainqueurCoupe(m,c);
     const estFav = (m.dom&&isFav(m.dom)) || (m.ext&&isFav(m.ext));
-    html+=`<div class="match${estFav?' match-fav':''}">
+    html+=`<div class="match${estFav?' match-fav':''}${estReporte(m.id)?' reporte':''}">
       <span class="team-col">
         <span class="team ${vainq===m.dom?'win':''}" data-editteam="${m.id}" title="Cliquer pour changer l'équipe">${isFav(m.dom)?'⭐ ':''}${htmlLogo(m.dom,34)}${nomEquipeHtml(m.dom)} <span class="edit-team">✎</span></span>
         <input class="div-in" data-id="${m.id}" data-c="divh" placeholder="division" value="${esc(m.divh||"")}" title="Division de ${esc(m.dom)}">
@@ -1220,13 +1263,15 @@ function htmlTour(c,t){
         <input class="sc" type="number" min="0" data-id="${m.id}" data-side="rext" value="${sc.rext||""}" title="Buts de ${esc(m.ext)} au match retour">
         <span class="ar-cumul" data-cumul="${m.id}">${htmlCumul(m)}</span>
       </div>`:''}
-${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
+${htmlRepMatch(m)}${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
       <div class="date-line">
         ${m.ar?`<span class="manche">ALLER</span>`:''}
         <input type="date" class="din" data-id="${m.id}" data-f="date" value="${dt.date||""}">
         <button type="button" class="cal-btn" data-cal="${m.id}" data-f="date" title="Ouvrir le calendrier">&#128197;</button>
         <input type="time" class="tin" data-id="${m.id}" data-f="time" value="${dt.time||""}">
         <button type="button" class="hr-btn" data-hr="${m.id}" data-f="time" title="Choisir l'heure">&#128340;</button>
+        <button type="button" class="rep-b ${estReporte(m.id)?'on':''}" data-rep="${m.id}"
+          title="${estReporte(m.id)?'Ce match est marqu\u00e9 report\u00e9 : clique pour enlever le marquage':'Marquer ce match comme report\u00e9'}">\uD83D\uDCC6 Report\u00e9</button>
       </div>
       <div class="lieu-line">
         ${m.ar?`<span class="manche">ALLER</span>`:''}
@@ -2269,7 +2314,7 @@ function collecterSorties(){
     if(!m.dom||!m.ext) return;
     const dt=state.dates[m.id]||{};
     const sc=state.scores[m.id]||{};
-    if(dt.date){
+    if(dt.date && !estReporte(m.id)){      // report\u00e9 : inutile d'aller au stade
       out.push({cle:m.id, date:dt.date, heure:dt.time||"", dom:m.dom, ext:m.ext,
         ville:m.ville||"", cp:m.cp||"", stade:m.stade||"",
         score:(num(sc.h)&&num(sc.a))?`${sc.h} - ${sc.a}`:"",
@@ -2551,8 +2596,13 @@ function brancherBody(){
   }));
   box.querySelectorAll('input.sc').forEach(inp=>inp.addEventListener('input',()=>{
     const id=inp.dataset.id; if(!state.scores[id]) state.scores[id]={};
-    state.scores[id][inp.dataset.side]=inp.value; save(); majVainqueur(id); majProno(id);
+    const sc=state.scores[id];
+    sc[inp.dataset.side]=inp.value;
+    // un score saisi veut dire que le match a bien eu lieu
+    if(sc.rep && num(sc.h) && num(sc.a)){ delete sc.rep; redessinPlusTard(); }
+    save(); majVainqueur(id); majProno(id);
   }));
+  box.querySelectorAll('[data-rep]').forEach(b=>b.addEventListener('click',()=>basculerReporte(b.dataset.rep)));
   // dates / heures
   box.querySelectorAll('[data-inv]').forEach(b=>b.addEventListener('click',()=>{
     const m=trouverMatchCoupe(b.dataset.inv); if(!m) return;
