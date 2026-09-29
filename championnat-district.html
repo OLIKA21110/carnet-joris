@@ -454,6 +454,14 @@
          font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;white-space:nowrap}
   .rep-b:hover{background:#f4f1ec}
   .rep-b.on{background:#5b4fc4;border-color:#5b4fc4;color:#fff}
+  .resv-b{border:1px solid #d9d4ca;background:#fff;color:#7a7568;border-radius:14px;padding:4px 10px;
+          font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;white-space:nowrap;
+          max-width:190px;overflow:hidden;text-overflow:ellipsis}
+  .resv-b:hover{background:#f4f1ec}
+  .resv-b.on{background:#1f6feb;border-color:#1f6feb;color:#fff}
+  .resv-tag{flex-basis:100%;text-align:center;margin-top:5px;font-size:.76rem;font-weight:bold;color:#14508f;
+            background:#e8f0fd;border:1px solid #c3d8f7;border-radius:8px;padding:4px 9px}
+  .match.reserve{box-shadow:inset 0 0 0 2px #c3d8f7}
   .arr-b{border:1px solid #d9d4ca;background:#fff;color:#7a7568;border-radius:14px;padding:4px 10px;
          font-family:inherit;font-size:.72rem;font-weight:bold;cursor:pointer;white-space:nowrap}
   .arr-b:hover{background:#f4f1ec}
@@ -601,7 +609,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 29 sept · match arrêté ✓</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 29 sept · réserve ✓</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -1723,6 +1731,41 @@ function etatArret(id){
 }
 function estArrete(id){ return !!etatArret(id); }
 function arretNeComptePas(id){ return etatArret(id)==='rejouer'; }
+/* ===== R\u00e9serve =====
+   Une \u00e9quipe peut d\u00e9poser une r\u00e9serve sur un match (joueur non qualifi\u00e9, terrain,
+   arbitrage\u2026). \u00c0 la F\u00e9d\u00e9ration, le r\u00e9sultat reste acquis tant que la commission n'a
+   pas tranch\u00e9 : on note donc seulement qui a d\u00e9pos\u00e9 la r\u00e9serve, et le score continue
+   de compter normalement. Le bouton tourne : personne \u2192 le club qui re\u00e7oit \u2192 le
+   visiteur \u2192 personne. */
+function reserveDe(id){
+  const sc=state.scores[id]||{};
+  return (sc.resv==='dom' || sc.resv==='ext') ? sc.resv : '';
+}
+function equipeReserve(m){
+  const r=reserveDe(m.id);
+  if(!r) return '';
+  return r==='dom' ? (m.dom||'') : (m.ext||'');
+}
+function tournerReserve(id){
+  const m=matchParId(id); if(!m) return;
+  if(!state.scores[id]) state.scores[id]={};
+  const sc=state.scores[id];
+  const suite = { '':'dom', 'dom':'ext', 'ext':'' };
+  const v = suite[reserveDe(id)];
+  if(v) sc.resv=v; else delete sc.resv;
+  save(); buildBody();
+}
+function htmlResvMatch(m){
+  const q=equipeReserve(m);
+  if(!reserveDe(m.id)) return '';
+  return `<div class="resv-tag">\u26A0\uFE0F R\u00e9serve d\u00e9pos\u00e9e par ${esc(q||(reserveDe(m.id)==='dom'?'le club qui re\u00e7oit':'le visiteur'))}</div>`;
+}
+function htmlResvBouton(m){
+  const r=reserveDe(m.id), q=equipeReserve(m);
+  return `<button type="button" class="resv-b ${r?'on':''}" data-resv="${m.id}"
+    title="${r?'R\u00e9serve d\u00e9pos\u00e9e par '+esc(q)+' \u2014 clique pour changer d\'\u00e9quipe, puis pour enlever':'Une \u00e9quipe a d\u00e9pos\u00e9 une r\u00e9serve sur ce match'}">\u26A0\uFE0F ${r?'R\u00e9serve : '+esc(q||'?'):'R\u00e9serve'}</button>`;
+}
+
 function htmlArrMatch(m){
   const e=etatArret(m.id);
   if(!e) return '';
@@ -1930,14 +1973,14 @@ function htmlMatchs(p){
   ms.forEach(m=>{
     const sc=state.scores[m.id]||{}; const dt=state.dates[m.id]||{};
     const estFav = (m.dom&&isFav(m.dom)) || (m.ext&&isFav(m.ext));
-    html+=`<div class="match${estFav?' match-fav':''}${estReporte(m.id)?' reporte':''}${estArrete(m.id)?' arrete':''}">
+    html+=`<div class="match${estFav?' match-fav':''}${estReporte(m.id)?' reporte':''}${estArrete(m.id)?' arrete':''}${reserveDe(m.id)?' reserve':''}">
       <span class="team-pick">${m.dom?htmlLogo(m.dom,34):''}<span class="pick-col">${selectEquipe(p,m,'dom')}${m.dom?btnBaton(m.dom):''}</span></span>
       <input class="sc" type="number" min="0" data-id="${m.id}" data-side="h" value="${sc.h||""}">
       <button class="inv" data-inv="${m.id}" data-p="${p.id}" title="Inverser domicile / extérieur">⇄</button>
       <input class="sc" type="number" min="0" data-id="${m.id}" data-side="a" value="${sc.a||""}">
       <span class="team-pick"><span class="pick-col">${selectEquipe(p,m,'ext')}${m.ext?btnBaton(m.ext):''}</span>${m.ext?htmlLogo(m.ext,34):''}</span>
       <button class="mini danger delm" data-delmatch="${m.id}" data-p="${p.id}" title="Enlever ce match de la journée">✕</button>
-${htmlRepMatch(m)}${htmlArrMatch(m)}${htmlFgMatch(p,m)}${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
+${htmlRepMatch(m)}${htmlArrMatch(m)}${htmlResvMatch(m)}${htmlFgMatch(p,m)}${htmlFaceAFace(m)}${htmlFffLine(m)}${htmlForme(m)}
       <div class="date-line">
         <input type="date" class="din" data-id="${m.id}" value="${dt.date||""}">
         <button type="button" class="cal-btn" data-cal="${m.id}" title="Ouvrir le calendrier">&#128197;</button>
@@ -1947,6 +1990,7 @@ ${htmlRepMatch(m)}${htmlArrMatch(m)}${htmlFgMatch(p,m)}${htmlFaceAFace(m)}${html
           title="${estReporte(m.id)?'Ce match est marqu\u00e9 report\u00e9 : clique pour enlever le marquage':'Marquer ce match comme report\u00e9'}">\uD83D\uDCC6 Report\u00e9</button>
         <button type="button" class="arr-b ${estArrete(m.id)?'on':''}" data-arr="${m.id}"
           title="Le match a commenc\u00e9 mais n'est pas all\u00e9 au bout">\u23F9\uFE0F Arr\u00eat\u00e9</button>
+        ${htmlResvBouton(m)}
       </div>
       <div class="lieu-line">
         <button type="button" class="lieu-btn" data-lieux="${m.id}" title="Terrains du club qui reçoit">🏟️</button>
@@ -3467,6 +3511,7 @@ function brancherBody(){
   }));
   box.querySelectorAll('[data-rep]').forEach(b=>b.addEventListener('click',()=>basculerReporte(b.dataset.rep)));
   box.querySelectorAll('[data-arr]').forEach(b=>b.addEventListener('click',()=>ouvrirArrModal(b.dataset.arr)));
+  box.querySelectorAll('[data-resv]').forEach(b=>b.addEventListener('click',()=>tournerReserve(b.dataset.resv)));
   // dates / heures
   box.querySelectorAll('button.lieu-btn').forEach(b=>b.addEventListener('click',e=>{
     e.preventDefault(); e.stopPropagation();
@@ -4108,7 +4153,7 @@ function ficheEquipe(team, pid){
     if(arretNeComptePas(m.id)) res="arr\u00eat\u00e9";
     if(num(sc.h)&&num(sc.a)){
       const my=home?+sc.h:+sc.a, op=home?+sc.a:+sc.h;
-      res=`${my} - ${op}`;
+      res=`${my} - ${op}${reserveDe(m.id)?' \u26A0\uFE0F':''}`;
       cls = my>op?'ts-win':(my<op?'ts-loss':'ts-draw');
     }
     const dd=dt.date?new Date(dt.date).toLocaleDateString('fr-FR',{day:'numeric',month:'short'}):'';
