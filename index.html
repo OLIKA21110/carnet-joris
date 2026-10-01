@@ -451,5 +451,271 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
   }
 })();
 </script>
+<!-- ===== Boîte à idées de Joris : bloc identique dans chaque page, à modifier partout à la fois ===== -->
+<script>
+/* Boîte à idées : Joris note une idée (bouton 💡). Quand il l'envoie, le robot GitHub
+   « idees.yml » en fait un ticket sur le dépôt, et GitHub prévient Olivier par mail.
+   Quand le ticket est fermé ou commenté, le robot le reporte ici : Joris voit la réponse.
+   - Ligne Supabase à part (« idees_joris ») : on ne touche jamais aux données des carnets.
+   - fetch direct, sans supabase-js : la boîte marche même si le CDN ne répond pas.
+   - Tout est enfermé dans cette fonction : aucun nom ne peut écraser ceux de la page.
+   - On n'écrit QUE sur un geste de Joris, en relisant le nuage juste avant (fusion par id,
+     la version la plus récente de chaque idée gagne). Jamais d'écriture de fond. */
+(function(){
+  const URL_SB = "https://hoyxgmmbngrjigjqptnr.supabase.co/rest/v1/carnet";
+  const CLE = "sb_publishable_y9KhYDWM2zyYFC_wtbBhlQ_BcqV9CR9";
+  const LIGNE = "idees_joris";
+  const LOCAL = "idees_joris_v1";
+  const VUS = "idees_joris_vus";       // réponses déjà vues sur cet appareil (pour la pastille)
+  const PAGES = {"championnat-district.html":"Championnat","coupes-district.html":"Coupes",
+    "mes-equipes.html":"Mes équipes","journal.html":"Mon journal","index.html":"Accueil","":"Accueil"};
+  const PAGE = PAGES[decodeURIComponent(location.pathname.split('/').pop())] || document.title;
+  const ENTETES = {apikey:CLE, Authorization:"Bearer "+CLE};
+  const ETATS = {
+    brouillon:["✏️","Pas encore envoyée"],
+    envoyee:  ["📨","Envoyée, elle part chez papa"],
+    ticket:   ["📬","Papa l'a reçue"],
+    faite:    ["✅","C'est fait ! Va voir dans le carnet"],
+    refusee:  ["💭","Papa ne la garde pas pour l'instant"]
+  };
+
+  let idees = lireLocal();
+  let enEdition = null;                // id du brouillon qu'on est en train de modifier
+
+  function lireLocal(){ try{ const d=JSON.parse(localStorage.getItem(LOCAL)); return Array.isArray(d)?d:[]; }catch(e){ return []; } }
+  function garderLocal(){ try{ localStorage.setItem(LOCAL, JSON.stringify(idees)); }catch(e){} }
+  function lireVus(){ try{ return JSON.parse(localStorage.getItem(VUS))||{}; }catch(e){ return {}; } }
+  function maintenant(){ return new Date().toISOString(); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  async function lireNuage(){
+    const r = await fetch(URL_SB+"?id=eq."+LIGNE+"&select=data", {headers:ENTETES, cache:"no-store"});
+    if(!r.ok) throw new Error("lecture "+r.status);
+    const t = await r.json();
+    return (t[0] && t[0].data && Array.isArray(t[0].data.idees)) ? t[0].data.idees : [];
+  }
+  function fusionner(a, b){
+    const m = new Map();
+    for(const i of [...a, ...b]){ const x=m.get(i.id); if(!x || (i.maj||"") > (x.maj||"")) m.set(i.id, i); }
+    // une idée effacée garde sa « pierre tombale » 60 jours, pour que la fusion ne la ressuscite pas
+    const limite = new Date(Date.now()-60*86400000).toISOString();
+    return [...m.values()].filter(i => !(i.etat==='effacee' && (i.maj||"") < limite))
+      .sort((x,y)=> (y.cree||"").localeCompare(x.cree||""));
+  }
+  // renvoie true si le nuage a répondu ; « enRetard » dit si cet appareil a des changements
+  // que le nuage n'a pas (idée écrite sans connexion)
+  let enRetard = false;
+  async function rafraichir(){
+    try{
+      const nuage = await lireNuage();
+      const vu = new Map(nuage.map(i=>[i.id, i.maj||""]));
+      enRetard = idees.some(i => !vu.has(i.id) || (i.maj||"") > vu.get(i.id));
+      idees = fusionner(idees, nuage); garderLocal(); return true;
+    }catch(e){ return false; }
+  }
+  // un geste de Joris : relire le nuage, appliquer le changement, renvoyer la liste
+  async function changer(appliquer){
+    try{ idees = fusionner(idees, await lireNuage()); }catch(e){}
+    appliquer();
+    garderLocal();
+    const r = await fetch(URL_SB, {method:"POST",
+      headers:Object.assign({"Content-Type":"application/json", Prefer:"resolution=merge-duplicates,return=minimal"}, ENTETES),
+      body:JSON.stringify({id:LIGNE, data:{idees}, updated_at:maintenant()})});
+    if(!r.ok) throw new Error("envoi "+r.status);
+  }
+  function trouver(id){ return idees.find(i=>i.id===id); }
+
+  /* ---------- l'affichage ---------- */
+  const style = document.createElement('style');
+  style.textContent = `
+  .ij-bouton{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9000;
+    width:56px;height:56px;border-radius:50%;border:3px solid #111418;background:#ffd54a;font-size:1.7rem;
+    cursor:pointer;box-shadow:0 6px 16px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;
+    transition:transform .15s;padding:0;line-height:1}
+  .ij-bouton:hover{transform:scale(1.08) rotate(-8deg)}
+  .ij-pastille{position:absolute;top:-4px;right:-4px;min-width:20px;height:20px;border-radius:10px;background:#C8102E;
+    color:#fff;font:bold 12px/20px 'Segoe UI',system-ui,sans-serif;padding:0 5px;border:2px solid #fff}
+  .ij-fond{position:fixed;inset:0;z-index:9001;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;padding:12px}
+  @media(min-width:600px){ .ij-fond{align-items:center} }
+  .ij-boite,.ij-boite *{box-sizing:border-box}
+  .ij-boite{overflow-x:hidden;width:100%;max-width:480px;max-height:88vh;overflow:auto;background:#fff;color:#111418;border-radius:18px;
+    padding:18px 18px 14px;font-family:'Segoe UI',system-ui,sans-serif;box-shadow:0 18px 40px rgba(0,0,0,.4);text-align:left}
+  .ij-tete{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .ij-tete h3{margin:0;font-size:1.25rem}
+  .ij-fermer{border:none;background:#eee;border-radius:50%;width:34px;height:34px;font-size:1rem;cursor:pointer}
+  .ij-aide{font-size:.85rem;color:#556;margin:0 0 10px;line-height:1.4}
+  .ij-boite textarea{width:100%;min-height:90px;border:2px solid #ccd;border-radius:12px;padding:10px;font:inherit;font-size:1rem;resize:vertical;box-sizing:border-box}
+  .ij-boite textarea:focus{outline:none;border-color:#C8102E}
+  .ij-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .ij-btns button,.ij-ligne button{border:none;border-radius:20px;padding:9px 16px;font:inherit;font-weight:bold;font-size:.88rem;cursor:pointer}
+  .ij-envoyer{background:#C8102E;color:#fff}
+  .ij-garder{background:#eef0f4;color:#111418}
+  .ij-msg{min-height:1.2em;font-size:.85rem;margin-top:6px}
+  .ij-msg.ok{color:#1a7a3c} .ij-msg.ko{color:#C8102E}
+  .ij-liste h4{margin:16px 0 6px;font-size:.8rem;text-transform:uppercase;letter-spacing:1px;color:#778}
+  .ij-ligne{border:1px solid #e3e5ea;border-radius:12px;padding:10px 12px;margin-bottom:8px}
+  .ij-texte{white-space:pre-wrap;word-wrap:break-word;font-size:.95rem}
+  .ij-info{font-size:.75rem;color:#889;margin-top:4px}
+  .ij-etat{display:inline-block;margin-top:6px;font-size:.8rem;font-weight:bold;background:#f2f3f6;border-radius:10px;padding:3px 9px}
+  .ij-etat.faite{background:#e3f6e8;color:#1a7a3c} .ij-etat.refusee{background:#f4eefc;color:#5b3b8a}
+  .ij-reponse{margin-top:6px;background:#fff8dc;border-left:4px solid #ffd54a;border-radius:6px;padding:6px 9px;font-size:.88rem;white-space:pre-wrap}
+  .ij-ligne .ij-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .ij-ligne .ij-actions button{padding:6px 12px;font-size:.8rem}
+  .ij-vide{font-size:.85rem;color:#889;text-align:center;padding:10px}`;
+  document.head.appendChild(style);
+
+  const bouton = document.createElement('button');
+  bouton.className = 'ij-bouton';
+  bouton.type = 'button';
+  bouton.title = 'Mes idées pour le carnet';
+  bouton.setAttribute('aria-label', 'Mes idées pour le carnet');
+  bouton.innerHTML = '💡<span class="ij-pastille" hidden></span>';
+  document.body.appendChild(bouton);
+
+  // la pastille compte les réponses de papa pas encore vues sur cet appareil
+  function nouveautes(){
+    const vus = lireVus();
+    return idees.filter(i => ['ticket','faite','refusee'].includes(i.etat) && vus[i.id] !== i.etat+'|'+(i.reponse||''));
+  }
+  function majPastille(){
+    const n = nouveautes().length, p = bouton.querySelector('.ij-pastille');
+    p.hidden = !n; p.textContent = n;
+  }
+  function marquerVues(){
+    const vus = lireVus();
+    for(const i of idees) if(['ticket','faite','refusee'].includes(i.etat)) vus[i.id] = i.etat+'|'+(i.reponse||'');
+    try{ localStorage.setItem(VUS, JSON.stringify(vus)); }catch(e){}
+    majPastille();
+  }
+
+  let fond = null;
+  function ouvrir(){
+    if(fond) return;
+    fond = document.createElement('div');
+    fond.className = 'ij-fond';
+    fond.innerHTML = `
+      <div class="ij-boite" role="dialog" aria-modal="true" aria-label="Mes idées">
+        <div class="ij-tete"><h3>💡 Mes idées</h3><button class="ij-fermer" type="button" aria-label="Fermer">✕</button></div>
+        <p class="ij-aide">Qu'est-ce que tu aimerais que le carnet sache faire ? Écris-le comme tu le dirais à papa.
+          Tu peux la garder pour plus tard, ou l'envoyer tout de suite.</p>
+        <textarea class="ij-champ" maxlength="2000" placeholder="Par exemple : ce serait bien de voir le meilleur buteur de chaque poule…"></textarea>
+        <div class="ij-btns">
+          <button type="button" class="ij-envoyer">📨 J'envoie à papa</button>
+          <button type="button" class="ij-garder">✏️ Je la garde pour plus tard</button>
+        </div>
+        <div class="ij-msg"></div>
+        <div class="ij-liste"></div>
+      </div>`;
+    document.body.appendChild(fond);
+    fond.addEventListener('click', e=>{ if(e.target===fond) fermer(); });
+    fond.querySelector('.ij-fermer').addEventListener('click', fermer);
+    fond.querySelector('.ij-envoyer').addEventListener('click', ()=>enregistrer(true));
+    fond.querySelector('.ij-garder').addEventListener('click', ()=>enregistrer(false));
+    fond.querySelector('.ij-liste').addEventListener('click', clicListe);
+    document.addEventListener('keydown', echap);
+    dessinerListe();
+    marquerVues();
+    // relire le nuage en arrivant : les réponses de papa ont peut-être changé
+    rafraichir().then(async ok=>{
+      if(!ok){ message("Pas de connexion : tu vois les idées gardées sur cet appareil.", "ko"); return; }
+      // Joris vient d'ouvrir sa boîte : on en profite pour envoyer ce qui était resté bloqué ici
+      if(enRetard){ try{ await changer(()=>{}); enRetard = false; message("📨 Les idées restées sur cet appareil sont parties.", "ok"); }catch(e){} }
+      if(fond){ dessinerListe(); marquerVues(); }
+    });
+    setTimeout(()=>fond && fond.querySelector('.ij-champ').focus(), 50);
+  }
+  function fermer(){
+    if(!fond) return;
+    fond.remove(); fond = null; enEdition = null;
+    document.removeEventListener('keydown', echap);
+  }
+  function echap(e){ if(e.key==='Escape') fermer(); }
+  function message(txt, cls){ if(fond){ const m=fond.querySelector('.ij-msg'); m.textContent=txt; m.className='ij-msg '+(cls||''); } }
+
+  function dessinerListe(){
+    if(!fond) return;
+    const visibles = idees.filter(i=>i.etat!=='effacee');
+    const brouillons = visibles.filter(i=>i.etat==='brouillon');
+    const envoyees = visibles.filter(i=>i.etat!=='brouillon');
+    const date = s => s ? new Date(s).toLocaleDateString('fr-FR',{day:'numeric',month:'long'}) : '';
+    const ligne = i => {
+      const [ico, txt] = ETATS[i.etat] || ["❔", i.etat];
+      return `<div class="ij-ligne" data-id="${esc(i.id)}">
+        <div class="ij-texte">${esc(i.texte)}</div>
+        <div class="ij-info">${esc(i.page||'')} · ${date(i.cree)}${i.ticket ? ' · ticket n°'+esc(i.ticket) : ''}</div>
+        <span class="ij-etat ${esc(i.etat)}">${ico} ${esc(txt)}</span>
+        ${i.reponse ? `<div class="ij-reponse">💬 <b>Papa :</b> ${esc(i.reponse)}</div>` : ''}
+        ${i.etat==='brouillon' ? `<div class="ij-actions">
+          <button type="button" class="ij-envoyer" data-faire="envoyer">📨 J'envoie</button>
+          <button type="button" class="ij-garder" data-faire="modifier">✏️ Modifier</button>
+          <button type="button" class="ij-garder" data-faire="effacer">🗑 Effacer</button></div>` : ''}
+      </div>`;
+    };
+    let h = '';
+    if(brouillons.length) h += '<h4>Mes brouillons</h4>' + brouillons.map(ligne).join('');
+    if(envoyees.length) h += '<h4>Mes idées envoyées</h4>' + envoyees.map(ligne).join('');
+    if(!h) h = '<div class="ij-vide">Pas encore d\'idée. La première, c\'est maintenant ! 🚀</div>';
+    fond.querySelector('.ij-liste').innerHTML = h;
+  }
+
+  async function enregistrer(envoyer){
+    const champ = fond.querySelector('.ij-champ');
+    const texte = champ.value.trim();
+    if(!texte){ message("Écris d'abord ton idée 🙂", "ko"); champ.focus(); return; }
+    if(envoyer && !confirm("Tu envoies cette idée à papa ?\nUne fois envoyée, tu ne pourras plus la changer.")) return;
+    const id = enEdition;
+    const quand = maintenant();
+    try{
+      await changer(()=>{
+        const existante = id && trouver(id);
+        if(existante && existante.etat==='brouillon'){
+          Object.assign(existante, {texte, maj:quand}, envoyer ? {etat:'envoyee', envoyee:quand} : {});
+        }else{
+          idees.unshift({id:'i'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), texte, page:PAGE,
+            cree:quand, maj:quand, etat: envoyer?'envoyee':'brouillon', envoyee: envoyer?quand:null});
+        }
+      });
+      champ.value = ''; enEdition = null;
+      message(envoyer ? "📨 C'est parti ! Papa va recevoir ton idée." : "✏️ Gardée dans tes brouillons.", "ok");
+    }catch(e){
+      message("Oups, pas de connexion : ton idée est gardée sur cet appareil. Réessaie un peu plus tard.", "ko");
+    }
+    dessinerListe();
+  }
+
+  async function clicListe(e){
+    const b = e.target.closest('button[data-faire]'); if(!b) return;
+    const id = b.closest('.ij-ligne').dataset.id, i = trouver(id);
+    if(!i || i.etat!=='brouillon') return;
+    const faire = b.dataset.faire;
+    if(faire==='modifier'){
+      enEdition = id;
+      const champ = fond.querySelector('.ij-champ');
+      champ.value = i.texte; champ.focus();
+      message("Modifie ton idée, puis garde-la ou envoie-la.", "");
+      return;
+    }
+    if(faire==='effacer' && !confirm("Effacer ce brouillon ?")) return;
+    if(faire==='envoyer' && !confirm("Tu envoies cette idée à papa ?\nUne fois envoyée, tu ne pourras plus la changer.")) return;
+    const quand = maintenant();
+    try{
+      await changer(()=>{
+        const x = trouver(id); if(!x || x.etat!=='brouillon') return;
+        if(faire==='effacer') Object.assign(x, {etat:'effacee', maj:quand});
+        else Object.assign(x, {etat:'envoyee', envoyee:quand, maj:quand});
+      });
+      message(faire==='effacer' ? "Brouillon effacé." : "📨 C'est parti ! Papa va recevoir ton idée.", "ok");
+    }catch(err){
+      message("Oups, pas de connexion. Réessaie un peu plus tard.", "ko");
+    }
+    if(enEdition===id) enEdition = null;
+    dessinerListe();
+  }
+
+  bouton.addEventListener('click', ouvrir);
+  majPastille();
+  rafraichir().then(majPastille);       // lecture seule : on regarde s'il y a des réponses de papa
+})();
+</script>
 </body>
 </html>

@@ -42,8 +42,8 @@ SUPABASE_KEY = sb_publishable_…   (clé publiable, déjà en clair dans les pa
 ```
 
 Lignes : `champ_district_2627`, `coupes_district_2627`, `equipes_district`
-(la bibliothèque, partagée), `annuaire_fff`, `journal_joris`, plus
-`<carnet>:saisons` pour la liste des saisons.
+(la bibliothèque, partagée), `annuaire_fff`, `journal_joris`, `idees_joris`
+(la boîte à idées), plus `<carnet>:saisons` pour la liste des saisons.
 
 ### Le piège qui a déjà fait perdre des données deux fois
 
@@ -168,6 +168,28 @@ estimation de l'issue (lissage de Laplace + écart de buts + récence). Fonction
 préfixées `ff`/`fff` dans les deux carnets.
 
 ---
+
+**Boîte à idées** (bouton 💡 en bas à droite de chaque page) : Joris écrit une idée,
+la garde en brouillon ou l'envoie. Le même bloc `<script>` est collé à la fin des cinq
+pages (fonction fermée, classes `ij-`) : **le modifier partout à la fois**. Ligne Supabase
+`idees_joris`, écrite seulement sur un geste de Joris, fusion par `id` (le `maj` le plus
+récent gagne), pierre tombale `etat:'effacee'` 60 jours. États : `brouillon` → `envoyee`
+→ `ticket` → `faite` / `refusee`.
+
+Le robot `.github/workflows/idees.yml` + `outils/idees-github.py` passe toutes les
+15 minutes : chaque idée `envoyee` devient un ticket (étiquette « idée de Joris »,
+attribué à Olivier, qui reçoit un mail), marqué `<!-- idee:ID -->` pour ne jamais le
+créer deux fois. Le dernier commentaire d'Olivier sur le ticket devient la « réponse de
+papa » ; ticket fermé = `faite`, fermé *not planned* = `refusee`.
+
+**Réaliser une idée** (« fais l'idée de Joris, ticket n°12 ») : lire le ticket, faire la
+modification, publier comme d'habitude avec `Fixes #12` dans le message de commit (ou
+de la pull request) : le ticket se ferme et Joris voit ✅ au passage suivant du robot.
+
+> ⚠️ En test : ouvrir la boîte envoie au nuage les idées restées sur l'appareil. Une
+> idée de test dans le `localStorage` de `localhost` part donc dans la vraie base dès
+> qu'on ouvre la boîte sans `fetch` intercepté — c'est arrivé. Intercepter `fetch`
+> dans **chaque** page ouverte (iframes comprises) et vider `idees_joris_v1` après.
 
 ## 6. L'API de la Fédération
 

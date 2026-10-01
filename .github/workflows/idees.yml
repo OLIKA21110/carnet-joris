@@ -1,0 +1,32 @@
+# Boîte à idées de Joris : chaque idée envoyée depuis le carnet devient un ticket
+# (GitHub prévient Olivier par mail), et les réponses / tickets fermés reviennent au carnet.
+# Tourne chez GitHub : ni le PC d'Olivier ni une session Claude n'ont besoin d'être allumés.
+name: Idées de Joris
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"     # toutes les 15 minutes (GitHub peut prendre un peu de retard)
+  workflow_dispatch:           # ...et à la demande, depuis l'onglet Actions
+
+permissions:
+  contents: read
+  issues: write
+
+# deux passages ne doivent jamais travailler en même temps : risque de ticket en double
+concurrency:
+  group: idees-joris
+  cancel-in-progress: false
+
+jobs:
+  idees:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Transformer les idées en tickets et rapporter les réponses
+        env:
+          SUPABASE_URL: https://hoyxgmmbngrjigjqptnr.supabase.co
+          # même clé publishable que la sauvegarde de la nuit, déjà en clair dans les pages
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY || 'sb_publishable_y9KhYDWM2zyYFC_wtbBhlQ_BcqV9CR9' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 outils/idees-github.py
