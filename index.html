@@ -43,6 +43,64 @@
   #allStatus.ok{color:#7bd88f}
   #allStatus.warn{color:#f0a0a0}
   @media(max-width:560px){ h1{font-size:1.5rem} .pick{min-width:100%} }
+
+  /* ===== Surprise d'anniversaire : compte à rebours FC 27 (s'affiche du 1er au 5 octobre 2026) ===== */
+  .fc27{position:relative;margin:0 auto 34px;padding:22px 22px 20px;border-radius:22px;text-align:left;
+    background:linear-gradient(135deg,#0b1f3a 0%,#14325e 45%,#0b1f3a 100%);
+    border:2px solid #2be37f;box-shadow:0 0 0 4px rgba(43,227,127,.15),0 14px 34px rgba(0,0,0,.5);overflow:hidden}
+  .fc27::before{content:"";position:absolute;inset:0;pointer-events:none;
+    background:repeating-linear-gradient(115deg,transparent 0 28px,rgba(255,255,255,.03) 28px 56px)}
+  .fc-press{position:absolute;top:12px;right:16px;font-family:'Courier New',monospace;font-weight:bold;
+    font-size:.75rem;letter-spacing:2px;color:#2be37f;animation:fcClign 1.1s steps(1) infinite}
+  @keyframes fcClign{50%{opacity:0}}
+  .fc-row{display:flex;gap:22px;align-items:center;position:relative}
+  /* la carte de joueur, façon carte « or » du jeu */
+  .fc-carte{flex:0 0 auto;width:140px;height:196px;cursor:pointer;position:relative;color:#3a2a06;
+    background:linear-gradient(160deg,#fff3b0 0%,#e8c25a 35%,#c8962b 70%,#f5d77a 100%);
+    clip-path:polygon(50% 0,100% 7%,100% 88%,50% 100%,0 88%,0 7%);
+    animation:fcFlotte 3s ease-in-out infinite;filter:drop-shadow(0 6px 10px rgba(0,0,0,.5))}
+  .fc-carte:active{transform:scale(.95)}
+  .fc-carte.secoue{animation:fcSecoue .5s}
+  @keyframes fcFlotte{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
+  @keyframes fcSecoue{0%,100%{transform:rotate(0)}20%{transform:rotate(-10deg) scale(1.08)}40%{transform:rotate(9deg) scale(1.08)}60%{transform:rotate(-6deg)}80%{transform:rotate(4deg)}}
+  .fc-note{position:absolute;top:22px;left:16px;font-size:2rem;font-weight:900;line-height:1}
+  .fc-poste{position:absolute;top:56px;left:18px;font-size:.75rem;font-weight:800}
+  .fc-drap{position:absolute;top:74px;left:17px;width:22px;height:14px;
+    background:linear-gradient(90deg,#1f3fa8 33%,#fff 33% 66%,#C8102E 66%);border:1px solid rgba(0,0,0,.25)}
+  .fc-ballon{position:absolute;top:22px;right:18px;font-size:2.6rem;animation:fcRebond 1.4s ease-in-out infinite}
+  @keyframes fcRebond{0%,100%{transform:translateY(0)}50%{transform:translateY(12px) rotate(180deg)}}
+  .fc-nom{position:absolute;top:104px;left:0;right:0;text-align:center;font-weight:900;font-size:1.15rem;
+    letter-spacing:2px;border-top:1px solid rgba(58,42,6,.35);border-bottom:1px solid rgba(58,42,6,.35);margin:0 14px;padding:2px 0}
+  .fc-stats{position:absolute;top:134px;left:16px;right:16px;display:grid;grid-template-columns:1fr 1fr;
+    gap:1px 8px;font-size:.62rem;font-weight:800}
+  .fc-stats b{font-size:.75rem}
+  .fc-texte{flex:1;min-width:0}
+  .fc-j{font-family:'Courier New',monospace;font-weight:900;font-size:3.6rem;line-height:1;color:#2be37f;
+    text-shadow:3px 3px 0 #0a5c34,0 0 18px rgba(43,227,127,.5)}
+  .fc-titre{font-size:1.35rem;font-weight:800;margin:4px 0 6px;color:#fff}
+  .fc-titre b{background:#2be37f;color:#0b1f3a;padding:1px 8px;border-radius:6px}
+  .fc-chrono{font-family:'Courier New',monospace;font-size:.95rem;color:#cfe;margin-bottom:10px;font-variant-numeric:tabular-nums}
+  .fc-barre{height:14px;border-radius:8px;background:rgba(255,255,255,.12);overflow:hidden;border:1px solid rgba(43,227,127,.4)}
+  .fc-barre span{display:block;height:100%;width:0;border-radius:8px;transition:width .8s;
+    background:repeating-linear-gradient(45deg,#2be37f 0 10px,#22c46c 10px 20px);background-size:28px 28px;animation:fcDefile 1s linear infinite}
+  @keyframes fcDefile{to{background-position:28px 0}}
+  .fc-charge{font-size:.75rem;color:#9bd;margin-top:4px;font-family:'Courier New',monospace}
+  .fc-msg{margin-top:10px;font-size:.95rem;color:#fff;line-height:1.4}
+  .fc-astuce{font-size:.72rem;color:#8ab;margin-top:6px}
+  /* le jour J */
+  .fc27.jourJ .fc-press{display:none}   /* le grand titre d'anniversaire prend toute la largeur */
+  .fc27.jourJ{border-color:#C8A24B;box-shadow:0 0 0 4px rgba(200,162,75,.25),0 0 40px rgba(200,162,75,.35)}
+  .fc27.jourJ .fc-j{color:#ffd54a;text-shadow:3px 3px 0 #8a5a00,0 0 22px rgba(255,213,74,.6);font-size:2.4rem;animation:fcPulse 1s ease-in-out infinite}
+  @keyframes fcPulse{50%{transform:scale(1.06)}}
+  #fcConfettis{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
+  @media(max-width:560px){
+    .fc-row{flex-direction:column;text-align:center}
+    .fc-j{font-size:3rem}
+    .fc27.jourJ .fc-j{font-size:1.9rem}
+  }
+  @media(prefers-reduced-motion:reduce){
+    .fc-carte,.fc-ballon,.fc-press,.fc-barre span,.fc27.jourJ .fc-j{animation:none}
+  }
 </style>
 </head>
 <body>
@@ -52,6 +110,34 @@
     </div>
     <h1><svg viewBox="0 0 24 24" width="26" height="26" role="img" aria-label="ballon" style="vertical-align:-3px"><circle cx="12" cy="12" r="11" fill="#fff"/><circle cx="12" cy="12" r="11" fill="none" stroke="#0d1117" stroke-width="1"/><path d="M12 6l4 3-1.5 5h-5L8 9z" fill="#0d1117"/><path d="M12 6V3 M16 9l3-1.5 M14.5 14l2 2.5 M9.5 14l-2 2.5 M8 9L5 7.5" stroke="#0d1117" stroke-width="1.2"/></svg> Le carnet de Joris</h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
+
+    <!-- Surprise d'anniversaire (5 octobre) : invisible tant que le script ne l'allume pas -->
+    <section class="fc27" id="fc27" hidden aria-live="polite">
+      <div class="fc-press">▶ PRESS START</div>
+      <div class="fc-row">
+        <div class="fc-carte" id="fcCarte" title="Clique sur ta carte !">
+          <div class="fc-note" id="fcNote">99</div>
+          <div class="fc-poste">STAR</div>
+          <div class="fc-drap"></div>
+          <div class="fc-ballon">⚽</div>
+          <div class="fc-nom">JORIS</div>
+          <div class="fc-stats">
+            <span><b>99</b> VIT</span><span><b>99</b> DRI</span>
+            <span><b>99</b> TIR</span><span><b>99</b> DÉF</span>
+            <span><b>99</b> PAS</span><span><b id="fcAnniv">99</b> FUN</span>
+          </div>
+        </div>
+        <div class="fc-texte">
+          <div class="fc-j" id="fcJ">J-?</div>
+          <div class="fc-titre" id="fcTitre">avant <b>FC 27</b> 🎮</div>
+          <div class="fc-chrono" id="fcChrono"></div>
+          <div class="fc-barre"><span id="fcBarre"></span></div>
+          <div class="fc-charge" id="fcCharge"></div>
+          <div class="fc-msg" id="fcMsg"></div>
+          <div class="fc-astuce">👆 Touche ta carte de joueur…</div>
+        </div>
+      </div>
+    </section>
 
     <div class="cards">
       <a class="pick" href="championnat-district.html">
@@ -248,6 +334,122 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
   }
   btn.disabled=false; e.target.value="";
 });
+</script>
+<script>
+/* Surprise d'anniversaire de Joris : compte à rebours jusqu'au 5 octobre 2026, jour où FC 27
+   arrive. Script à part et sans dépendance : si les CDN ne répondent pas, la surprise
+   s'affiche quand même. Pour voir à l'avance le rendu d'un jour : index.html?jour=2026-10-05 */
+(function(){
+  const ANNIV = new Date(2026, 9, 5);          // 5 octobre 2026, minuit (heure de l'appareil)
+  const DEBUT_BARRE = new Date(2026, 8, 28);   // la barre de « chargement » part du 28 septembre
+  const APPARITION = new Date(2026, 9, 1);     // on n'affiche rien avant le 1er octobre
+  const FIN = new Date(2026, 9, 6);            // et plus rien à partir du 6 : la surprise s'efface toute seule
+
+  // ?jour=AAAA-MM-JJ fige la date pour tester sans attendre
+  let decalage = 0;
+  const forcer = new URLSearchParams(location.search).get('jour');
+  if(forcer && /^\d{4}-\d{2}-\d{2}$/.test(forcer)){
+    const [a,m,j] = forcer.split('-').map(Number);
+    const maintenant = new Date();
+    const cible = new Date(a, m-1, j, maintenant.getHours(), maintenant.getMinutes(), maintenant.getSeconds());
+    decalage = cible - maintenant;
+  }
+  const maintenant = () => new Date(Date.now() + decalage);
+
+  const bloc = document.getElementById('fc27');
+  const t0 = maintenant();
+  if(t0 < APPARITION || t0 >= FIN) return;
+  bloc.hidden = false;
+
+  // un message différent chaque jour, numéroté par le nombre de jours restants
+  const MESSAGES = {
+    4: "Échauffement en cours… les crampons sont lacés 👟",
+    3: "Le coach prépare la compo. Bonne nouvelle : tu es titulaire 🏃‍♂️",
+    2: "Mise à jour à 99 %… surtout ne débranche pas la console ! 🔌",
+    1: "Dernière nuit avant le coup d'envoi. Dors bien, champion 😴🏆"
+  };
+
+  // nombre de jours entiers entre aujourd'hui et le 5, en jours du calendrier (pas en heures)
+  function joursRestants(d){
+    const auj = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.round((ANNIV - auj) / 86400000);
+  }
+
+  let jourJDeja = false;
+  function rafraichir(){
+    const d = maintenant();
+    if(d >= FIN){ bloc.hidden = true; return; }
+    const j = joursRestants(d);
+    if(j <= 0){
+      if(!jourJDeja){
+        jourJDeja = true;
+        bloc.classList.add('jourJ');
+        document.getElementById('fcJ').textContent = "🎂 JOYEUX ANNIVERSAIRE JORIS ! 🎂";
+        document.getElementById('fcTitre').innerHTML = "C'est le jour de <b>FC 27</b> 🎮";
+        document.getElementById('fcChrono').textContent = "COUP D'ENVOI !";
+        document.getElementById('fcBarre').style.width = "100%";
+        document.getElementById('fcCharge').textContent = "Chargement terminé : 100 %";
+        // un an de plus = +1 sur la carte
+        document.getElementById('fcNote').textContent = "100";
+        document.getElementById('fcAnniv').textContent = "100";
+        document.getElementById('fcMsg').textContent = "Ta note passe à 100 : un an de plus, c'est un niveau de plus ! Bonne partie 🥳";
+        setTimeout(()=>confettis(260), 400);
+      }
+      return;
+    }
+    document.getElementById('fcJ').textContent = "J-" + j;
+    const reste = ANNIV - d;
+    const jj = Math.floor(reste/86400000), hh = Math.floor(reste/3600000)%24,
+          mm = Math.floor(reste/60000)%60, ss = Math.floor(reste/1000)%60;
+    const deux = n => String(n).padStart(2,'0');
+    document.getElementById('fcChrono').textContent =
+      "⏱ encore " + jj + " j " + deux(hh) + " h " + deux(mm) + " min " + deux(ss) + " s";
+    const pc = Math.max(0, Math.min(99, Math.floor((d - DEBUT_BARRE) / (ANNIV - DEBUT_BARRE) * 100)));
+    document.getElementById('fcBarre').style.width = pc + "%";
+    document.getElementById('fcCharge').textContent = "Chargement de FC 27… " + pc + " %";
+    document.getElementById('fcMsg').textContent = MESSAGES[j] || "Le compte à rebours est lancé… 🔥";
+  }
+  rafraichir();
+  setInterval(rafraichir, 1000);
+
+  // toucher la carte : elle se secoue et lance des confettis
+  const carte = document.getElementById('fcCarte');
+  carte.addEventListener('click', ()=>{
+    carte.classList.remove('secoue'); void carte.offsetWidth; carte.classList.add('secoue');
+    confettis(joursRestants(maintenant()) <= 0 ? 200 : 90);
+  });
+  carte.addEventListener('animationend', e=>{ if(e.animationName==='fcSecoue') carte.classList.remove('secoue'); });
+
+  // confettis aux couleurs de Dijon (rouge, or, blanc) + le vert du jeu
+  function confettis(nb){
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let can = document.getElementById('fcConfettis');
+    if(!can){ can = document.createElement('canvas'); can.id = 'fcConfettis'; document.body.appendChild(can); }
+    const ctx = can.getContext('2d');
+    can.width = innerWidth; can.height = innerHeight;
+    const COUL = ['#C8102E','#C8A24B','#ffffff','#2be37f','#ffd54a'];
+    const parts = [];
+    for(let i=0;i<nb;i++){
+      parts.push({x: can.width/2 + (Math.random()-.5)*can.width*.4, y: can.height*.35,
+        vx:(Math.random()-.5)*14, vy:-Math.random()*14-4, r:Math.random()*Math.PI,
+        vr:(Math.random()-.5)*.3, t:6+Math.random()*6, c:COUL[i%COUL.length],
+        ballon: Math.random()<.06});
+    }
+    let fin = performance.now() + 3500;
+    (function dessiner(now){
+      ctx.clearRect(0,0,can.width,can.height);
+      for(const p of parts){
+        p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+        ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.r);
+        if(p.ballon){ ctx.font = '22px serif'; ctx.fillText('⚽', -11, 8); }
+        else { ctx.fillStyle = p.c; ctx.fillRect(-p.t/2, -p.t/4, p.t, p.t/2); }
+        ctx.restore();
+      }
+      if(now < fin) requestAnimationFrame(dessiner);
+      else ctx.clearRect(0,0,can.width,can.height);
+    })(performance.now());
+  }
+})();
 </script>
 </body>
 </html>
