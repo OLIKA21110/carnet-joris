@@ -120,11 +120,28 @@ def creer_ticket(i):
                                   "labels": [ETIQUETTE], "assignees": [PROPRIO]})
 
 
+def sans_citation(texte):
+    """Une réponse envoyée depuis le mail de GitHub traîne tout le mail cité en dessous
+    (« Le jeu. 1 oct. 2026, 13:27, … a écrit : » puis des lignes « > » pleines de liens).
+    Joris ne doit voir que ce que papa a écrit."""
+    lignes = texte.replace("\r\n", "\n").split("\n")
+    for n, l in enumerate(lignes):
+        if l.startswith(">") or l.strip() in ("--", "-- "):
+            lignes = lignes[:n]
+            break
+    garde = "\n".join(lignes).strip()
+    # le chapeau « Le … a écrit : » / « On … wrote: » juste avant la citation, parfois sur deux lignes
+    blocs = garde.split("\n\n")
+    if len(blocs) > 1 and blocs[-1].rstrip().endswith(("écrit :", "écrit:", "wrote:")):
+        garde = "\n\n".join(blocs[:-1]).strip()
+    return garde
+
+
 def derniere_reponse(numero):
     """Le dernier commentaire écrit par Olivier sur le ticket (pas ceux des robots)."""
     coms = gh(f"/issues/{numero}/comments?per_page=100")
     siens = [c for c in coms if (c.get("user") or {}).get("login", "").lower() == PROPRIO.lower()]
-    return siens[-1]["body"].strip() if siens else None
+    return sans_citation(siens[-1]["body"]) or None if siens else None
 
 
 def main():
