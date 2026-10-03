@@ -92,11 +92,21 @@
   .fc27.jourJ{border-color:#C8A24B;box-shadow:0 0 0 4px rgba(200,162,75,.25),0 0 40px rgba(200,162,75,.35)}
   .fc27.jourJ .fc-j{color:#ffd54a;text-shadow:3px 3px 0 #8a5a00,0 0 22px rgba(255,213,74,.6);font-size:2.4rem;animation:fcPulse 1s ease-in-out infinite}
   @keyframes fcPulse{50%{transform:scale(1.06)}}
+  /* le cadeau de Tom, révélé le soir de la fête */
+  .fc-cadeau{margin-top:14px;padding:14px 16px;border-radius:14px;background:rgba(255,213,74,.1);
+    border:2px dashed #ffd54a;color:#fff;text-align:center}
+  .fc-cadeau-de{font-size:1.1rem;font-weight:800;margin-bottom:8px}
+  .fc-code{display:inline-block;font-family:'Courier New',monospace;font-weight:900;font-size:1.25rem;
+    letter-spacing:2px;background:#fff;color:#0b1f3a;padding:6px 12px;border-radius:8px;user-select:all;white-space:nowrap}
+  .fc-copier{margin-left:8px;margin-top:6px;padding:6px 12px;border:0;border-radius:8px;background:#2be37f;
+    color:#0b1f3a;font-weight:800;cursor:pointer;font-size:.9rem}
+  .fc-cadeau-info{font-size:.8rem;color:#cfe;margin-top:8px}
   #fcConfettis{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
   @media(max-width:560px){
     .fc-row{flex-direction:column;text-align:center}
     .fc-j{font-size:3rem}
     .fc27.jourJ .fc-j{font-size:1.9rem}
+    .fc-code{font-size:.95rem;letter-spacing:1px;padding:6px 8px}
   }
   @media(prefers-reduced-motion:reduce){
     .fc-carte,.fc-ballon,.fc-press,.fc-barre span,.fc27.jourJ .fc-j{animation:none}
@@ -137,6 +147,7 @@
           <div class="fc-astuce">👆 Touche ta carte de joueur…</div>
         </div>
       </div>
+      <div class="fc-cadeau" id="fcCadeau" hidden></div>
     </section>
 
     <div class="cards">
@@ -340,7 +351,8 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
    arrive. Script à part et sans dépendance : si les CDN ne répondent pas, la surprise
    s'affiche quand même. Pour voir à l'avance le rendu d'un jour : index.html?jour=2026-10-05 */
 (function(){
-  const ANNIV = new Date(2026, 9, 5);          // 5 octobre 2026, minuit (heure de l'appareil)
+  // la fête est avancée au samedi 3 octobre à 20 h : c'est l'heure du coup d'envoi (et du cadeau de Tom)
+  const ANNIV = new Date(2026, 9, 3, 20, 0, 0);
   const DEBUT_BARRE = new Date(2026, 8, 28);   // la barre de « chargement » part du 28 septembre
   const APPARITION = new Date(2026, 9, 1);     // on n'affiche rien avant le 1er octobre
   const FIN = new Date(2026, 9, 6);            // et plus rien à partir du 6 : la surprise s'efface toute seule
@@ -366,13 +378,33 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
     4: "Échauffement en cours… les crampons sont lacés 👟",
     3: "Le coach prépare la compo. Bonne nouvelle : tu es titulaire 🏃‍♂️",
     2: "Mise à jour à 99 %… surtout ne débranche pas la console ! 🔌",
-    1: "Dernière nuit avant le coup d'envoi. Dors bien, champion 😴🏆"
+    1: "Dernière nuit avant le coup d'envoi. Dors bien, champion 😴🏆",
+    0: "Coup d'envoi ce soir à 20 h… une surprise t'attend ici 🎁"
   };
 
   // nombre de jours entiers entre aujourd'hui et le 5, en jours du calendrier (pas en heures)
   function joursRestants(d){
     const auj = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    return Math.round((ANNIV - auj) / 86400000);
+    const jourFete = new Date(ANNIV.getFullYear(), ANNIV.getMonth(), ANNIV.getDate());
+    return Math.round((jourFete - auj) / 86400000);
+  }
+
+  // Le code d'Instant Gaming offert par Tom. Brouillé pour qu'il ne se lise pas d'un coup
+  // d'œil dans le code de la page, et affiché seulement à partir de 20 h le soir de la fête.
+  const CADEAU = [34,84,92,92,58,65,37,32,78,58,47,34,89,70,58,64,34,47,84,58,32,84,70,33];
+  function montrerCadeau(){
+    const code = CADEAU.map(n => String.fromCharCode(n ^ 23)).join('');
+    const bloc = document.getElementById('fcCadeau');
+    bloc.innerHTML =
+      '<div class="fc-cadeau-de">🎁 Bon anniversaire de la part de ton frère Tom !</div>' +
+      '<span class="fc-code" id="fcCode"></span><button class="fc-copier" id="fcCopier" type="button">📋 Copier</button>' +
+      '<div class="fc-cadeau-info">C\'est un code Instant Gaming : va sur instant-gaming.com pour l\'utiliser.</div>';
+    document.getElementById('fcCode').textContent = code;
+    document.getElementById('fcCopier').addEventListener('click', async e=>{
+      try{ await navigator.clipboard.writeText(code); e.target.textContent = "✅ Copié !"; }
+      catch(err){ e.target.textContent = "Sélectionne le code à la main"; }
+    });
+    bloc.hidden = false;
   }
 
   let jourJDeja = false;
@@ -380,7 +412,7 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
     const d = maintenant();
     if(d >= FIN){ bloc.hidden = true; return; }
     const j = joursRestants(d);
-    if(j <= 0){
+    if(d >= ANNIV){
       if(!jourJDeja){
         jourJDeja = true;
         bloc.classList.add('jourJ');
@@ -393,11 +425,12 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
         document.getElementById('fcNote').textContent = "100";
         document.getElementById('fcAnniv').textContent = "100";
         document.getElementById('fcMsg').textContent = "Ta note passe à 100 : un an de plus, c'est un niveau de plus ! Bonne partie 🥳";
+        montrerCadeau();
         setTimeout(()=>confettis(260), 400);
       }
       return;
     }
-    document.getElementById('fcJ').textContent = "J-" + j;
+    document.getElementById('fcJ').textContent = j <= 0 ? "CE SOIR" : "J-" + j;
     const reste = ANNIV - d;
     const jj = Math.floor(reste/86400000), hh = Math.floor(reste/3600000)%24,
           mm = Math.floor(reste/60000)%60, ss = Math.floor(reste/1000)%60;
