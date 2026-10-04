@@ -430,6 +430,12 @@
   .res-sc{font-weight:bold;color:#555;font-size:.8rem;white-space:nowrap}
   .res-tab{color:#8a6d3b;font-weight:normal}
   .res-attente{margin-top:10px;background:#fff;border-radius:10px;padding:8px;font-size:.85rem}
+  /* equipes exemptes : qualifiees d'office, sans jouer */
+  .exempt-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 4px;padding:8px 10px;
+    border:1px dashed #8a8f98;border-radius:10px;background:rgba(26,122,26,.06);font-size:.9rem}
+  .exempt-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;
+    background:rgba(26,122,26,.12);font-weight:700}
+  .exempt-tag button{background:none;border:0;color:#c0392b;cursor:pointer;font-size:.85rem;padding:0 2px}
   .res-attente strong{display:block;color:#777;margin-bottom:5px;font-size:.82rem}
 
   .lg{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;vertical-align:middle;margin-right:5px;flex:none}
@@ -482,7 +488,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1 oct · boîte à idées 💡</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 4 oct · exempts 😴</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -1147,8 +1153,14 @@ function htmlResultats(c){
     const reportes=t.matchs.filter(m=>!vainqueurCoupe(m,c) && estReporte(m.id));
     const arretes=t.matchs.filter(m=>!vainqueurCoupe(m,c) && !estReporte(m.id) && arretNeComptePas(m.id));
     const attente=t.matchs.filter(m=>!vainqueurCoupe(m,c) && !estReporte(m.id) && !arretNeComptePas(m.id));
+    const exempts=exemptsTour(t);
     html+=`<div class="card">
       <h3 style="margin:0 0 8px">${esc(t.nom)}</h3>`;
+    if(exempts.length){
+      html+=`<div class="res-attente"><strong class="res-titre ok">😴 Exempt${exempts.length>1?'s':''}, qualifié${exempts.length>1?'s':''} sans jouer (${exempts.length})</strong>`
+        + exempts.map(e=>`<div class="res-item ok">${isFav(e)?'\u2b50 ':''}${htmlLogo(e,18)}<strong>${esc(e)}</strong></div>`).join('')
+        + `</div>`;
+    }
     if(!t.matchs.length){
       html+=`<div class="empty">Aucun match dans ce tour.</div></div>`;
       return;
@@ -1355,10 +1367,12 @@ function htmlTour(c,t){
       <h3>${esc(t.nom)} <span class="hint" style="display:inline">· ${t.matchs.length} match${t.matchs.length>1?'s':''}</span></h3>
       <div>
         <button class="mini" data-addmatch="${t.id}">+ Ajouter un match</button>
+        <button class="mini" data-addexempt="${t.id}" title="Une équipe qualifiée sans jouer ce tour">😴 + Exempt</button>
         <button class="mini" data-edittour="${t.id}">✎ Renommer</button>
         <button class="mini danger" data-deltour="${t.id}">🗑 Supprimer</button>
       </div>
     </div>`;
+  html+=htmlExemptsTour(t);
   if(!t.matchs.length){
     html+=`<div class="empty">Ajoute les matchs de ce tour avec « + Ajouter un match ».</div></div>`;
     return html;
@@ -1485,6 +1499,20 @@ ${htmlRepMatch(m)}${htmlArrMatch(m)}${htmlResvMatch(m)}${htmlFaceAFace(m)}${html
   });
   html+=`</div>`;
   return html;
+}
+
+/* ===== Équipes exemptes =====
+   Dans une coupe, une équipe exempte ne joue pas ce tour : elle passe directement au
+   tour suivant (souvent les équipes de plus haut niveau, ou pour équilibrer le tableau).
+   tour.exempts = ["Équipe A", …] */
+function exemptsTour(t){ return Array.isArray(t.exempts) ? t.exempts : []; }
+function htmlExemptsTour(t){
+  const ex=exemptsTour(t);
+  if(!ex.length) return '';
+  return `<div class="exempt-line"><span>😴 <b>Exempt${ex.length>1?'s':''}</b>, qualifié${ex.length>1?'s':''} sans jouer :</span>`
+    + ex.map(e=>`<span class="exempt-tag">${isFav(e)?'⭐ ':''}${htmlLogo(e,18)}${esc(e)}
+        <button type="button" data-exdel="${t.id}" data-e="${esc(e)}" title="Elle n'est plus exempte">✕</button></span>`).join('')
+    + `</div>`;
 }
 
 /* ===== Sanctions : football ou handball (coupes) =====
@@ -2662,6 +2690,13 @@ function brancherBody(){
     const t=getTour(b.dataset.edittour); ouvrirTourModal(coupeDuTour(t.id).id, t.id);
   }));
   box.querySelectorAll('[data-deltour]').forEach(b=>b.addEventListener('click',()=>supprimerTour(b.dataset.deltour)));
+  box.querySelectorAll('[data-addexempt]').forEach(b=>b.addEventListener('click',()=>ouvrirExemptModal(b.dataset.addexempt)));
+  box.querySelectorAll('[data-exdel]').forEach(b=>b.addEventListener('click',()=>{
+    const t=getTour(b.dataset.exdel); if(!t) return;
+    t.exempts=exemptsTour(t).filter(e=>e!==b.dataset.e);
+    if(!t.exempts.length) delete t.exempts;
+    save(); buildBody();
+  }));
   box.querySelectorAll('[data-addmatch]').forEach(b=>b.addEventListener('click',()=>ouvrirMatchModal(b.dataset.addmatch)));
   box.querySelectorAll('[data-delmatch]').forEach(b=>b.addEventListener('click',()=>supprimerMatchCoupe(b.dataset.delmatch)));
   box.querySelectorAll('[data-editteam]').forEach(el=>el.addEventListener('click',(e)=>{
@@ -3153,9 +3188,30 @@ function supprimerTour(tid){
 /* ===== Modale match de coupe (avec équipes cliquables) ===== */
 let tourDuMatch=null;
 let matchEnEdition=null; // si défini, on modifie ce match au lieu d'en créer un
+/* La même fenêtre sert à choisir une équipe exempte : on cache la 2e équipe. */
+let exemptDuTour=null;
+function modeExemptModale(oui){
+  ['matchExt','extSuggest'].forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden=oui; });
+  const lab=document.querySelector('label[for="matchExt"]'); if(lab) lab.hidden=oui;
+  const labDom=document.querySelector('label[for="matchDom"]'); if(labDom) labDom.textContent = oui ? "Équipe exempte" : "Équipe qui reçoit";
+  const aide=document.querySelector('#matchModal .hint');
+  if(aide) aide.textContent = oui ? "Elle ne joue pas ce tour : elle passe directement au tour suivant." : "Le club écrit en premier reçoit (il joue chez lui).";
+}
+function ouvrirExemptModal(tourId){
+  exemptDuTour=tourId; matchEnEdition=null;
+  modeExemptModale(true);
+  document.getElementById('matchDom').value="";
+  document.getElementById('matchSave').textContent="Ajouter";
+  const titre=document.querySelector('#matchModal h2'); if(titre) titre.textContent="😴 Équipe exempte";
+  remplirSuggestions('domSuggest','matchDom');
+  brancherRechercheEquipe('matchDom','domSuggest');
+  document.getElementById('matchModal').hidden=false;
+  document.getElementById('matchDom').focus();
+}
 function ouvrirMatchModal(tourId){
   tourDuMatch=tourId;
   matchEnEdition=null;
+  exemptDuTour=null; modeExemptModale(false);
   document.getElementById('matchDom').value="";
   document.getElementById('matchExt').value="";
   document.getElementById('matchSave').textContent="Ajouter";
@@ -3171,6 +3227,7 @@ function ouvrirMatchModal(tourId){
 function editerEquipesMatch(mid){
   const m=trouverMatchCoupe(mid);
   if(!m) return;
+  exemptDuTour=null; modeExemptModale(false);
   matchEnEdition=m;
   document.getElementById('matchDom').value=m.dom||"";
   document.getElementById('matchExt').value=m.ext||"";
@@ -3313,6 +3370,19 @@ function brancherRechercheEquipe(inputId, boxId){
   inp.addEventListener('focus',()=>remplirSuggestions(boxId, inputId));
 }
 document.getElementById('matchSave').addEventListener('click',()=>{
+  if(exemptDuTour){
+    const nom=document.getElementById('matchDom').value.trim();
+    if(!nom){ alert("Écris l'équipe exempte."); return; }
+    const t=getTour(exemptDuTour);
+    if(t){
+      if(exemptsTour(t).includes(nom)){ alert("Cette équipe est déjà exempte à ce tour."); return; }
+      if(t.matchs.some(m=>m.dom===nom||m.ext===nom)){ alert("Cette équipe a déjà un match à ce tour : elle ne peut pas être exempte."); return; }
+      t.exempts=[...exemptsTour(t), nom];
+    }
+    exemptDuTour=null;
+    save(); alimenterBiblio(); document.getElementById('matchModal').hidden=true; buildBody();
+    return;
+  }
   const dom=document.getElementById('matchDom').value.trim();
   const ext=document.getElementById('matchExt').value.trim();
   if(!dom||!ext){ alert("Écris les deux équipes."); return; }

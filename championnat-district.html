@@ -416,6 +416,14 @@
   .rc-m .rc-quand{color:#c8102e;font-size:.74rem;font-weight:bold}
   .rc-m .rc-quand.gris{color:#a9a49a;font-weight:normal}
   .rc-vide{font-size:.76rem;color:#a9a49a;margin-top:5px}
+  /* equipe exempte : elle ne joue pas cette journee */
+  .exempt-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 4px;padding:8px 10px;
+    border:1px dashed #8a8f98;border-radius:10px;background:rgba(0,0,0,.03);font-size:.9rem}
+  .exempt-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:14px;
+    background:rgba(0,0,0,.07);font-weight:700}
+  .exempt-tag button{background:none;border:0;color:#c0392b;cursor:pointer;font-size:.85rem;padding:0 2px}
+  .exempt-sel{max-width:100%;padding:4px 6px;border-radius:8px}
+  .rc-exempt{font-size:.78rem;color:#c9c3b6;margin-top:5px}
   .corb-item{background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .corb-nom{font-weight:900;color:var(--noir);font-size:.92rem}
   .corb-type{font-size:.66rem;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
@@ -609,7 +617,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1 oct · boîte à idées 💡</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 4 oct · exempts 😴</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -1053,6 +1061,36 @@ function isFav(t){ return (state.favs||[]).includes(t); }
 /* Nombre de journées d'une poule */
 function nbJournees(poule){
   return poule.matchs.reduce((m,x)=>Math.max(m,x.j),0);
+}
+
+/* ===== Équipes exemptes =====
+   Quand une poule a un nombre impair d'équipes, une équipe ne joue pas à chaque journée :
+   elle est « exempte ». Règle des championnats FFF : l'exempt ne marque aucun point,
+   il n'a simplement pas de match. Le classement n'est donc pas touché ; on le note pour
+   que Joris sache pourquoi une équipe manque à la journée.
+   poule.exempts = { "3": ["Équipe A"] }  (numéro de journée -> équipes) */
+function exemptsDe(p, j){
+  return (p.exempts && Array.isArray(p.exempts[j])) ? p.exempts[j] : [];
+}
+/* Les équipes de la poule qui n'ont pas de match à cette journée : ce sont elles
+   qu'on propose comme exemptes. */
+function equipesSansMatch(p, j){
+  const jouent=new Set();
+  p.matchs.filter(m=>m.j===j).forEach(m=>{ if(m.dom) jouent.add(m.dom); if(m.ext) jouent.add(m.ext); });
+  const deja=new Set(exemptsDe(p,j));
+  return equipesDeLaPoule(p).filter(e=>!jouent.has(e) && !deja.has(e)).sort((a,b)=>a.localeCompare(b));
+}
+function htmlExempts(p, j){
+  const ex=exemptsDe(p,j);
+  const libres=equipesSansMatch(p,j);
+  if(!ex.length && !libres.length) return '';
+  const tags=ex.map(e=>`<span class="exempt-tag">${htmlLogo(e,18)}${esc(e)}
+      <button type="button" data-exdel="${p.id}" data-j="${j}" data-e="${esc(e)}" title="Elle n'est plus exempte">✕</button></span>`).join('');
+  const choix = libres.length ? `<select class="exempt-sel" data-exadd="${p.id}" data-j="${j}">
+      <option value="">${ex.length?'+ une autre équipe exempte…':'+ choisir l\'équipe exempte…'}</option>
+      ${libres.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('')}
+    </select>` : '';
+  return `<div class="exempt-line"><span>😴 <b>Exempt${ex.length>1?'s':''}</b> :</span>${tags||'<span class="hint" style="display:inline">personne</span>'}${choix}</div>`;
 }
 
 /* ===== Classement d'une poule ===== */
@@ -1945,6 +1983,7 @@ function htmlJournees(p){
       </div>
       ${manque}
       ${r.vides.length?`<div class="rc-vide">${r.vides.length} match${r.vides.length>1?'s':''} sans \u00e9quipe choisie.</div>`:''}
+      ${exemptsDe(p,j).length?`<div class="rc-exempt">😴 Exempt : ${exemptsDe(p,j).map(esc).join(', ')}</div>`:''}
     </div>`;
   }
   const tete = manquantsTotal
@@ -2040,6 +2079,7 @@ ${htmlRepMatch(m)}${htmlArrMatch(m)}${htmlResvMatch(m)}${htmlFgMatch(p,m)}${html
     }
     html+=`</div>`;
   });
+  html+=htmlExempts(p, j);
   html+=`<div style="text-align:center;margin-top:8px">
     <button class="mini gold" data-addmatch="${p.id}" data-j="${j}">+ Ajouter un match à cette journée</button>
   </div>`;
@@ -3461,6 +3501,22 @@ function brancherBody(){
   }));
   box.querySelectorAll('[data-jnext]').forEach(b=>b.addEventListener('click',()=>{
     const pid=b.dataset.jnext; curJournee[pid]=(curJournee[pid]||1)+1; buildBody();
+  }));
+  // équipe exempte : la poser ou l'enlever (geste de Joris, donc on sauvegarde)
+  box.querySelectorAll('[data-exadd]').forEach(sel=>sel.addEventListener('change',()=>{
+    if(!sel.value) return;
+    const p=getPoule(sel.dataset.exadd); if(!p) return;
+    const j=sel.dataset.j;
+    if(!p.exempts) p.exempts={};
+    p.exempts[j]=[...exemptsDe(p,j), sel.value];
+    save(); buildBody();
+  }));
+  box.querySelectorAll('[data-exdel]').forEach(b=>b.addEventListener('click',()=>{
+    const p=getPoule(b.dataset.exdel); if(!p) return;
+    const j=b.dataset.j;
+    const reste=exemptsDe(p,j).filter(e=>e!==b.dataset.e);
+    if(reste.length) p.exempts[j]=reste; else delete p.exempts[j];
+    save(); buildBody();
   }));
   // ajouter un match à la journée
   box.querySelectorAll('[data-addmatch]').forEach(b=>b.addEventListener('click',()=>{

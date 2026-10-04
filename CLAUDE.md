@@ -159,6 +159,11 @@ déclaré pendant les matchs aller, tous les résultats de l'équipe sont annul�
 pendant les retours, ses résultats restent et les matchs suivants sont perdus 0-3.
 L'équipe est toujours classée dernière. Un rappel apparaît à partir de 3 forfaits.
 
+**Équipes exemptes** : championnat → `poule.exempts[journée]` (liste d'équipes ; l'exempt
+ne marque aucun point, le classement n'est pas touché ; la liste propose les équipes de la poule
+sans match à cette journée). Coupes → `tour.exempts` (liste ; qualifiées d'office, affichées
+dans « Résultats »). Choix par la fenêtre « Ajouter un match », en mode une seule équipe.
+
 **Récap des journées** (onglet « 📅 Journées ») : par journée, les dates, l'état, et
 le détail de ce qui manque. Un match est « en retard » si sa date est passée et que
 le score est vide. Un bandeau en haut de page résume toutes poules confondues.
