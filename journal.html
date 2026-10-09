@@ -180,7 +180,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>MON JOURNAL <span class="vbadge">version 1 oct · boîte à idées 💡</span></h1>
+    <h1>MON JOURNAL <span class="vbadge">version 9 oct · synchro économe ☁️</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -325,8 +325,8 @@ function save(){
   const texte=JSON.stringify(journal);
   if(texte===lastSaved) return;
   lastSaved=texte;
-  localStorage.setItem(STORE_KEY, texte);
-  if(!applyingRemote) pousserVersCloud();
+  ecrireLocal(STORE_KEY, texte);
+  if(!applyingRemote){ marquerAEnvoyer(STORE_KEY, true); pousserVersCloud(); }
 }
 function entree(cle){
   return journal[cle] || {avant:"", apres:""};
@@ -742,15 +742,14 @@ async function chargerMatchs(){
   for(const base of [CHAMP_ID, COUPES_ID]){
     let saisons=[SAISON_DEFAUT];
     try{
-      const {data}=await sb.from('carnet').select('data').eq('id', base+':saisons').maybeSingle();
-      if(data && data.data && Array.isArray(data.data.liste)) saisons=data.data.liste;
+      const d=await nuageLireUne(base+':saisons');
+      if(d && Array.isArray(d.liste)) saisons=d.liste;
     }catch(e){}
     if(!saisons.includes(SAISON_DEFAUT)) saisons.push(SAISON_DEFAUT);
     for(const s of saisons){
       const ligne = (s===SAISON_DEFAUT) ? base : base+':'+s;
       try{
-        const {data}=await sb.from('carnet').select('data').eq('id',ligne).maybeSingle();
-        lireCarnet(data && data.data, s);
+        lireCarnet(await nuageLireUne(ligne), s);
       }catch(e){}
     }
   }
@@ -914,19 +913,157 @@ function setSync(txt, cls){
   const e=document.getElementById('syncStatus');
   e.textContent=txt; e.className=cls||"";
 }
+/* ===== Synchro économe (octobre 2026) =====
+   Supabase gratuit limite ce qui SORT du nuage à 5,5 Go par mois. La limite a sauté le
+   9 octobre 2026 : avec le « temps réel », chaque score tapé renvoyait le carnet entier
+   (plus de 500 Ko) à chaque page ouverte, sur chaque appareil. Désormais :
+   - on demande d'abord au nuage la DATE de sa dernière modification (quelques octets),
+     et on ne télécharge une ligne que si elle a changé ;
+   - on le fait à l'ouverture, au retour sur l'onglet et une fois par minute ;
+   - la date de la version du nuage que l'appareil connaît est gardée (<clé>:stamp) ;
+   - un changement fait ici et pas encore envoyé est noté (<clé>:aEnvoyer) : tant qu'il
+     n'est pas parti, le nuage n'a PAS le droit de l'écraser. Avant, ce qui était saisi
+     pendant une coupure était effacé au retour du réseau par l'ancienne version. */
+function msDe(iso){ return iso ? new Date(iso).getTime() : 0; }
+function stampLocal(cle){ return +localStorage.getItem(cle+':stamp') || 0; }
+function poserStamp(cle, ms){ try{ localStorage.setItem(cle+':stamp', String(ms||0)); }catch(e){} }
+function aEnvoyer(cle){ return localStorage.getItem(cle+':aEnvoyer')==='1'; }
+function marquerAEnvoyer(cle, oui){
+  try{ if(oui) localStorage.setItem(cle+':aEnvoyer','1'); else localStorage.removeItem(cle+':aEnvoyer'); }catch(e){}
+}
+/* La derniere version commune avec le nuage (<cle>:base) : c'est elle qui permet de
+   savoir, quand l'appareil ET le nuage ont change, qui a change quoi. */
+function baseLire(cle){ try{ return JSON.parse(localStorage.getItem(cle+':base')); }catch(e){ return null; } }
+function basePoser(cle, texte){ try{ localStorage.setItem(cle+':base', texte); }catch(e){ try{ localStorage.removeItem(cle+':base'); }catch(e2){} } }
+/* Fusion a trois : « base » est la version du nuage que cet appareil connaissait, « ici »
+   celle de l'appareil, « la » celle du nuage maintenant. Ce qui n'a change que d'un cote
+   est repris (ajout, correction ou suppression) ; si les deux ont change la meme case,
+   l'appareil garde la sienne. Les listes d'objets a « id » (championnats, poules,
+   matchs, tours) se fusionnent element par element. */
+function fusion3(base, ici, la){
+  const J=x=>JSON.stringify(x);
+  if(J(ici)===J(la)) return ici;
+  if(J(ici)===J(base)) return la;
+  if(J(la)===J(base)) return ici;
+  const obj=x=>!!x && typeof x==='object' && !Array.isArray(x);
+  if(obj(ici) && obj(la)){
+    const b=obj(base)?base:{}, r={};
+    new Set([...Object.keys(ici), ...Object.keys(la)]).forEach(k=>{
+      const v=fusion3(b[k], ici[k], la[k]);
+      if(v!==undefined) r[k]=v;
+    });
+    return r;
+  }
+  const avecId=x=>Array.isArray(x) && x.every(e=>e && typeof e==='object' && e.id!==undefined);
+  if(avecId(ici) && avecId(la)){
+    const parId=t=>new Map(t.map(e=>[e.id,e]));
+    const B=parId(avecId(base)?base:[]), I=parId(ici), L=parId(la);
+    const r=[];
+    [...ici.map(e=>e.id), ...la.filter(e=>!I.has(e.id)).map(e=>e.id)].forEach(id=>{
+      const v=fusion3(B.get(id), I.get(id), L.get(id));
+      if(v!==undefined) r.push(v);
+    });
+    return r;
+  }
+  return ici;   // les deux ont change la meme chose : l'appareil garde la sienne
+}
+async function nuageDates(ids){
+  const {data,error}=await sb.from('carnet').select('id,updated_at').in('id',ids);
+  if(error) throw error;
+  const out={};
+  (data||[]).forEach(r=>{ out[r.id]=msDe(r.updated_at); });
+  return out;
+}
+async function nuageDate(id){ return (await nuageDates([id]))[id] || 0; }
+/* Les lignes que les pages gardent elles-memes sur l'appareil (cle locale). */
+const NUAGE_PROPRES={champ_district_2627:'champ_district_2627_joris_v1', coupes_district_2627:'coupes_district_2627_joris_v1',
+  journal_joris:'journal_joris_v1', equipes_district:'equipes_district_joris_v1'};
+/* La memoire du navigateur est limitee (environ 5 millions de caracteres pour tout le
+   site). Si elle est pleine, on jette d'abord les copies de confort (lectures seules,
+   annuaire) : elles se retelechargent, alors que le carnet, lui, doit toujours s'ecrire. */
+function libererPlace(){
+  try{ Object.keys(localStorage).filter(k=>k.indexOf('nuage_cache:')===0).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+}
+function ecrireLocal(cle, texte){
+  try{ localStorage.setItem(cle, texte); }
+  catch(e){ libererPlace(); try{ localStorage.setItem(cle, texte); }catch(e2){ try{ Object.keys(localStorage).filter(k=>/:base$/.test(k)).forEach(k=>localStorage.removeItem(k)); localStorage.setItem(cle, texte); }catch(e3){} } }
+}
+/* Lecture seule d'une ligne (historique, autre carnet) : la copie gardée sur l'appareil
+   (nuage_cache:<ligne>, commune à toutes les pages) sert tant que le nuage n'a pas changé. */
+async function nuageLireUne(id){
+  try{
+    const dates=await nuageDates([id]);
+    if(!(id in dates)) return null;
+    // la ligne appartient a une page du carnet et sa copie sur cet appareil est a jour :
+    // on la prend telle quelle, sans en garder une deuxieme
+    const [bas, saison]=id.split(':');
+    const propre=NUAGE_PROPRES[bas];
+    if(propre && saison!=='saisons'){
+      const cle=propre+(saison?':'+saison:'');
+      if(stampLocal(cle)===dates[id]){
+        try{ const x=JSON.parse(localStorage.getItem(cle)); if(x) return bas==='journal_joris' ? {jours:x} : x; }catch(e){}
+      }
+    }
+    let c=null; try{ c=JSON.parse(localStorage.getItem('nuage_cache:'+id)); }catch(e){}
+    if(c && c.stamp===dates[id]) return c.data;
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',id).maybeSingle();
+    if(error || !data) return null;
+    const texte=JSON.stringify({stamp:msDe(data.updated_at), data:data.data});
+    try{ localStorage.setItem('nuage_cache:'+id, texte); }
+    catch(e){ libererPlace(); try{ localStorage.setItem('nuage_cache:'+id, texte); }catch(e2){} }
+    return data.data;
+  }catch(e){ return null; }
+}
+
+let envoiEnCours=false, verifEnCours=false;
 function pousserVersCloud(){
   if(!sb || !journalLu) return;
   clearTimeout(pushTimer);
-  pushTimer=setTimeout(async()=>{
-    try{
-      setSync("↑ envoi…");
-      const envoi={jours:journal, _src:CLIENT_ID};
-      dernierEnvoi=JSON.stringify(envoi);
-      const {error}=await sb.from('carnet').upsert({id:JOURNAL_ID,data:envoi,updated_at:new Date().toISOString()});
+  pushTimer=setTimeout(envoyerJournal,700);
+}
+/* Fusion de deux versions du journal : « base » garde la main sur les jours que les deux
+   ont, « autre » apporte les jours que la base n'a pas. */
+function fusionJournal(base, autre){
+  const r=Object.assign({}, base||{});
+  Object.keys(autre||{}).forEach(k=>{ if(!(k in r)) r[k]=autre[k]; });
+  return nettoyer(r);
+}
+function appliquerJournal(nouveau){
+  const avant=JSON.stringify(journal);
+  applyingRemote=true;
+  journal=nouveau;
+  lastSaved=JSON.stringify(journal);
+  localStorage.setItem(STORE_KEY,lastSaved);
+  applyingRemote=false;
+  if(lastSaved!==avant && !enTrainDEcrire()) afficherJour();
+}
+async function envoyerJournal(){
+  if(!sb) return;
+  if(envoiEnCours){ pousserVersCloud(); return; }
+  envoiEnCours=true;
+  try{
+    setSync("↑ envoi…");
+    // écrit ailleurs depuis notre dernière lecture ? on garde les jours ajoutés là-bas
+    const date=await nuageDate(JOURNAL_ID);
+    if(date>lastRemoteStamp){
+      const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',JOURNAL_ID).maybeSingle();
       if(error) throw error;
-      setSync("☁ synchronisé","ok");
-    }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
-  },700);
+      if(data && data.data && data.data.jours){
+        const base=baseLire(STORE_KEY), distant=nettoyer(data.data.jours);
+        appliquerJournal(base ? nettoyer(fusion3(base, journal, distant)) : fusionJournal(journal, distant));
+      }
+    }
+    const snap=lastSaved;
+    const envoi={jours:journal, _src:CLIENT_ID};
+    dernierEnvoi=JSON.stringify(envoi);
+    const {data:ok,error}=await sb.from('carnet').upsert({id:JOURNAL_ID,data:envoi,updated_at:new Date().toISOString()}).select('updated_at');
+    if(error) throw error;
+    const ms=msDe(ok && ok[0] && ok[0].updated_at);
+    if(ms){ lastRemoteStamp=ms; poserStamp(STORE_KEY, ms); basePoser(STORE_KEY, snap); }
+    if(lastSaved===snap) marquerAEnvoyer(STORE_KEY, false);
+    setSync("☁ synchronisé","ok");
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
+  finally{ envoiEnCours=false; }
 }
 /* Joris est-il en train d'écrire ? Si oui, on ne remplace surtout pas son texte. */
 function enTrainDEcrire(){
@@ -936,55 +1073,69 @@ function enTrainDEcrire(){
 let majEnAttente=null;
 function appliquerMajEnAttente(){
   if(!majEnAttente || enTrainDEcrire()) return;
-  journal=nettoyer(majEnAttente.jours);
-  lastSaved=JSON.stringify(journal);
-  localStorage.setItem(STORE_KEY,lastSaved);
-  majEnAttente=null;
+  const m=majEnAttente; majEnAttente=null;
+  // modifié ici entre-temps : la prochaine vérification fusionnera les deux
+  if(aEnvoyer(STORE_KEY)) return;
+  lastRemoteStamp=m.stamp; poserStamp(STORE_KEY, m.stamp);
+  basePoser(STORE_KEY, JSON.stringify(nettoyer(m.jours)));
+  appliquerJournal(nettoyer(m.jours));
   afficherJour();
 }
 setInterval(appliquerMajEnAttente, 1500);
 document.addEventListener('focusout',()=>setTimeout(appliquerMajEnAttente,300));
 
+/* Le nuage a-t-il du nouveau ? Une petite question ; le journal n'est téléchargé que si
+   sa date a changé. Des changements en attente ici partent d'abord. */
+async function verifierJournal(){
+  if(!sb || verifEnCours || envoiEnCours) return;
+  verifEnCours=true;
+  try{
+    const date=await nuageDate(JOURNAL_ID);
+    journalLu=true;   // le nuage a répondu : on a le droit d'écrire
+    if(aEnvoyer(STORE_KEY)){ await envoyerJournal(); return; }
+    const premiereFois = localStorage.getItem(STORE_KEY+':stamp')===null;
+    if(!date || (date<=lastRemoteStamp && !premiereFois)){ setSync("☁ synchronisé","ok"); return; }
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',JOURNAL_ID).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.jours){
+      const distant=nettoyer(data.data.jours);
+      const stamp=msDe(data.updated_at);
+      const vide=!Object.keys(journal).length;
+      if(!vide && aEnvoyer(STORE_KEY)){
+        const base=baseLire(STORE_KEY);
+        lastRemoteStamp=stamp; poserStamp(STORE_KEY, stamp);
+        appliquerJournal(base ? nettoyer(fusion3(base, journal, distant)) : fusionJournal(journal, distant));
+        basePoser(STORE_KEY, JSON.stringify(distant)); pousserVersCloud();
+      }else if(!vide && premiereFois){
+        // premier passage avec cette version : le nuage fait foi, mais on garde les jours
+        // écrits sur cet appareil que le nuage n'a pas (saisis pendant une coupure)
+        lastRemoteStamp=stamp; poserStamp(STORE_KEY, stamp); basePoser(STORE_KEY, JSON.stringify(distant));
+        const f=fusionJournal(distant, journal);
+        appliquerJournal(f);
+        if(JSON.stringify(f)!==JSON.stringify(distant)){ marquerAEnvoyer(STORE_KEY, true); pousserVersCloud(); }
+      }else if(!vide && enTrainDEcrire()){
+        majEnAttente={jours:data.data.jours, stamp};
+      }else{
+        lastRemoteStamp=stamp; poserStamp(STORE_KEY, stamp); basePoser(STORE_KEY, JSON.stringify(distant));
+        appliquerJournal(distant);
+        afficherJour();
+      }
+    }
+    setSync("☁ synchronisé","ok");
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
+  finally{ verifEnCours=false; }
+}
+
 async function initSync(){
   if(!SYNC_ENABLED || typeof supabase==="undefined"){ setSync("⚠ synchro indisponible (hors ligne)","warn"); return; }
   try{
     sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',JOURNAL_ID).maybeSingle();
-    if(error) throw error;
-    journalLu=true;   // pas d'écriture avant une lecture réussie
-    if(data && data.data && data.data.jours){
-      const distant=nettoyer(data.data.jours);
-      const stamp=data.updated_at?new Date(data.updated_at).getTime():0;
-      if(!Object.keys(journal).length || stamp>lastRemoteStamp){
-        applyingRemote=true;
-        journal=distant; lastRemoteStamp=stamp;
-        lastSaved=JSON.stringify(journal);
-        localStorage.setItem(STORE_KEY,lastSaved);
-        afficherJour();
-        applyingRemote=false;
-      }
-    }
-    setSync("☁ synchronisé","ok");
+    lastRemoteStamp=stampLocal(STORE_KEY);
+    await verifierJournal();
     chargerMatchs();   // lecture seule des deux carnets
-
-    sb.channel('journal-live').on('postgres_changes',
-      {event:'*',schema:'public',table:'carnet',filter:`id=eq.${JOURNAL_ID}`},
-      (p)=>{
-        if(!p.new || !p.new.data || !p.new.data.jours) return;
-        const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
-        if(stamp<=lastRemoteStamp) return;
-        if(p.new.data._src===CLIENT_ID){ lastRemoteStamp=stamp; return; }   // notre propre écho
-        const recu=JSON.stringify(p.new.data);
-        if(recu===dernierEnvoi){ lastRemoteStamp=stamp; return; }
-        lastRemoteStamp=stamp;
-        if(enTrainDEcrire()){ majEnAttente=p.new.data; return; }
-        applyingRemote=true;
-        journal=nettoyer(p.new.data.jours);
-        lastSaved=JSON.stringify(journal);
-        localStorage.setItem(STORE_KEY,lastSaved);
-        afficherJour();
-        applyingRemote=false;
-      }).subscribe();
+    // plus de « temps réel » : on regarde au retour sur la page, puis une fois par minute
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) verifierJournal(); });
+    setInterval(()=>{ if(!document.hidden) verifierJournal(); }, 60000);
   }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
 }
 

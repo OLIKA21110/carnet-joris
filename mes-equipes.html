@@ -202,7 +202,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1 oct · boîte à idées 💡</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 9 oct · synchro économe ☁️</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -453,6 +453,8 @@ function tombeNettoyer(){
 async function fusionnerAvantEnvoi(){
   if(!sb) return;
   try{
+    // rien n'a bouge dans le nuage depuis notre derniere lecture : rien a recuperer
+    if(await nuageDate(BIBLIO_ID) <= biblioStamp) return;
     const {data} = await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
     const dist = data && data.data && data.data.equipes;
     if(!dist) return;
@@ -476,9 +478,11 @@ async function fusionnerAvantEnvoi(){
 }
 
 function sauverBiblio(){
-  localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+  ecrireLocal(BIBLIO_KEY, JSON.stringify(biblio));
   noterHistorique();
-  if(appliBiblio || !sb || !biblioLue) return;
+  if(appliBiblio) return;
+  marquerAEnvoyer(BIBLIO_KEY, true);
+  if(!sb || !biblioLue) return;
   clearTimeout(biblioTimer);
   biblioTimer=setTimeout(async()=>{
     try{
@@ -486,7 +490,12 @@ function sauverBiblio(){
       await fusionnerAvantEnvoi();     // ne jamais effacer ce qui a ete ajoute ailleurs
       const envoi=Object.assign({},biblio,{_src:CLIENT_ID});
       dernierEnvoiBiblio=JSON.stringify(envoi); // filet de secours, en plus du tampon _src
-      await sb.from('carnet').upsert({id:BIBLIO_ID,data:envoi,updated_at:new Date().toISOString()});
+      const snap=JSON.stringify(biblio);
+      const {data:ok,error}=await sb.from('carnet').upsert({id:BIBLIO_ID,data:envoi,updated_at:new Date().toISOString()}).select('updated_at');
+      if(error) throw error;
+      const ms=msDe(ok && ok[0] && ok[0].updated_at);
+      if(ms){ biblioStamp=ms; poserStamp(BIBLIO_KEY, ms); }
+      if(JSON.stringify(biblio)===snap) marquerAEnvoyer(BIBLIO_KEY, false);
       setSync("☁ synchronisé","ok");
     }catch(e){ setSync("⚠ hors ligne","warn"); }
   },700);
@@ -746,8 +755,8 @@ async function chargerAnnuaire(){
   if(annuaireEnCours) return annuaireEnCours;
   annuaireEnCours = (async ()=>{
     try{
-      const {data} = await sb.from('carnet').select('data').eq('id','annuaire_fff').maybeSingle();
-      if(data && data.data && data.data.parAff) annuaire = data.data;
+      const d = await nuageLireUne('annuaire_fff');
+      if(d && d.parAff) annuaire = d;
     }catch(e){ /* pas d'annuaire : on se rabat sur les saisies a la main */ }
     annuaireEnCours = null;
     return annuaire;
@@ -1559,15 +1568,14 @@ async function lireTousLesCarnets(){
   for(const [base, cible] of lots){
     let saisons=[SAISON_DEFAUT];
     try{
-      const {data}=await sb.from('carnet').select('data').eq('id', base+':saisons').maybeSingle();
-      if(data && data.data && Array.isArray(data.data.liste)) saisons=data.data.liste;
+      const d=await nuageLireUne(base+':saisons');
+      if(d && Array.isArray(d.liste)) saisons=d.liste;
     }catch(e){}
     if(!saisons.includes(SAISON_DEFAUT)) saisons.push(SAISON_DEFAUT);
     for(const s of saisons){
       const ligne = (s===SAISON_DEFAUT) ? base : base+':'+s;
       try{
-        const {data}=await sb.from('carnet').select('data').eq('id',ligne).maybeSingle();
-        lireUsage(data && data.data, cible, s);
+        lireUsage(await nuageLireUne(ligne), cible, s);
       }catch(e){}
     }
   }
@@ -1650,52 +1658,178 @@ function alimenter(){
   if(neuf) sauverBiblio();
 }
 
+/* ===== Synchro économe (octobre 2026) =====
+   Supabase gratuit limite ce qui SORT du nuage à 5,5 Go par mois. La limite a sauté le
+   9 octobre 2026 : avec le « temps réel », chaque score tapé renvoyait le carnet entier
+   (plus de 500 Ko) à chaque page ouverte, sur chaque appareil. Désormais :
+   - on demande d'abord au nuage la DATE de sa dernière modification (quelques octets),
+     et on ne télécharge une ligne que si elle a changé ;
+   - on le fait à l'ouverture, au retour sur l'onglet et une fois par minute ;
+   - la date de la version du nuage que l'appareil connaît est gardée (<clé>:stamp) ;
+   - un changement fait ici et pas encore envoyé est noté (<clé>:aEnvoyer) : tant qu'il
+     n'est pas parti, le nuage n'a PAS le droit de l'écraser. Avant, ce qui était saisi
+     pendant une coupure était effacé au retour du réseau par l'ancienne version. */
+function msDe(iso){ return iso ? new Date(iso).getTime() : 0; }
+function stampLocal(cle){ return +localStorage.getItem(cle+':stamp') || 0; }
+function poserStamp(cle, ms){ try{ localStorage.setItem(cle+':stamp', String(ms||0)); }catch(e){} }
+function aEnvoyer(cle){ return localStorage.getItem(cle+':aEnvoyer')==='1'; }
+function marquerAEnvoyer(cle, oui){
+  try{ if(oui) localStorage.setItem(cle+':aEnvoyer','1'); else localStorage.removeItem(cle+':aEnvoyer'); }catch(e){}
+}
+/* La derniere version commune avec le nuage (<cle>:base) : c'est elle qui permet de
+   savoir, quand l'appareil ET le nuage ont change, qui a change quoi. */
+function baseLire(cle){ try{ return JSON.parse(localStorage.getItem(cle+':base')); }catch(e){ return null; } }
+function basePoser(cle, texte){ try{ localStorage.setItem(cle+':base', texte); }catch(e){ try{ localStorage.removeItem(cle+':base'); }catch(e2){} } }
+/* Fusion a trois : « base » est la version du nuage que cet appareil connaissait, « ici »
+   celle de l'appareil, « la » celle du nuage maintenant. Ce qui n'a change que d'un cote
+   est repris (ajout, correction ou suppression) ; si les deux ont change la meme case,
+   l'appareil garde la sienne. Les listes d'objets a « id » (championnats, poules,
+   matchs, tours) se fusionnent element par element. */
+function fusion3(base, ici, la){
+  const J=x=>JSON.stringify(x);
+  if(J(ici)===J(la)) return ici;
+  if(J(ici)===J(base)) return la;
+  if(J(la)===J(base)) return ici;
+  const obj=x=>!!x && typeof x==='object' && !Array.isArray(x);
+  if(obj(ici) && obj(la)){
+    const b=obj(base)?base:{}, r={};
+    new Set([...Object.keys(ici), ...Object.keys(la)]).forEach(k=>{
+      const v=fusion3(b[k], ici[k], la[k]);
+      if(v!==undefined) r[k]=v;
+    });
+    return r;
+  }
+  const avecId=x=>Array.isArray(x) && x.every(e=>e && typeof e==='object' && e.id!==undefined);
+  if(avecId(ici) && avecId(la)){
+    const parId=t=>new Map(t.map(e=>[e.id,e]));
+    const B=parId(avecId(base)?base:[]), I=parId(ici), L=parId(la);
+    const r=[];
+    [...ici.map(e=>e.id), ...la.filter(e=>!I.has(e.id)).map(e=>e.id)].forEach(id=>{
+      const v=fusion3(B.get(id), I.get(id), L.get(id));
+      if(v!==undefined) r.push(v);
+    });
+    return r;
+  }
+  return ici;   // les deux ont change la meme chose : l'appareil garde la sienne
+}
+async function nuageDates(ids){
+  const {data,error}=await sb.from('carnet').select('id,updated_at').in('id',ids);
+  if(error) throw error;
+  const out={};
+  (data||[]).forEach(r=>{ out[r.id]=msDe(r.updated_at); });
+  return out;
+}
+async function nuageDate(id){ return (await nuageDates([id]))[id] || 0; }
+/* Les lignes que les pages gardent elles-memes sur l'appareil (cle locale). */
+const NUAGE_PROPRES={champ_district_2627:'champ_district_2627_joris_v1', coupes_district_2627:'coupes_district_2627_joris_v1',
+  journal_joris:'journal_joris_v1', equipes_district:'equipes_district_joris_v1'};
+/* La memoire du navigateur est limitee (environ 5 millions de caracteres pour tout le
+   site). Si elle est pleine, on jette d'abord les copies de confort (lectures seules,
+   annuaire) : elles se retelechargent, alors que le carnet, lui, doit toujours s'ecrire. */
+function libererPlace(){
+  try{ Object.keys(localStorage).filter(k=>k.indexOf('nuage_cache:')===0).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+}
+function ecrireLocal(cle, texte){
+  try{ localStorage.setItem(cle, texte); }
+  catch(e){ libererPlace(); try{ localStorage.setItem(cle, texte); }catch(e2){ try{ Object.keys(localStorage).filter(k=>/:base$/.test(k)).forEach(k=>localStorage.removeItem(k)); localStorage.setItem(cle, texte); }catch(e3){} } }
+}
+/* Lecture seule d'une ligne (historique, autre carnet) : la copie gardée sur l'appareil
+   (nuage_cache:<ligne>, commune à toutes les pages) sert tant que le nuage n'a pas changé. */
+async function nuageLireUne(id){
+  try{
+    const dates=await nuageDates([id]);
+    if(!(id in dates)) return null;
+    // la ligne appartient a une page du carnet et sa copie sur cet appareil est a jour :
+    // on la prend telle quelle, sans en garder une deuxieme
+    const [bas, saison]=id.split(':');
+    const propre=NUAGE_PROPRES[bas];
+    if(propre && saison!=='saisons'){
+      const cle=propre+(saison?':'+saison:'');
+      if(stampLocal(cle)===dates[id]){
+        try{ const x=JSON.parse(localStorage.getItem(cle)); if(x) return bas==='journal_joris' ? {jours:x} : x; }catch(e){}
+      }
+    }
+    let c=null; try{ c=JSON.parse(localStorage.getItem('nuage_cache:'+id)); }catch(e){}
+    if(c && c.stamp===dates[id]) return c.data;
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',id).maybeSingle();
+    if(error || !data) return null;
+    const texte=JSON.stringify({stamp:msDe(data.updated_at), data:data.data});
+    try{ localStorage.setItem('nuage_cache:'+id, texte); }
+    catch(e){ libererPlace(); try{ localStorage.setItem('nuage_cache:'+id, texte); }catch(e2){} }
+    return data.data;
+  }catch(e){ return null; }
+}
+
+let verifEnCours=false;
+/* Le nuage a-t-il une bibliothèque plus récente ? Une petite question d'abord ; on ne
+   télécharge (près de 300 Ko) que si elle a changé. Des changements en attente ici
+   partent d'abord : l'envoi récupère avant ce qui a été ajouté ailleurs. */
+async function verifierBiblio(){
+  if(!sb || verifEnCours) return;
+  verifEnCours=true;
+  try{
+    const date=await nuageDate(BIBLIO_ID);
+    biblioLue=true;   // le nuage a répondu : on a le droit d'écrire à partir de maintenant
+    if(aEnvoyer(BIBLIO_KEY)){ sauverBiblio(); return; }
+    const premiereFois = localStorage.getItem(BIBLIO_KEY+':stamp')===null;
+    if(!date || (date<=biblioStamp && !premiereFois)) return;
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
+    if(error) throw error;
+    if(!data || !data.data || typeof data.data!=='object' || !data.data.equipes) return;
+    if(aEnvoyer(BIBLIO_KEY)) return;   // modifié ici entre-temps : le prochain passage fusionnera
+    const local=biblio;
+    appliBiblio=true;
+    biblio=Object.assign({},data.data); delete biblio._src; assurerListes(biblio);
+    biblioStamp=msDe(data.updated_at); poserStamp(BIBLIO_KEY, biblioStamp);
+    let ajoute=false;
+    if(premiereFois && local && local.equipes){
+      // premier passage avec cette version : le nuage fait foi, mais on garde les clubs
+      // et les équipes créés sur cet appareil que le nuage n'a pas (saisis hors ligne),
+      // sauf ceux qu'on a effacés exprès ailleurs (pierre tombale)
+      Object.keys(local.equipes).forEach(nom=>{
+        const ici=local.equipes[nom];
+        if(!biblio.equipes[nom]){
+          if(!tombePresente('club', nom)){ biblio.equipes[nom]=ici; ajoute=true; }
+          return;
+        }
+        const la=biblio.equipes[nom];
+        if(!ici || !la || typeof la!=='object') return;
+        const vus=new Set((la.equipes||[]).map(e=>e && e.id));
+        (ici.equipes||[]).forEach(e=>{
+          if(e && e.id && !vus.has(e.id) && !tombePresente('eq', nom+"/"+e.id)){
+            la.equipes=la.equipes||[]; la.equipes.push(e); ajoute=true;
+          }
+        });
+      });
+    }
+    localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+    appliBiblio=false;
+    if(ajoute) sauverBiblio();
+    redessinerSiPossible();
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
+  finally{ appliBiblio=false; verifEnCours=false; }
+}
+
 async function initSync(){
   if(typeof supabase==="undefined"){ setSync("⚠ synchro indisponible (hors ligne)","warn"); buildListe(); return; }
   try{
     sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    biblioStamp=stampLocal(BIBLIO_KEY);
     // 1) la bibliothèque
-    const {data}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
-    biblioLue=true;   // lecture reussie : on a le droit d'ecrire a partir de maintenant
-    if(data && data.data && data.data.equipes){
-      appliBiblio=true;
-      biblio=Object.assign({},data.data); delete biblio._src; assurerListes(biblio);
-      biblioStamp=data.updated_at?new Date(data.updated_at).getTime():0;
-      localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
-      appliBiblio=false;
-    }
-    // 2) où joue chaque équipe
+    await verifierBiblio();
+    // 2) où joue chaque équipe (les carnets ne sont retéléchargés que s'ils ont changé)
     await lireTousLesCarnets();
     alimenter();
     setSync("☁ synchronisé","ok");
     buildListe();
-    // 3) rester à l'écoute
-    sb.channel('mes-equipes-live').on('postgres_changes',
-      {event:'*',schema:'public',table:'carnet'},
-      (p)=>{
-        if(!p.new || !p.new.id) return;
-        if(p.new.id===BIBLIO_ID){
-          const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
-          if(stamp<=biblioStamp) return;
-          // notre propre écho (même onglet) : on note le passage et on ne touche à rien
-          if(p.new.data && p.new.data._src===CLIENT_ID){ biblioStamp=stamp; return; }
-          const recu=JSON.stringify(p.new.data);
-          if(recu===dernierEnvoiBiblio){ biblioStamp=stamp; return; }
-          appliBiblio=true;
-          // on n'accepte les données du cloud que si elles sont valides, sinon on garde l'existant
-          if(p.new.data && typeof p.new.data==='object'){
-            const recuNet=Object.assign({},p.new.data); delete recuNet._src;
-            biblio=assurerListes(recuNet);
-          }
-          biblioStamp=stamp;
-          localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
-          appliBiblio=false;
-          redessinerSiPossible();
-        }else if(String(p.new.id).indexOf(CHAMP_ID)===0 || String(p.new.id).indexOf(COUPES_ID)===0){
-          // un carnet a bouge, quelle que soit sa saison : on relit tout
-          lireTousLesCarnets().then(()=>{ alimenter(); redessinerSiPossible(); });
-        }
-      }).subscribe();
+    // 3) plus de « temps réel » : on regarde au retour sur la page, et une fois par minute
+    //    pour la bibliothèque
+    document.addEventListener('visibilitychange',()=>{
+      if(document.hidden) return;
+      verifierBiblio();
+      lireTousLesCarnets().then(()=>{ alimenter(); redessinerSiPossible(); });
+    });
+    setInterval(()=>{ if(!document.hidden) verifierBiblio(); }, 60000);
   }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); buildListe(); }
 }
 

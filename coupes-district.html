@@ -488,7 +488,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 4 oct · exempts 😴</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 9 oct · synchro économe ☁️</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -723,11 +723,8 @@ async function fusionnerSaisonsCloud(){
 async function pousserMaintenant(){
   clearTimeout(pushTimer);
   if(!sb) return;
-  try{
-    const envoi=Object.assign({},state,{_src:CLIENT_ID});
-    dernierEnvoi=JSON.stringify(envoi);
-    await sb.from('carnet').upsert({id:CARNET_ID,data:envoi,updated_at:new Date().toISOString()});
-  }catch(e){}
+  while(envoiEnCours) await new Promise(r=>setTimeout(r,100));
+  if(aEnvoyer(STORE_KEY)) await envoyerMaintenant();
 }
 async function changerSaison(s){
   if(s===saisonCourante) return;
@@ -737,15 +734,14 @@ async function changerSaison(s){
 
   saisonCourante=s; appliquerCles();
   localStorage.setItem(SAISON_ACTIVE_KEY, saisonCourante);
-  lastRemoteStamp=0;
+  lastRemoteStamp=stampLocal(STORE_KEY);
   applyingRemote=true;
   state=load();
   lastSaved=JSON.stringify(state);
   applyingRemote=false;
   curOnglet=null;
   dessinerSaisons(); majTitreSaison(); buildDivTabs(); buildBody();
-  await rebrancherCanal();                       // on ecoute desormais l'autre ligne
-  await tirerDuCloud();                          // et on va chercher ce qu'elle contient
+  await verifierCloud();                         // et on va voir ce que le nuage a pour elle
 }
 function dessinerSaisons(){
   const bar=document.getElementById('saisonBar');
@@ -839,8 +835,8 @@ let saveTimer=null, lastSaved=JSON.stringify(state);
 function save(){
   if(lastSaved!==JSON.stringify(state)){
     lastSaved=JSON.stringify(state);
-    localStorage.setItem(STORE_KEY,lastSaved);
-    if(!applyingRemote) pushToCloud();
+    ecrireLocal(STORE_KEY,lastSaved);
+    if(!applyingRemote){ marquerAEnvoyer(STORE_KEY, true); pushToCloud(); }
   }
 }
 
@@ -1838,8 +1834,8 @@ async function chargerHistorique(){
   for(const base of [CARNET_ID_BASE, AUTRE_CARNET_ID]){
     let saisons=[SAISON_DEFAUT];
     try{
-      const {data}=await sb.from('carnet').select('data').eq('id', base+':saisons').maybeSingle();
-      if(data && data.data && Array.isArray(data.data.liste)) saisons=data.data.liste;
+      const d=await nuageLireUne(base+':saisons');
+      if(d && Array.isArray(d.liste)) saisons=d.liste;
     }catch(e){}
     if(!saisons.includes(SAISON_DEFAUT)) saisons.push(SAISON_DEFAUT);
     for(const s of saisons){
@@ -1848,10 +1844,10 @@ async function chargerHistorique(){
       // relit pas ici, sinon les matchs y figureraient deux fois
       if(ligne===CARNET_ID) continue;
       try{
-        const {data}=await sb.from('carnet').select('data').eq('id',ligne).maybeSingle();
-        lireHistorique(data && data.data, s);
+        const d=await nuageLireUne(ligne);
+        lireHistorique(d, s);
         // on garde la saison en cours de l'autre carnet pour pouvoir l'afficher
-        if(base===AUTRE_CARNET_ID && s===saisonCourante) autreData = data && data.data;
+        if(base===AUTRE_CARNET_ID && s===saisonCourante) autreData = d;
       }catch(e){}
     }
   }
@@ -2636,8 +2632,11 @@ function appliquerRedessinEnAttente(){
   if(majDistanteEnAttente){
     const {data,stamp}=majDistanteEnAttente;
     majDistanteEnAttente=null;
+    // modifie ici entre-temps : la prochaine verification fusionnera les deux
+    if(aEnvoyer(STORE_KEY)){ redessinEnAttente=false; buildDivTabs(); buildBody(); return; }
     applyingRemote=true;
-    state=normalize(data); lastRemoteStamp=stamp;
+    state=normalize(data); lastRemoteStamp=stamp; poserStamp(STORE_KEY, stamp);
+    basePoser(STORE_KEY, JSON.stringify(state));
     lastSaved=JSON.stringify(state);
     localStorage.setItem(STORE_KEY,lastSaved);
     if(!curOnglet || !getCoupe(curOnglet.slice(6))) curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
@@ -3617,18 +3616,30 @@ function fusionPourEnvoi(distant){
   return sortie;
 }
 function sauverBiblio(){
-  localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
+  ecrireLocal(BIBLIO_KEY, JSON.stringify(biblio));
   if(appliBiblio) return;
+  marquerAEnvoyer(BIBLIO_KEY, true);
   if(!sb || !biblioLue) return;
   clearTimeout(biblioTimer);
   biblioTimer=setTimeout(async()=>{
     try{
-      // on relit juste avant d'ecrire, pour partir de la version la plus fraiche
-      const {data}=await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
-      const fusion=fusionPourEnvoi(data && data.data);
+      // on part de la version la plus fraiche, mais on ne la telecharge que si elle a change
+      const date=await nuageDate(BIBLIO_ID);
+      let distant=biblio;
+      if(date>biblioStamp){
+        const {data,error}=await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
+        if(error) throw error;
+        distant=data && data.data;
+      }
+      const fusion=fusionPourEnvoi(distant);
       biblio=Object.assign({}, fusion);   // on garde localement ce qu'on vient d'apprendre
-      localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
-      await sb.from('carnet').upsert({id:BIBLIO_ID,data:Object.assign({},fusion,{_src:CLIENT_ID}),updated_at:new Date().toISOString()});
+      const snap=JSON.stringify(biblio);
+      localStorage.setItem(BIBLIO_KEY, snap);
+      const {data:ok,error}=await sb.from('carnet').upsert({id:BIBLIO_ID,data:Object.assign({},fusion,{_src:CLIENT_ID}),updated_at:new Date().toISOString()}).select('updated_at');
+      if(error) throw error;
+      const ms=msDe(ok && ok[0] && ok[0].updated_at);
+      if(ms){ biblioStamp=ms; poserStamp(BIBLIO_KEY, ms); }
+      if(JSON.stringify(biblio)===snap) marquerAEnvoyer(BIBLIO_KEY, false);
     }catch(e){}
   },700);
 }
@@ -3831,127 +3842,299 @@ function remplirLieuxManquants(){
   })));
   if(change) save();
 }
-async function initBiblio(){
+/* ===== Synchro économe (octobre 2026) =====
+   Supabase gratuit limite ce qui SORT du nuage à 5,5 Go par mois. La limite a sauté le
+   9 octobre 2026 : avec le « temps réel », chaque score tapé renvoyait le carnet entier
+   (plus de 500 Ko) à chaque page ouverte, sur chaque appareil. Désormais :
+   - on demande d'abord au nuage la DATE de sa dernière modification (quelques octets),
+     et on ne télécharge une ligne que si elle a changé ;
+   - on le fait à l'ouverture, au retour sur l'onglet et une fois par minute ;
+   - la date de la version du nuage que l'appareil connaît est gardée (<clé>:stamp) ;
+   - un changement fait ici et pas encore envoyé est noté (<clé>:aEnvoyer) : tant qu'il
+     n'est pas parti, le nuage n'a PAS le droit de l'écraser. Avant, ce qui était saisi
+     pendant une coupure était effacé au retour du réseau par l'ancienne version. */
+function msDe(iso){ return iso ? new Date(iso).getTime() : 0; }
+function stampLocal(cle){ return +localStorage.getItem(cle+':stamp') || 0; }
+function poserStamp(cle, ms){ try{ localStorage.setItem(cle+':stamp', String(ms||0)); }catch(e){} }
+function aEnvoyer(cle){ return localStorage.getItem(cle+':aEnvoyer')==='1'; }
+function marquerAEnvoyer(cle, oui){
+  try{ if(oui) localStorage.setItem(cle+':aEnvoyer','1'); else localStorage.removeItem(cle+':aEnvoyer'); }catch(e){}
+}
+/* La derniere version commune avec le nuage (<cle>:base) : c'est elle qui permet de
+   savoir, quand l'appareil ET le nuage ont change, qui a change quoi. */
+function baseLire(cle){ try{ return JSON.parse(localStorage.getItem(cle+':base')); }catch(e){ return null; } }
+function basePoser(cle, texte){ try{ localStorage.setItem(cle+':base', texte); }catch(e){ try{ localStorage.removeItem(cle+':base'); }catch(e2){} } }
+/* Fusion a trois : « base » est la version du nuage que cet appareil connaissait, « ici »
+   celle de l'appareil, « la » celle du nuage maintenant. Ce qui n'a change que d'un cote
+   est repris (ajout, correction ou suppression) ; si les deux ont change la meme case,
+   l'appareil garde la sienne. Les listes d'objets a « id » (championnats, poules,
+   matchs, tours) se fusionnent element par element. */
+function fusion3(base, ici, la){
+  const J=x=>JSON.stringify(x);
+  if(J(ici)===J(la)) return ici;
+  if(J(ici)===J(base)) return la;
+  if(J(la)===J(base)) return ici;
+  const obj=x=>!!x && typeof x==='object' && !Array.isArray(x);
+  if(obj(ici) && obj(la)){
+    const b=obj(base)?base:{}, r={};
+    new Set([...Object.keys(ici), ...Object.keys(la)]).forEach(k=>{
+      const v=fusion3(b[k], ici[k], la[k]);
+      if(v!==undefined) r[k]=v;
+    });
+    return r;
+  }
+  const avecId=x=>Array.isArray(x) && x.every(e=>e && typeof e==='object' && e.id!==undefined);
+  if(avecId(ici) && avecId(la)){
+    const parId=t=>new Map(t.map(e=>[e.id,e]));
+    const B=parId(avecId(base)?base:[]), I=parId(ici), L=parId(la);
+    const r=[];
+    [...ici.map(e=>e.id), ...la.filter(e=>!I.has(e.id)).map(e=>e.id)].forEach(id=>{
+      const v=fusion3(B.get(id), I.get(id), L.get(id));
+      if(v!==undefined) r.push(v);
+    });
+    return r;
+  }
+  return ici;   // les deux ont change la meme chose : l'appareil garde la sienne
+}
+async function nuageDates(ids){
+  const {data,error}=await sb.from('carnet').select('id,updated_at').in('id',ids);
+  if(error) throw error;
+  const out={};
+  (data||[]).forEach(r=>{ out[r.id]=msDe(r.updated_at); });
+  return out;
+}
+async function nuageDate(id){ return (await nuageDates([id]))[id] || 0; }
+/* Les lignes que les pages gardent elles-memes sur l'appareil (cle locale). */
+const NUAGE_PROPRES={champ_district_2627:'champ_district_2627_joris_v1', coupes_district_2627:'coupes_district_2627_joris_v1',
+  journal_joris:'journal_joris_v1', equipes_district:'equipes_district_joris_v1'};
+/* La memoire du navigateur est limitee (environ 5 millions de caracteres pour tout le
+   site). Si elle est pleine, on jette d'abord les copies de confort (lectures seules,
+   annuaire) : elles se retelechargent, alors que le carnet, lui, doit toujours s'ecrire. */
+function libererPlace(){
+  try{ Object.keys(localStorage).filter(k=>k.indexOf('nuage_cache:')===0).forEach(k=>localStorage.removeItem(k)); }catch(e){}
+}
+function ecrireLocal(cle, texte){
+  try{ localStorage.setItem(cle, texte); }
+  catch(e){ libererPlace(); try{ localStorage.setItem(cle, texte); }catch(e2){ try{ Object.keys(localStorage).filter(k=>/:base$/.test(k)).forEach(k=>localStorage.removeItem(k)); localStorage.setItem(cle, texte); }catch(e3){} } }
+}
+/* Lecture seule d'une ligne (historique, autre carnet) : la copie gardée sur l'appareil
+   (nuage_cache:<ligne>, commune à toutes les pages) sert tant que le nuage n'a pas changé. */
+async function nuageLireUne(id){
+  try{
+    const dates=await nuageDates([id]);
+    if(!(id in dates)) return null;
+    // la ligne appartient a une page du carnet et sa copie sur cet appareil est a jour :
+    // on la prend telle quelle, sans en garder une deuxieme
+    const [bas, saison]=id.split(':');
+    const propre=NUAGE_PROPRES[bas];
+    if(propre && saison!=='saisons'){
+      const cle=propre+(saison?':'+saison:'');
+      if(stampLocal(cle)===dates[id]){
+        try{ const x=JSON.parse(localStorage.getItem(cle)); if(x) return bas==='journal_joris' ? {jours:x} : x; }catch(e){}
+      }
+    }
+    let c=null; try{ c=JSON.parse(localStorage.getItem('nuage_cache:'+id)); }catch(e){}
+    if(c && c.stamp===dates[id]) return c.data;
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',id).maybeSingle();
+    if(error || !data) return null;
+    const texte=JSON.stringify({stamp:msDe(data.updated_at), data:data.data});
+    try{ localStorage.setItem('nuage_cache:'+id, texte); }
+    catch(e){ libererPlace(); try{ localStorage.setItem('nuage_cache:'+id, texte); }catch(e2){} }
+    return data.data;
+  }catch(e){ return null; }
+}
+
+/* La bibliothèque des clubs suit la même règle. */
+async function verifierBiblio(){
   if(!sb) return;
   try{
-    const {data}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
-    biblioLue=true;   // lecture reussie : on a le droit d'ecrire a partir de maintenant
-    if(data && data.data && data.data.equipes){
+    const date=await nuageDate(BIBLIO_ID);
+    biblioLue=true;   // le nuage a répondu : on a le droit d'écrire à partir de maintenant
+    if(aEnvoyer(BIBLIO_KEY)){ sauverBiblio(); return; }
+    if(!date || date<=biblioStamp) return;
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
+    if(error) throw error;
+    if(data && data.data && data.data.equipes && !aEnvoyer(BIBLIO_KEY)){
       appliBiblio=true;
       biblio=Object.assign({},data.data); delete biblio._src;
-      biblioStamp=data.updated_at?new Date(data.updated_at).getTime():0;
+      biblioStamp=msDe(data.updated_at); poserStamp(BIBLIO_KEY, biblioStamp);
       localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
       appliBiblio=false;
       remplirLieuxManquants();
-      buildBody();
+      if(enSaisie()) redessinEnAttente=true; else buildBody();
+      if(!document.getElementById('logosModal').hidden) buildLogosList();
     }
-    alimenterBiblio();
-    sb.channel('biblio-live').on('postgres_changes',
-      {event:'*',schema:'public',table:'carnet',filter:`id=eq.${BIBLIO_ID}`},
-      (p)=>{
-        if(!p.new||!p.new.data||!p.new.data.equipes) return;
-        const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
-        if(stamp<=biblioStamp) return;
-        appliBiblio=true;
-        if(p.new.data._src===CLIENT_ID){ biblioStamp=stamp; return; } // notre propre echo
-        biblio=Object.assign({},p.new.data); delete biblio._src; biblioStamp=stamp;
-        localStorage.setItem(BIBLIO_KEY, JSON.stringify(biblio));
-        appliBiblio=false;
-        remplirLieuxManquants();
-        buildBody();
-        if(!document.getElementById('logosModal').hidden) buildLogosList();
-      }).subscribe();
   }catch(e){}
+}
+async function initBiblio(){
+  if(!sb) return;
+  biblioStamp=stampLocal(BIBLIO_KEY);
+  await verifierBiblio();
+  alimenterBiblio();
 }
 
 /* ===== Synchro ===== */
 function setSync(txt,cls){ const el=document.getElementById('syncStatus'); el.textContent=txt; el.className=cls||""; }
 /* Identifiant de cet onglet, tire une fois au chargement. Chaque envoi vers Supabase
-   en est tamponne (_src). A la reception, tout ce qui porte notre propre marque est
-   ignore : sans ca, quand deux envois s'enchainent, l'echo du premier revient alors
-   qu'on ne memorise que le dernier, il passe pour une modif venue d'un autre appareil,
-   et l'ancien instantane vient effacer ce que Joris vient tout juste de saisir. */
+   en est tamponne (_src) : le nuage garde ainsi la trace de l'appareil qui a ecrit. */
 const CLIENT_ID = Math.random().toString(36).slice(2) + '-' + Date.now().toString(36);
 let dernierEnvoi="";
+let envoiEnCours=false, verifEnCours=false;
 function pushToCloud(){
   if(!SYNC_ENABLED||!sb) return;
   clearTimeout(pushTimer);
-  pushTimer=setTimeout(async()=>{
-    try{
-      setSync("↑ envoi…");
-      const envoi=Object.assign({},state,{_src:CLIENT_ID});
-      dernierEnvoi=JSON.stringify(envoi); // filet de secours, en plus du tampon _src
-      const {error}=await sb.from('carnet').upsert({id:CARNET_ID,data:envoi,updated_at:new Date().toISOString()});
+  pushTimer=setTimeout(envoyerMaintenant,700);
+}
+/* Fusion de deux versions du carnet. « base » garde la main sur tout ce que les deux
+   ont ; « autre » apporte seulement ce que la base n'a pas : un score, une date, un
+   prono… et, si structure est vrai, une coupe, un tour ou un match ajouté ailleurs.
+   Sans version commune de référence, on ne peut pas savoir qui a raison quand les deux
+   ont changé la même case : on ajoute, on ne remplace jamais. */
+function fusionCarnets(base, autre, structure){
+  const r=JSON.parse(JSON.stringify(base||{})), a=autre||{};
+  ['scores','dates','pronos','pronoClt','aVoir'].forEach(k=>{
+    if(!a[k]) return;
+    r[k]=r[k]||{};
+    Object.keys(a[k]).forEach(x=>{
+      const ici=r[k][x], la=a[k][x];
+      if(!(x in r[k])) r[k][x]=la;
+      // une fiche de match (score, ville, stade…) : on complète case par case, sinon un
+      // score tapé ailleurs se perdrait derrière la ville remplie ici
+      else if(ici && la && typeof ici==='object' && typeof la==='object' && !Array.isArray(ici) && !Array.isArray(la)){
+        Object.keys(la).forEach(c=>{ if(ici[c]===undefined || ici[c]==='') ici[c]=la[c]; });
+      }
+    });
+  });
+  if(structure){
+    r.coupes=r.coupes||[];
+    (a.coupes||[]).forEach(ac=>{
+      const rc=r.coupes.find(c=>c.id===ac.id);
+      if(!rc){ r.coupes.push(ac); return; }
+      rc.tours=rc.tours||[];
+      (ac.tours||[]).forEach(at=>{
+        const rt=rc.tours.find(t=>t.id===at.id);
+        if(!rt){ rc.tours.push(at); return; }
+        rt.matchs=rt.matchs||[];
+        (at.matchs||[]).forEach(am=>{ if(!rt.matchs.some(m=>m.id===am.id)) rt.matchs.push(am); });
+      });
+    });
+  }
+  return normalize(r);
+}
+function appliquerEtat(nouveau){
+  const avant=JSON.stringify(state);
+  applyingRemote=true;
+  state=nouveau;
+  lastSaved=JSON.stringify(state);
+  ecrireLocal(STORE_KEY,lastSaved);
+  applyingRemote=false;
+  if(lastSaved===avant) return;
+  if(!curOnglet || (curOnglet.startsWith('coupe:') && !state.coupes.some(c=>c.id===curOnglet.slice(6)))) curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
+  if(enSaisie()) redessinEnAttente=true; else { buildDivTabs(); buildBody(); }
+}
+async function envoyerMaintenant(){
+  if(!sb) return false;
+  if(envoiEnCours){ pushToCloud(); return false; }
+  envoiEnCours=true;
+  const id=CARNET_ID, cle=STORE_KEY;
+  try{
+    setSync("↑ envoi…");
+    // quelqu'un a-t-il écrit ailleurs depuis notre dernière lecture ? on garde ce qu'il a ajouté
+    const date=await nuageDate(id);
+    if(date>lastRemoteStamp){
+      const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',id).maybeSingle();
       if(error) throw error;
-      setSync("☁ synchronisé","ok");
-    }catch(e){ setSync("⚠ hors ligne","warn"); }
-  },700);
+      if(id!==CARNET_ID) return false;
+      if(data && data.data){
+        const base=baseLire(cle);
+        appliquerEtat(base ? normalize(fusion3(base, state, normalize(data.data))) : fusionCarnets(state, data.data, true));
+      }
+    }
+    if(id!==CARNET_ID) return false;
+    const snap=lastSaved;
+    const envoi=Object.assign({},state,{_src:CLIENT_ID});
+    dernierEnvoi=JSON.stringify(envoi);
+    const {data:ok,error}=await sb.from('carnet').upsert({id,data:envoi,updated_at:new Date().toISOString()}).select('updated_at');
+    if(error) throw error;
+    const ms=msDe(ok && ok[0] && ok[0].updated_at);
+    if(ms){ poserStamp(cle, ms); basePoser(cle, snap); if(id===CARNET_ID) lastRemoteStamp=ms; }
+    // rien de neuf saisi pendant l'envoi : tout est parti
+    if(lastSaved===snap) marquerAEnvoyer(cle, false);
+    setSync("☁ synchronisé","ok");
+    return true;
+  }catch(e){ setSync("⚠ hors ligne","warn"); return false; }
+  finally{ envoiEnCours=false; }
 }
 /* Va chercher dans le cloud le contenu de la saison courante. */
 async function tirerDuCloud(){
   if(!sb) return;
+  const id=CARNET_ID, cle=STORE_KEY;
   try{
-    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',CARNET_ID).maybeSingle();
+    const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',id).maybeSingle();
     if(error) throw error;
+    if(id!==CARNET_ID) return;
     if(data&&data.data){
       recupererAnciensLogos(data.data); // logos d'avant la bibliothèque
-      const remote=normalize(data.data);
+      const distant=normalize(data.data);
+      const stamp=msDe(data.updated_at);
       const localVide = !state.coupes.some(c=>c.tours.length);
-      const remoteStamp = data.updated_at ? new Date(data.updated_at).getTime() : 0;
-      if(localVide || remoteStamp>lastRemoteStamp){
-        applyingRemote=true;
-        state=remote; lastRemoteStamp=remoteStamp;
-        lastSaved=JSON.stringify(state);
-        localStorage.setItem(STORE_KEY,lastSaved);
-        curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
-        buildDivTabs(); buildBody();
-        applyingRemote=false;
+      const premiereFois = localStorage.getItem(cle+':stamp')===null;
+      if(!localVide && aEnvoyer(cle)){
+        // des changements faits ici attendent de partir : on les garde, on ajoute ceux d'ailleurs
+        const base=baseLire(cle);
+        lastRemoteStamp=stamp; poserStamp(cle, stamp);
+        appliquerEtat(base ? normalize(fusion3(base, state, distant)) : fusionCarnets(state, distant, true));
+        basePoser(cle, JSON.stringify(distant));
+        pushToCloud();
+      }else if(!localVide && premiereFois){
+        // premier passage avec cette version : on ne sait pas si l'appareil garde des
+        // saisies faites hors ligne. Le nuage fait foi, mais on ne jette aucun score,
+        // aucune date ni aucun prono que lui n'a pas.
+        lastRemoteStamp=stamp; poserStamp(cle, stamp);
+        basePoser(cle, JSON.stringify(distant));
+        const f=fusionCarnets(distant, state, false);
+        appliquerEtat(f);
+        if(JSON.stringify(f)!==JSON.stringify(distant)){ marquerAEnvoyer(cle, true); pushToCloud(); }
+      }else if(!localVide && enSaisie()){
+        // Joris est en train de taper : on applique a la fin de sa saisie
+        majDistanteEnAttente={data:data.data, stamp};
+        redessinEnAttente=true;
+      }else{
+        lastRemoteStamp=stamp; poserStamp(cle, stamp);
+        basePoser(cle, JSON.stringify(distant));
+        appliquerEtat(distant);
       }
     }
-    setSync("\u2601 synchronis\u00e9","ok");
-  }catch(e){ setSync("\u26a0 synchro indisponible (hors ligne)","warn"); }
+    setSync("☁ synchronisé","ok");
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
 }
-/* Le canal temps reel n'ecoute qu'une seule ligne : il faut donc le rebrancher
-   quand on change de saison, sinon on continuerait d'ecouter l'ancienne. */
-let canalCarnet=null;
-async function rebrancherCanal(){
-  if(!sb) return;
-  try{ if(canalCarnet) await sb.removeChannel(canalCarnet); }catch(e){}
-  canalCarnet = sb.channel('coupes-district-live-'+saisonCourante).on('postgres_changes',
-    {event:'*',schema:'public',table:'carnet',filter:`id=eq.${CARNET_ID}`},
-    (p)=>{
-      if(!p.new||!p.new.data) return;
-      const stamp=p.new.updated_at?new Date(p.new.updated_at).getTime():0;
-      if(stamp<=lastRemoteStamp) return;
-      // Notre propre echo (meme onglet) : on note le passage et on ne touche a rien
-      if(p.new.data._src===CLIENT_ID){ lastRemoteStamp=stamp; return; }
-      const recu=JSON.stringify(p.new.data);
-      if(recu===dernierEnvoi){ lastRemoteStamp=stamp; return; }
-      // Si Joris est en train de taper : NE PAS toucher à state (sinon on efface sa saisie)
-      if(enSaisie()){
-        majDistanteEnAttente={data:p.new.data, stamp};
-        redessinEnAttente=true;
-        return;
-      }
-      applyingRemote=true;
-      state=normalize(p.new.data); lastRemoteStamp=stamp;
-      lastSaved=JSON.stringify(state);
-      localStorage.setItem(STORE_KEY,lastSaved);
-      if(!curOnglet || (curOnglet.startsWith('coupe:') && !state.coupes.some(c=>c.id===curOnglet.slice(6)))) curOnglet = state.coupes.length ? 'coupe:'+state.coupes[0].id : null;
-      buildDivTabs(); buildBody();
-      applyingRemote=false;
-    }).subscribe();
+/* Le nuage a-t-il du nouveau ? Une seule petite question ; le carnet n'est téléchargé
+   que si sa date a changé. Si l'appareil a des changements en attente, on les envoie
+   (l'envoi récupère d'abord ce qui a été ajouté ailleurs). */
+async function verifierCloud(){
+  if(!sb || verifEnCours || envoiEnCours) return;
+  verifEnCours=true;
+  try{
+    if(aEnvoyer(STORE_KEY)){ await envoyerMaintenant(); return; }
+    const date=await nuageDate(CARNET_ID);
+    if(date && (date>lastRemoteStamp || localStorage.getItem(STORE_KEY+':stamp')===null)) await tirerDuCloud();
+    else setSync("☁ synchronisé","ok");
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
+  finally{ verifEnCours=false; }
 }
 async function initSync(){
-  if(!SYNC_ENABLED||typeof supabase==="undefined"){ setSync("\u26a0 synchro indisponible (hors ligne)","warn"); return; }
+  if(!SYNC_ENABLED||typeof supabase==="undefined"){ setSync("⚠ synchro indisponible (hors ligne)","warn"); return; }
   try{
     sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-    await tirerDuCloud();
+    lastRemoteStamp=stampLocal(STORE_KEY);
+    await verifierCloud();
     initBiblio();
-    await rebrancherCanal();
     await fusionnerSaisonsCloud();
     chargerHistorique();   // confrontations directes, lecture seule
-  }catch(e){ setSync("\u26a0 synchro indisponible (hors ligne)","warn"); }
+    // plus de « temps réel » : on regarde au retour sur la page, puis une fois par minute
+    document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ verifierCloud(); verifierBiblio(); } });
+    setInterval(()=>{ if(!document.hidden){ verifierCloud(); verifierBiblio(); } }, 60000);
+  }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
 }
 document.getElementById('btnSync').addEventListener('click',()=>{
   const n=state.coupes.length, nt=state.coupes.reduce((s,c)=>s+c.tours.length,0);

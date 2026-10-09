@@ -45,6 +45,32 @@ Lignes : `champ_district_2627`, `coupes_district_2627`, `equipes_district`
 (la bibliothèque, partagée), `annuaire_fff`, `journal_joris`, `idees_joris`
 (la boîte à idées), plus `<carnet>:saisons` pour la liste des saisons.
 
+### La synchro économe (depuis le 9 octobre 2026)
+
+Le quota gratuit de Supabase (5,5 Go **sortis** du nuage par mois) a sauté le 9 octobre 2026 :
+le « temps réel » (`postgres_changes`) renvoyait la ligne entière (540 Ko pour le championnat)
+à chaque page ouverte à chaque score tapé, et `mes-equipes.html` écoutait **toute** la table
+et relisait tous les carnets à chaque changement. **Ne pas remettre de temps réel.**
+
+Désormais, dans les quatre pages :
+- on demande d'abord `select('id,updated_at')` (quelques octets) ; la ligne n'est téléchargée
+  que si sa date a changé. Vérification à l'ouverture, au retour sur l'onglet, puis chaque minute ;
+- `<clé locale>:stamp` = date de la version du nuage que l'appareil connaît ;
+- `<clé locale>:aEnvoyer` = changement fait ici pas encore parti : le nuage ne l'écrase jamais ;
+- `<clé locale>:base` = dernière version commune ; quand l'appareil ET le nuage ont changé,
+  `fusion3(base, ici, là)` reprend ce qui n'a changé que d'un côté (ajout, correction,
+  suppression), listes à `id` fusionnées élément par élément ;
+- sans base (premier passage), `fusionCarnets` / `fusionJournal` : le nuage fait foi, on
+  ajoute seulement ce qu'il n'a pas ;
+- lectures seules (historique, journal, Mes équipes, annuaire) : `nuageLireUne(id)` reprend la
+  copie de l'appareil (`nuage_cache:<ligne>` ou la clé de la page propriétaire) si elle est à jour ;
+- mémoire du navigateur ≈ 5,2 millions de caractères : `ecrireLocal()` jette les copies de
+  confort si elle est pleine, pour que le carnet s'écrive toujours.
+
+Banc d'essai utilisé : un faux PostgREST (route Playwright sur `*.supabase.co/rest/v1/carnet`)
+avec la vraie bibliothèque supabase-js (`npm pack @supabase/supabase-js@2`, `dist/umd`),
+deux contextes = deux appareils, compteur des octets sortis, mode « panne » (réponses 402).
+
 ### Le piège qui a déjà fait perdre des données deux fois
 
 `save()` et `sauverBiblio()` **réécrivent l'objet entier**. Donc :
