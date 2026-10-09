@@ -332,10 +332,14 @@ document.getElementById('fileImportAll').addEventListener('change',async(e)=>{
       // écrire dans le navigateur
       localStorage.setItem(c.local, JSON.stringify(donnees));   // meme forme que dans chaque carnet
       // écrire dans le cloud si possible
+      let envoye=false;
       if(sb){
         const charge = (c.cle==='jours') ? {jours:donnees} : donnees;
-        try{ await sb.from('carnet').upsert({id:c.cloud, data:charge, updated_at:new Date().toISOString()}); }catch(err){}
+        try{ const {error}=await sb.from('carnet').upsert({id:c.cloud, data:charge, updated_at:new Date().toISOString()}); envoye=!error; }catch(err){}
       }
+      // nuage injoignable : le carnet est noté « à envoyer » (synchro économe), il partira
+      // tout seul dès que le nuage répondra, sans être écrasé par l'ancienne version
+      if(!envoye) localStorage.setItem(c.local+':aEnvoyer','1');
       nb++; refaits.push(c.nom);
     }
     if(!nb){ setStatut("Ce ZIP ne contient aucune sauvegarde reconnue.","warn"); btn.disabled=false; e.target.value=""; return; }
