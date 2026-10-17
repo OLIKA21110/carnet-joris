@@ -190,6 +190,11 @@ ne marque aucun point, le classement n'est pas touché ; la liste propose les é
 sans match à cette journée). Coupes → `tour.exempts` (liste ; qualifiées d'office, affichées
 dans « Résultats »). Choix par la fenêtre « Ajouter un match », en mode une seule équipe.
 
+**Classement domicile / extérieur** : `classement(poule, lieu)` avec `lieu` = `'dom'` ou `'ext'`
+ne compte que ce côté de chaque match (pénalités et forfaits compris) ; boutons au-dessus du
+classement (`curCltLieu`, en mémoire). Pas de zones de montée/descente ni d'alerte de forfait
+général hors du classement général. Domicile + extérieur = général, vérifié sur les 34 poules.
+
 **Récap des journées** (onglet « 📅 Journées ») : par journée, les dates, l'état, et
 le détail de ce qui manque. Un match est « en retard » si sa date est passée et que
 le score est vide. Un bandeau en haut de page résume toutes poules confondues.

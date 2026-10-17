@@ -416,6 +416,7 @@
   .rc-m .rc-quand{color:#c8102e;font-size:.74rem;font-weight:bold}
   .rc-m .rc-quand.gris{color:#a9a49a;font-weight:normal}
   .rc-vide{font-size:.76rem;color:#a9a49a;margin-top:5px}
+  .clt-lieu{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:0 0 10px}
   /* equipe exempte : elle ne joue pas cette journee */
   .exempt-line{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 4px;padding:8px 10px;
     border:1px dashed #8a8f98;border-radius:10px;background:rgba(0,0,0,.03);font-size:.9rem}
@@ -617,7 +618,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 9 oct · synchro économe ☁️</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 17 oct · domicile / extérieur 🏠✈️</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -997,6 +998,7 @@ const CHAMPS_DEFAUT = {buts:true, cartons:true, pen:false, forf:false, pronos:fa
 chargerSaisons();   // fixe STORE_KEY / CARNET_ID avant tout chargement
 let state = load();
 let curOnglet = null;  // "div:<id>" ou "coupe:<id>"
+let curCltLieu = {};  // pouleId -> "" (general) | "dom" | "ext" : le classement affiche
 let curVue = {};     // pouleId -> "matchs" | "classement" | "buteurs" | "fairplay"
 let curPoule = {};   // divisionId -> pouleId actif (quel onglet de poule est ouvert)
 let curJournee = {}; // pouleId -> numéro de journée affichée
@@ -1123,8 +1125,12 @@ function divisionDeLaPoule(pid){
 function ffgDe(poule){ return (poule && poule.ffgen) || {}; }
 function estForfaitGeneral(poule, team){ return !!ffgDe(poule)[team]; }
 
-function classement(poule){
+/* lieu : rien = classement general ; 'dom' = seulement les matchs joues a domicile ;
+   'ext' = seulement les matchs joues a l'exterieur. Chaque match ne compte alors que
+   pour l'equipe qui recoit (ou qui se deplace), penalites et forfaits compris. */
+function classement(poule, lieu){
   const bar=baremeDe(divisionDeLaPoule(poule.id));
+  const cD = lieu!=='ext', cE = lieu!=='dom';   // compter le cote domicile / exterieur
   const ffg=ffgDe(poule);
   const t={};
   equipesDeLaPoule(poule).forEach(e=>t[e]={pts:0,j:0,g:0,n:0,p:0,bp:0,bc:0,pen:0,forf:0});
@@ -1135,10 +1141,10 @@ function classement(poule){
     if(arretNeComptePas(m.id)) return;            // match arrete, a rejouer : rien ne compte
     const sc=state.scores[m.id];
     if(sc){
-      if(num(sc.penh)) t[m.dom].pen += +sc.penh;
-      if(num(sc.pena)) t[m.ext].pen += +sc.pena;
-      if(sc.forfh) t[m.dom].forf++;
-      if(sc.forfa) t[m.ext].forf++;
+      if(cD && num(sc.penh)) t[m.dom].pen += +sc.penh;
+      if(cE && num(sc.pena)) t[m.ext].pen += +sc.pena;
+      if(cD && sc.forfh) t[m.dom].forf++;
+      if(cE && sc.forfa) t[m.ext].forf++;
     }
     let h, a;
     if(sc && num(sc.h) && num(sc.a)){ h=+sc.h; a=+sc.a; }
@@ -1146,11 +1152,15 @@ function classement(poule){
       h = fd==='retour' ? 0 : 3;                  // match qui restait a jouer : perdu 0-3
       a = fe==='retour' ? 0 : 3;
     }else return;
-    t[m.dom].j++; t[m.ext].j++;
-    t[m.dom].bp+=h; t[m.dom].bc+=a; t[m.ext].bp+=a; t[m.ext].bc+=h;
-    if(h>a){ t[m.dom].g++; t[m.dom].pts+=bar.v; t[m.ext].p++; t[m.ext].pts+=bar.d; }
-    else if(h<a){ t[m.ext].g++; t[m.ext].pts+=bar.v; t[m.dom].p++; t[m.dom].pts+=bar.d; }
-    else { t[m.dom].n++; t[m.ext].n++; t[m.dom].pts+=bar.n; t[m.ext].pts+=bar.n; }
+    // un cote du match : ses buts pour, ses buts contre
+    const compter=(e, pour, contre)=>{
+      t[e].j++; t[e].bp+=pour; t[e].bc+=contre;
+      if(pour>contre){ t[e].g++; t[e].pts+=bar.v; }
+      else if(pour<contre){ t[e].p++; t[e].pts+=bar.d; }
+      else { t[e].n++; t[e].pts+=bar.n; }
+    };
+    if(cD) compter(m.dom, h, a);
+    if(cE) compter(m.ext, a, h);
   });
   Object.keys(t).forEach(e=>{ t[e].pts -= t[e].pen; t[e].pts -= t[e].forf; });
   const arr = Object.keys(t).map(e=>({c:e,...t[e],dif:t[e].bp-t[e].bc,fg:ffg[e]||""}));
@@ -2340,13 +2350,20 @@ function trouverDivParPoule(p){
 
 function htmlClassement(p){
   if(!equipesDeLaPoule(p).length) return `<div class="empty">Choisis les équipes dans les matchs pour voir le classement.</div>`;
-  const arr=classement(p);
+  const lieu=curCltLieu[p.id]||"";
+  const arr=classement(p, lieu);
+  const choixLieu=`<div class="clt-lieu">
+    <button class="chip ${lieu===''?'on':''}" data-cltlieu="" data-p="${p.id}">📊 Général</button>
+    <button class="chip ${lieu==='dom'?'on':''}" data-cltlieu="dom" data-p="${p.id}" title="Seulement les matchs joués à la maison">🏠 Domicile</button>
+    <button class="chip ${lieu==='ext'?'on':''}" data-cltlieu="ext" data-p="${p.id}" title="Seulement les matchs joués chez l'adversaire">✈️ Extérieur</button>
+  </div>`;
   const anyPen = arr.some(r=>r.pen>0), anyForf = arr.some(r=>r.forf>0);
   const d=trouverDivParPoule(p);
   const z=zonesDe(d);
   const n=arr.length;
   // on calcule, pour chaque rang, sa zone éventuelle
   function zoneDuRang(rank){
+    if(lieu) return "";   // montees et descentes se jouent sur le classement general
     // Haut du tableau, dans l'ordre : montées, barrage montée, puis les places
     // européennes. Les compteurs s'empilent, donc en Ligue 1 (0 montée) la Ligue
     // des champions commence bien à la 1re place, et en district les places
@@ -2366,7 +2383,8 @@ function htmlClassement(p){
     if(rank>n-z.descentes-z.brgDescente) return "z-brgd";
     return "";
   }
-  let html=`<table class="rank"><thead><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th>${p.champs.pen?'<th>Pén.</th>':''}${p.champs.forf?'<th>Forf.</th>':''}</tr></thead><tbody>`;
+  let html=choixLieu + (lieu ? `<p class="hint">${lieu==='dom'?'🏠 Seulement les matchs joués à domicile.':'✈️ Seulement les matchs joués à l\'extérieur.'} Les montées et descentes se décident au classement général.</p>` : '')
+    + `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th>${p.champs.pen?'<th>Pén.</th>':''}${p.champs.forf?'<th>Forf.</th>':''}</tr></thead><tbody>`;
   arr.forEach((r,i)=>{
     const rank=i+1;
     const cls=zoneDuRang(rank);
@@ -2375,6 +2393,7 @@ function htmlClassement(p){
     html+=`<tr class="${cls}${fav}${r.fg?' fg-row':''}"><td>${rank}</td><td class="club clickable" data-team="${esc(r.c)}" data-p="${p.id}">${star}${htmlLogo(r.c)}${esc(r.c)}${r.fg?`<span class="fg-tag" title="${r.fg==='aller'?'Forfait g\u00e9n\u00e9ral pendant les matchs aller : ses r\u00e9sultats sont annul\u00e9s.':'Forfait g\u00e9n\u00e9ral pendant les matchs retour : ses matchs restants sont perdus 0-3.'}">FORFAIT G\u00c9N\u00c9RAL</span>`:''}</td><td class="pts">${r.pts}</td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.p}</td><td>${r.bp}</td><td>${r.bc}</td><td>${r.dif>0?'+':''}${r.dif}</td>${p.champs.pen?`<td class="pen-col">${r.pen?('-'+r.pen):'—'}</td>`:''}${p.champs.forf?`<td class="forf-col">${r.forf?('-'+r.forf):'—'}</td>`:''}</tr>`;
   });
   html+=`</tbody></table>`;
+  if(lieu) return html;
   // rappel : a trois forfaits, la Federation declare le forfait general
   arr.filter(r=>!r.fg && r.forf>=3).forEach(r=>{
     html+=`<div class="fg-alerte">\u26a0\uFE0F <span><b>${esc(r.c)}</b> a ${r.forf} forfaits.
@@ -3493,6 +3512,9 @@ function brancherBody(){
   // sous-onglets
   box.querySelectorAll('[data-vue]').forEach(b=>b.addEventListener('click',()=>{
     curVue[b.dataset.p]=b.dataset.vue; buildBody();
+  }));
+  box.querySelectorAll('[data-cltlieu]').forEach(b=>b.addEventListener('click',()=>{
+    curCltLieu[b.dataset.p]=b.dataset.cltlieu; buildBody();
   }));
   // navigation journées
   box.querySelectorAll('[data-jprev]').forEach(b=>b.addEventListener('click',()=>{
