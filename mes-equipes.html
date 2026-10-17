@@ -202,7 +202,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 9 oct · synchro économe ☁️</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 17 oct · sans doublons ✓</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -317,7 +317,28 @@ function assurerListes(b){
   if(!b.equipes || typeof b.equipes!=='object') b.equipes={};
   if(!Array.isArray(b.typesEquipe) || !b.typesEquipe.length) b.typesEquipe=TYPES_DEFAUT.slice();
   if(!Array.isArray(b.categories) || !b.categories.length) b.categories=CATS_DEFAUT.slice();
+  dedoublonnerEquipes(b);
   return b;
+}
+/* Deux equipes d'un club sont LA MEME si elles ont le meme type et la meme categorie,
+   quels que soient les majuscules et les accents (« Équipe 1 » = « EQUIPE 1 ») : c'est
+   ce nom-la que les carnets utilisent, pas l'identifiant interne. */
+function cleEquipe(e){
+  const n=s=>(s||'').normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  return n(e && e.type)+'|'+n(e && e.cat);
+}
+/* Octobre 2026 : la fusion entre appareils reconnaissait les equipes a leur identifiant.
+   Une meme equipe creee sur deux appareils (deux identifiants) apparaissait donc deux
+   fois sur le PC. On garde la premiere. En memoire seulement : pas de sauvegarde de
+   fond, la version propre partira avec le prochain geste de Joris. */
+function dedoublonnerEquipes(b){
+  Object.keys(b.equipes||{}).forEach(nom=>{
+    const c=b.equipes[nom];
+    if(!c || !Array.isArray(c.equipes)) return;
+    const vus=new Set();
+    const net=c.equipes.filter(e=>{ if(!e) return false; const k=cleEquipe(e); if(vus.has(k)) return false; vus.add(k); return true; });
+    if(net.length!==c.equipes.length) c.equipes=net;
+  });
 }
 /* Identifiant de cet onglet, tire une fois au chargement. Chaque envoi vers Supabase
    en est tamponne (_src) et tout echo portant notre propre marque est ignore.
@@ -467,10 +488,12 @@ async function fusionnerAvantEnvoi(){
       const ici = biblio.equipes[nom], la = dist[nom];
       if(!ici || !la || typeof la!=='object') return;
       const vus = new Set((ici.equipes||[]).map(e=>e && e.id));
+      const memes = new Set((ici.equipes||[]).map(cleEquipe));
       (la.equipes||[]).forEach(e=>{
-        if(e && e.id && !vus.has(e.id) && !tombePresente('eq', nom+"/"+e.id)){
+        if(e && e.id && !vus.has(e.id) && !memes.has(cleEquipe(e)) && !tombePresente('eq', nom+"/"+e.id)){
           ici.equipes = ici.equipes || [];
           ici.equipes.push(e);                                            // equipe ajoutee ailleurs
+          memes.add(cleEquipe(e));
         }
       });
     });
@@ -1795,9 +1818,10 @@ async function verifierBiblio(){
         const la=biblio.equipes[nom];
         if(!ici || !la || typeof la!=='object') return;
         const vus=new Set((la.equipes||[]).map(e=>e && e.id));
+        const memes=new Set((la.equipes||[]).map(cleEquipe));
         (ici.equipes||[]).forEach(e=>{
-          if(e && e.id && !vus.has(e.id) && !tombePresente('eq', nom+"/"+e.id)){
-            la.equipes=la.equipes||[]; la.equipes.push(e); ajoute=true;
+          if(e && e.id && !vus.has(e.id) && !memes.has(cleEquipe(e)) && !tombePresente('eq', nom+"/"+e.id)){
+            la.equipes=la.equipes||[]; la.equipes.push(e); memes.add(cleEquipe(e)); ajoute=true;
           }
         });
       });
