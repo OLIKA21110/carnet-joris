@@ -3,13 +3,14 @@
 Le 18/10/2026, des pierres tombales restées sur les clubs remis à la main la veille ont
 fait retirer 110 clubs, recréés ensuite sans leurs équipes. Ce script repart de la
 version ACTUELLE du nuage (rien de ce qui a été fait depuis n'est perdu) et :
-  - remet à chaque club de la sauvegarde de référence ses équipes s'il n'en a plus,
+  - remet à chaque club les équipes de la sauvegarde de référence qui lui manquent
+    (même type et même catégorie = même équipe ; rien n'est enlevé),
     et complète les cases vides (ville, stade, logo…) ;
   - rajoute les clubs de la référence qui manqueraient ;
   - lève les pierres tombales des clubs et équipes présents (_supprimes / _revenus).
 APPLIQUER=1 pour écrire ; sinon simple essai à blanc.
 """
-import json, os, sys, time, urllib.request
+import json, os, sys, time, unicodedata, urllib.request
 
 SB = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1/carnet"
 CLE = os.environ["SUPABASE_KEY"]
@@ -22,6 +23,10 @@ def http(url, methode="GET", corps=None, entetes=None):
     req = urllib.request.Request(url, data=donnees, method=methode, headers=dict(H, **(entetes or {})))
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read().decode()
+
+def cle_equipe(e):
+    n = lambda x: "".join(ch for ch in unicodedata.normalize("NFD", x or "").upper() if ch.isalnum() and ord(ch) < 128)
+    return n(e.get("type")) + "|" + n(e.get("cat"))
 
 def compter(b):
     eq = b.get("equipes", {})
@@ -39,8 +44,13 @@ for nom, r in ref.items():
     if not isinstance(c, dict):
         b["equipes"][nom] = r; ajoutes += 1
         continue
-    if not c.get("equipes") and r.get("equipes"):
-        c["equipes"] = r["equipes"]; remis_eq += 1
+    # on ajoute les equipes de la reference qui manquent (meme type + meme categorie =
+    # meme equipe, majuscules et accents ignores) ; on n'enleve rien
+    deja = {cle_equipe(e) for e in (c.get("equipes") or []) if isinstance(e, dict)}
+    manquantes = [e for e in (r.get("equipes") or []) if isinstance(e, dict) and cle_equipe(e) not in deja]
+    if manquantes:
+        c["equipes"] = (c.get("equipes") or []) + manquantes
+        remis_eq += len(manquantes)
     for k, v in r.items():
         if k != "equipes" and (c.get(k) is None or c.get(k) == "") and v not in (None, ""):
             c[k] = v; completes += 1
@@ -56,7 +66,7 @@ for nom, c in b["equipes"].items():
             del sup[k]; rev[k] = maintenant; leves += 1
 
 apres = compter(b)
-print("::notice::Nuage (%s) : %d clubs / %d equipes -> %d clubs / %d equipes. Equipes remises a %d clubs, %d clubs rajoutes, %d cases completees, %d pierres tombales levees. %s"
+print("::notice::Nuage (%s) : %d clubs / %d equipes -> %d clubs / %d equipes. %d equipes remises, %d clubs rajoutes, %d cases completees, %d pierres tombales levees. %s"
       % (cur["updated_at"][:16], avant[0], avant[1], apres[0], apres[1], remis_eq, ajoutes, completes, leves,
          "ECRIT" if APPLIQUER else "essai a blanc, rien ecrit"))
 if APPLIQUER:
