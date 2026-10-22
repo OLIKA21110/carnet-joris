@@ -202,7 +202,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 17 oct · sans doublons ✓</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 22 oct · clubs protégés 🛡️</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -462,24 +462,62 @@ function tombePoser(quoi, cle){
   biblio._supprimes = biblio._supprimes || {};
   biblio._supprimes[quoi+":"+cle] = Date.now();
 }
+/* Octobre 2026 : Joris avait remis a la main des clubs effaces le matin meme. Leurs
+   pierres tombales sont restees, et le lendemain un autre appareil les a de nouveau
+   retires (110 clubs). Un club ou une equipe qui REVIENT note donc l'heure de son retour
+   (biblio._revenus) : une pierre tombale plus ancienne que ce retour ne compte plus.
+   Les deux listes voyagent avec la bibliotheque et se fusionnent en gardant l'heure la
+   plus recente de chaque cote. */
 function tombePresente(quoi, cle){
-  const t = (biblio._supprimes||{})[quoi+":"+cle];
-  return !!t && (Date.now()-t) < 60*24*3600*1000;
+  const k = quoi+":"+cle;
+  const t = (biblio._supprimes||{})[k], r = (biblio._revenus||{})[k];
+  return !!t && (Date.now()-t) < 60*24*3600*1000 && !(r && r>=t);
 }
 function tombeNettoyer(){
-  const t = biblio._supprimes; if(!t) return;
   const limite = Date.now() - 60*24*3600*1000;
-  Object.keys(t).forEach(k=>{ if(t[k] < limite) delete t[k]; });
+  ['_supprimes','_revenus'].forEach(liste=>{
+    const t = biblio[liste]; if(!t) return;
+    Object.keys(t).forEach(k=>{ if(t[k] < limite) delete t[k]; });
+  });
+}
+/* Ce qui est dans la bibliotheque est la : sa pierre tombale ne vaut plus. */
+function tombeLeverPresents(){
+  const maintenant = Date.now();
+  Object.keys(biblio.equipes||{}).forEach(nom=>{
+    const leve = (quoi, cle)=>{
+      if(!tombePresente(quoi, cle)) return;
+      biblio._revenus = biblio._revenus || {};
+      biblio._revenus[quoi+":"+cle] = maintenant;
+    };
+    leve('club', nom);
+    const c = biblio.equipes[nom];
+    ((c && c.equipes) || []).forEach(e=>{ if(e && e.id) leve('eq', nom+'/'+e.id); });
+  });
+}
+/* Pierres tombales et retours des deux cotes : on garde l'heure la plus recente. */
+function tombesFusionner(dist){
+  ['_supprimes','_revenus'].forEach(liste=>{
+    const la = dist && dist[liste]; if(!la) return;
+    biblio[liste] = biblio[liste] || {};
+    Object.keys(la).forEach(k=>{ if(!(biblio[liste][k] >= la[k])) biblio[liste][k] = la[k]; });
+  });
 }
 async function fusionnerAvantEnvoi(){
   if(!sb) return;
   try{
     // rien n'a bouge dans le nuage depuis notre derniere lecture : rien a recuperer
-    if(await nuageDate(BIBLIO_ID) <= biblioStamp) return;
+    if(await nuageDate(BIBLIO_ID) === biblioStamp) return;
     const {data} = await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
     const dist = data && data.data && data.data.equipes;
     if(!dist) return;
+    tombesFusionner(data.data);
     tombeNettoyer();
+    // efface ailleurs (et pas remis depuis) : notre copie, plus ancienne, ne le garde pas
+    Object.keys(biblio.equipes).forEach(nom=>{
+      if(tombePresente('club', nom)){ delete biblio.equipes[nom]; return; }
+      const c = biblio.equipes[nom];
+      if(c && Array.isArray(c.equipes)) c.equipes = c.equipes.filter(e=>!(e && e.id && tombePresente('eq', nom+"/"+e.id)));
+    });
     Object.keys(dist).forEach(nom=>{
       if(!biblio.equipes[nom]){
         if(!tombePresente('club', nom)) biblio.equipes[nom] = dist[nom];   // club ajoute ailleurs
@@ -510,6 +548,7 @@ function sauverBiblio(){
   biblioTimer=setTimeout(async()=>{
     try{
       setSync("↑ envoi…");
+      tombeLeverPresents();            // un club remis a la main n'est plus « efface »
       await fusionnerAvantEnvoi();     // ne jamais effacer ce qui a ete ajoute ailleurs
       const envoi=Object.assign({},biblio,{_src:CLIENT_ID});
       dernierEnvoiBiblio=JSON.stringify(envoi); // filet de secours, en plus du tampon _src
@@ -1692,6 +1731,10 @@ function alimenter(){
    - un changement fait ici et pas encore envoyé est noté (<clé>:aEnvoyer) : tant qu'il
      n'est pas parti, le nuage n'a PAS le droit de l'écraser. Avant, ce qui était saisi
      pendant une coupure était effacé au retour du réseau par l'ancienne version. */
+/* Les dates (updated_at) sont posees par l'appareil qui ecrit, avec SA montre : un
+   telephone en avance ferait croire qu'il a la version la plus recente. On ne compare
+   donc jamais l'ordre de deux dates : une date DIFFERENTE de celle qu'on connait
+   suffit a dire que le nuage a change. */
 function msDe(iso){ return iso ? new Date(iso).getTime() : 0; }
 function stampLocal(cle){ return +localStorage.getItem(cle+':stamp') || 0; }
 function poserStamp(cle, ms){ try{ localStorage.setItem(cle+':stamp', String(ms||0)); }catch(e){} }
@@ -1795,7 +1838,7 @@ async function verifierBiblio(){
     biblioLue=true;   // le nuage a répondu : on a le droit d'écrire à partir de maintenant
     if(aEnvoyer(BIBLIO_KEY)){ sauverBiblio(); return; }
     const premiereFois = localStorage.getItem(BIBLIO_KEY+':stamp')===null;
-    if(!date || (date<=biblioStamp && !premiereFois)) return;
+    if(!date || (date===biblioStamp && !premiereFois)) return;
     const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
     if(error) throw error;
     if(!data || !data.data || typeof data.data!=='object' || !data.data.equipes) return;
@@ -1805,6 +1848,7 @@ async function verifierBiblio(){
     biblio=Object.assign({},data.data); delete biblio._src; assurerListes(biblio);
     biblioStamp=msDe(data.updated_at); poserStamp(BIBLIO_KEY, biblioStamp);
     let ajoute=false;
+    if(premiereFois && local){ tombesFusionner(local); tombeNettoyer(); }
     if(premiereFois && local && local.equipes){
       // premier passage avec cette version : le nuage fait foi, mais on garde les clubs
       // et les équipes créés sur cet appareil que le nuage n'a pas (saisis hors ligne),

@@ -618,7 +618,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 17 oct · domicile / extérieur 🏠✈️</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 22 oct · clubs protégés 🛡️</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -4409,7 +4409,21 @@ let biblioLue=false;
 function fusionPourEnvoi(distant){
   const base = (distant && typeof distant==='object') ? Object.assign({},distant) : {};
   delete base._src;
-  const sortie = Object.assign({}, base, {equipes: Object.assign({}, base.equipes||{}, biblio.equipes||{})});
+  // Les clubs appartiennent a « Mes equipes » : pour un club que les deux ont, la version du
+  // nuage fait foi et on complete seulement ce qui lui manque (un logo pose ici). Avant, la
+  // copie de cette page remplacait le club entier, et une copie perimee sans ses equipes
+  // les effacait (18/10/2026). Un club efface la-bas (pierre tombale) ne revient pas.
+  const eqs = Object.assign({}, base.equipes||{});
+  const sup = base._supprimes||{}, rev = base._revenus||{};
+  const enterre = nom=>{ const k='club:'+nom, t=sup[k], r=rev[k]; return !!t && (Date.now()-t) < 60*24*3600*1000 && !(r && r>=t); };
+  Object.keys(biblio.equipes||{}).forEach(nom=>{
+    const ici = biblio.equipes[nom], la = eqs[nom];
+    if(!la || typeof la!=='object'){ if(!enterre(nom)) eqs[nom] = ici; return; }
+    const r = Object.assign({}, la);
+    Object.keys(ici||{}).forEach(c=>{ if(c!=='equipes' && (r[c]===undefined || r[c]==='')) r[c]=ici[c]; });
+    eqs[nom] = r;
+  });
+  const sortie = Object.assign({}, base, {equipes: eqs});
   // on ne touche pas aux listes : celles du cloud font foi
   if(base.typesEquipe) sortie.typesEquipe = base.typesEquipe;
   if(base.categories)  sortie.categories  = base.categories;
@@ -4426,7 +4440,7 @@ function sauverBiblio(){
       // on part de la version la plus fraiche, mais on ne la telecharge que si elle a change
       const date=await nuageDate(BIBLIO_ID);
       let distant=biblio;
-      if(date>biblioStamp){
+      if(date!==biblioStamp){
         const {data,error}=await sb.from('carnet').select('data').eq('id',BIBLIO_ID).maybeSingle();
         if(error) throw error;
         distant=data && data.data;
@@ -4648,6 +4662,10 @@ function remplirLieuxManquants(){
    - un changement fait ici et pas encore envoyé est noté (<clé>:aEnvoyer) : tant qu'il
      n'est pas parti, le nuage n'a PAS le droit de l'écraser. Avant, ce qui était saisi
      pendant une coupure était effacé au retour du réseau par l'ancienne version. */
+/* Les dates (updated_at) sont posees par l'appareil qui ecrit, avec SA montre : un
+   telephone en avance ferait croire qu'il a la version la plus recente. On ne compare
+   donc jamais l'ordre de deux dates : une date DIFFERENTE de celle qu'on connait
+   suffit a dire que le nuage a change. */
 function msDe(iso){ return iso ? new Date(iso).getTime() : 0; }
 function stampLocal(cle){ return +localStorage.getItem(cle+':stamp') || 0; }
 function poserStamp(cle, ms){ try{ localStorage.setItem(cle+':stamp', String(ms||0)); }catch(e){} }
@@ -4746,7 +4764,7 @@ async function verifierBiblio(){
     const date=await nuageDate(BIBLIO_ID);
     biblioLue=true;   // le nuage a répondu : on a le droit d'écrire à partir de maintenant
     if(aEnvoyer(BIBLIO_KEY)){ sauverBiblio(); return; }
-    if(!date || date<=biblioStamp) return;
+    if(!date || date===biblioStamp) return;
     const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',BIBLIO_ID).maybeSingle();
     if(error) throw error;
     if(data && data.data && data.data.equipes && !aEnvoyer(BIBLIO_KEY)){
@@ -4836,7 +4854,7 @@ async function envoyerMaintenant(){
     setSync("↑ envoi…");
     // quelqu'un a-t-il écrit ailleurs depuis notre dernière lecture ? on garde ce qu'il a ajouté
     const date=await nuageDate(id);
-    if(date>lastRemoteStamp){
+    if(date!==lastRemoteStamp){
       const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',id).maybeSingle();
       if(error) throw error;
       if(id!==CARNET_ID) return false;
@@ -4912,7 +4930,7 @@ async function verifierCloud(){
   try{
     if(aEnvoyer(STORE_KEY)){ await envoyerMaintenant(); return; }
     const date=await nuageDate(CARNET_ID);
-    if(date && (date>lastRemoteStamp || localStorage.getItem(STORE_KEY+':stamp')===null)) await tirerDuCloud();
+    if(date && (date!==lastRemoteStamp || localStorage.getItem(STORE_KEY+':stamp')===null)) await tirerDuCloud();
     else setSync("☁ synchronisé","ok");
   }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); }
   finally{ verifEnCours=false; }

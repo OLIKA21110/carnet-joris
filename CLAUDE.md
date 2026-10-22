@@ -87,6 +87,15 @@ deux contextes = deux appareils, compteur des octets sortis, mode « panne » (r
 4. **`enSaisie()` / `redessinerSiPossible()`** : ne jamais reconstruire la page pendant
    que Joris tape — le curseur sauterait.
 
+5. **Une pierre tombale cède devant un retour** (octobre 2026) : remettre un club efface
+   sa marque (`biblio._revenus`, posé par `tombeLeverPresents()` à chaque envoi de Mes
+   équipes). Sans ça, des clubs remis à la main le 17/10 ont été retirés de nouveau le 18/10
+   par un autre appareil qui gardait les vieilles marques. `_supprimes` et `_revenus` se
+   fusionnent en gardant l'heure la plus récente. Championnat et coupes ne remplacent plus
+   un club entier par leur copie : la version du nuage fait foi, on complète seulement.
+6. **Les dates `updated_at` viennent de la montre de chaque appareil** : la synchro ne
+   compare que l'égalité (« la date a changé »), jamais l'ordre.
+
 Garde-fous de récupération, déjà en place :
 
 - **Corbeille** (`state.corbeille`) : supprimer un championnat, une poule, une coupe

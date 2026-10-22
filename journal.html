@@ -180,7 +180,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>MON JOURNAL <span class="vbadge">version 9 oct · synchro économe ☁️</span></h1>
+    <h1>MON JOURNAL <span class="vbadge">version 22 oct · clubs protégés 🛡️</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -924,6 +924,10 @@ function setSync(txt, cls){
    - un changement fait ici et pas encore envoyé est noté (<clé>:aEnvoyer) : tant qu'il
      n'est pas parti, le nuage n'a PAS le droit de l'écraser. Avant, ce qui était saisi
      pendant une coupure était effacé au retour du réseau par l'ancienne version. */
+/* Les dates (updated_at) sont posees par l'appareil qui ecrit, avec SA montre : un
+   telephone en avance ferait croire qu'il a la version la plus recente. On ne compare
+   donc jamais l'ordre de deux dates : une date DIFFERENTE de celle qu'on connait
+   suffit a dire que le nuage a change. */
 function msDe(iso){ return iso ? new Date(iso).getTime() : 0; }
 function stampLocal(cle){ return +localStorage.getItem(cle+':stamp') || 0; }
 function poserStamp(cle, ms){ try{ localStorage.setItem(cle+':stamp', String(ms||0)); }catch(e){} }
@@ -1045,7 +1049,7 @@ async function envoyerJournal(){
     setSync("↑ envoi…");
     // écrit ailleurs depuis notre dernière lecture ? on garde les jours ajoutés là-bas
     const date=await nuageDate(JOURNAL_ID);
-    if(date>lastRemoteStamp){
+    if(date!==lastRemoteStamp){
       const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',JOURNAL_ID).maybeSingle();
       if(error) throw error;
       if(data && data.data && data.data.jours){
@@ -1094,7 +1098,7 @@ async function verifierJournal(){
     journalLu=true;   // le nuage a répondu : on a le droit d'écrire
     if(aEnvoyer(STORE_KEY)){ await envoyerJournal(); return; }
     const premiereFois = localStorage.getItem(STORE_KEY+':stamp')===null;
-    if(!date || (date<=lastRemoteStamp && !premiereFois)){ setSync("☁ synchronisé","ok"); return; }
+    if(!date || (date===lastRemoteStamp && !premiereFois)){ setSync("☁ synchronisé","ok"); return; }
     const {data,error}=await sb.from('carnet').select('data,updated_at').eq('id',JOURNAL_ID).maybeSingle();
     if(error) throw error;
     if(data && data.data && data.data.jours){
