@@ -1936,7 +1936,22 @@ async function initSync(){
       verifierBiblio();
       lireTousLesCarnets().then(()=>{ alimenter(); redessinerSiPossible(); });
     });
-    setInterval(()=>{ if(!document.hidden) verifierBiblio(); }, 60000);
+    // Page affichee mais que personne ne touche depuis 5 minutes (le PC reste allume sur
+    // le carnet) : on ne regarde plus le nuage que toutes les 10 minutes. Chaque
+    // telechargement compte dans le quota gratuit. Le premier geste relance une verification.
+    let activitePage=Date.now(), tourVerif=0;
+    const INACTIF=5*60000;
+    ['pointerdown','keydown','touchstart','wheel'].forEach(ev=>document.addEventListener(ev,()=>{
+      const reveil = Date.now()-activitePage > INACTIF;
+      activitePage=Date.now();
+      if(reveil && !document.hidden){ verifierBiblio(); }
+    }, {capture:true, passive:true}));
+    setInterval(()=>{
+      if(document.hidden) return;
+      tourVerif++;
+      if(Date.now()-activitePage > INACTIF && tourVerif%10) return;
+      verifierBiblio();
+    }, 60000);
   }catch(e){ setSync("⚠ synchro indisponible (hors ligne)","warn"); buildListe(); }
 }
 
