@@ -3049,6 +3049,14 @@ function sauvRemettreBiblio(bib){
     const cur=biblio.equipes[nom], v=src[nom];
     if(v.logo && !cur.logo){ cur.logo=v.logo; n++; }
     ["ville","cp","stade","dept","fff","fffAff"].forEach(k=>{ if(v[k] && !cur[k]) cur[k]=v[k]; });
+    // les equipes du club (type et categorie) reviennent aussi : avant, seuls le logo et le
+    // stade revenaient, et Joris perdait les categories. Meme type + meme categorie = meme equipe.
+    const cle=e=>[e&&e.type,e&&e.cat].map(x=>(x||'').normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"")).join('|');
+    if(Array.isArray(v.equipes) && v.equipes.length){
+      if(!Array.isArray(cur.equipes)) cur.equipes=[];
+      const deja=new Set(cur.equipes.map(cle));
+      v.equipes.forEach(e=>{ if(e && !deja.has(cle(e))){ cur.equipes.push(Object.assign({}, e)); deja.add(cle(e)); n++; } });
+    }
   });
   if(n && typeof sauverBiblio==='function') sauverBiblio();
   return n;
@@ -3119,7 +3127,7 @@ async function sauvFusionner(jour){
   const nl=sauvRemettreBiblio(d.biblio);
   save(); buildDivTabs(); buildBody();
   document.getElementById('corbModal').hidden=true;
-  alert(`${mot}${nl?`, et ${nl} logo${nl>1?'s':''} retrouv\u00e9${nl>1?'s':''}`:''}.`);
+  alert(`${mot}${nl?`, et ${nl} logo${nl>1?'s':''} ou \u00e9quipe${nl>1?'s':''} de club retrouv\u00e9${nl>1?'s':''}`:''}.`);
 }
 async function sauvRemplacer(jour){
   const d=sauvCache[jour]; if(!d||!d.carnet) return;

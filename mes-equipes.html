@@ -202,7 +202,7 @@
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 22 oct · clubs protégés 🛡️</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · catégories gardées 🏷️</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -1715,9 +1715,48 @@ function alimenter(){
   [...usageChamp, ...usageCoupes].forEach(brut=>{
     const n=clubDeNom(brut);
     if(!n) return;
-    if(!biblio.equipes[n]){ biblio.equipes[n]={logo:"",ville:"",equipes:[{id:uid(),type:"Équipe 1",cat:"Senior"}]}; neuf=true; }
+    if(!biblio.equipes[n]){ biblio.equipes[n]={logo:"",ville:"",equipes:[]}; neuf=true; }
+    const club=biblio.equipes[n];
+    if(!Array.isArray(club.equipes)) club.equipes=[];
+    // Le carnet dit de quelle equipe il s'agit : « DAIX — EQUIPE 2 U13 ». Quand un
+    // championnat ou une coupe est restaure, on recree donc la VRAIE equipe (type et
+    // categorie), et plus une « Equipe 1 Senior » par defaut : Joris perdait ses categories.
+    const i=brut.indexOf(" — ");
+    const eq = i>0 ? equipeDepuisSuffixe(brut.slice(i+3)) : null;
+    if(eq){
+      const meme=club.equipes.find(e=>cleEquipe(e)===cleEquipe(eq));
+      if(!meme){ club.equipes.push(Object.assign({id:uid()}, eq)); neuf=true; }
+      // meme equipe ecrite autrement (« Équipe 1 / Senior », ancien defaut) : on reprend
+      // l'orthographe des listes, sinon l'etiquette du championnat ne s'affiche pas dessous
+      else if(meme.type!==eq.type || meme.cat!==eq.cat){ meme.type=eq.type; meme.cat=eq.cat; neuf=true; }
+    }else if(!club.equipes.length){
+      const parDefaut=equipeDepuisSuffixe((biblio.typesEquipe||[])[0] ? biblio.typesEquipe[0]+' SENIOR' : 'SENIOR')
+        || {type:"Équipe 1",cat:"Senior"};
+      club.equipes.push(Object.assign({id:uid()}, parDefaut)); neuf=true;
+    }
   });
   if(neuf) sauverBiblio();
+}
+/* « EQUIPE 2 U13 » -> {type:"EQUIPE 2", cat:"U13"}, avec l'orthographe des listes de
+   Mes equipes. C'est l'inverse de suffixeEquipe(). */
+function equipeDepuisSuffixe(suffixe){
+  const n=x=>(x||'').normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  const mots=(suffixe||'').trim().split(/\s+/).filter(Boolean);
+  if(!mots.length) return null;
+  const types=biblio.typesEquipe||[], cats=biblio.categories||[];
+  const dansListe=(liste, txt)=>liste.find(x=>n(x)===n(txt));
+  // le type peut faire plusieurs mots (« EQUIPE 2 ») : on essaie du plus long au plus court
+  for(let k=mots.length; k>=1; k--){
+    const type=dansListe(types, mots.slice(0,k).join(' '));
+    if(!type) continue;
+    const reste=mots.slice(k).join(' ');
+    if(!reste) return {type, cat:type};
+    return {type, cat: dansListe(cats, reste) || reste};
+  }
+  // type inconnu : « SENIOR » seul est une categorie, sinon on garde le texte comme type
+  const cat=dansListe(cats, mots.join(' '));
+  if(cat) return {type: types[0] || "Équipe 1", cat};
+  return {type: mots.join(' '), cat: ''};
 }
 
 /* ===== Synchro économe (octobre 2026) =====
