@@ -343,6 +343,11 @@
 
   table.rank{width:100%;border-collapse:collapse;font-size:.88rem;background:#fff;border-radius:10px;overflow:hidden}
   table.rank th{background:var(--noir);color:#fff;padding:7px 5px;font-size:.72rem;text-transform:uppercase}
+  table.rank th.tri{cursor:pointer;user-select:none;white-space:nowrap}
+  table.rank th.tri .fl{opacity:.45;font-size:.65rem;margin-left:2px}
+  table.rank th.tri.on{background:var(--rouge,#C8102E)}
+  table.rank th.tri.on .fl{opacity:1}
+  .tri-info{text-align:center;font-size:.8rem;margin:6px 0}
   table.rank td{padding:7px 5px;border-bottom:1px solid #f0f0f0;text-align:center}
   table.rank td.club{text-align:left;font-weight:bold}
   table.rank td.pts{font-weight:900;color:var(--rouge)}
@@ -618,7 +623,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 22 oct · clubs protégés 🛡️</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · flèches de tri ⇅</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -998,6 +1003,7 @@ const CHAMPS_DEFAUT = {buts:true, cartons:true, pen:false, forf:false, pronos:fa
 chargerSaisons();   // fixe STORE_KEY / CARNET_ID avant tout chargement
 let state = load();
 let curOnglet = null;  // "div:<id>" ou "coupe:<id>"
+let curTri = {};      // pouleId -> {col, sens} : tri du classement choisi par Joris (en memoire)
 let curCltLieu = {};  // pouleId -> "" (general) | "dom" | "ext" : le classement affiche
 let curVue = {};     // pouleId -> "matchs" | "classement" | "buteurs" | "fairplay"
 let curPoule = {};   // divisionId -> pouleId actif (quel onglet de poule est ouvert)
@@ -1284,8 +1290,9 @@ function htmlStats(p){
   if(!eqs.length) return `<div class="empty">Choisis les équipes dans les matchs pour voir les stats.</div>`;
   const cl=classement(p);
   // meilleure attaque / défense
-  const parBP=[...cl].sort((a,b)=>b.bp-a.bp);
-  const parBC=[...cl].sort((a,b)=>a.bc-b.bc);
+  // classements complets (idee de Joris) : toutes les equipes, pas seulement les 5 premieres
+  const parBP=[...cl].sort((a,b)=>b.bp-a.bp || a.j-b.j || a.c.localeCompare(b.c));
+  const parBC=[...cl].sort((a,b)=>a.bc-b.bc || b.j-a.j || a.c.localeCompare(b.c));
   // forme sur les 5 derniers
   const forme=eqs.map(e=>{
     const f=formePouleEquipe(p,e,5);
@@ -1310,12 +1317,12 @@ function htmlStats(p){
 
   // Meilleure attaque
   html+=`<div class="stat-card"><h4>⚔️ Meilleures attaques</h4><div class="stat-liste">`+
-    parBP.slice(0,5).map((r,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(r.c,20)}<span class="sr-nom">${esc(r.c)}</span><span class="sr-val">${r.bp} buts</span></div>`).join("")+
+    parBP.map((r,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(r.c,20)}<span class="sr-nom">${esc(r.c)}</span><span class="sr-val">${r.bp} buts · ${r.j} m.</span></div>`).join("")+
     `</div></div>`;
 
   // Meilleure défense
   html+=`<div class="stat-card"><h4>🛡️ Meilleures défenses</h4><div class="stat-liste">`+
-    parBC.slice(0,5).map((r,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(r.c,20)}<span class="sr-nom">${esc(r.c)}</span><span class="sr-val">${r.bc} encaissés</span></div>`).join("")+
+    parBC.map((r,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(r.c,20)}<span class="sr-nom">${esc(r.c)}</span><span class="sr-val">${r.bc} encaissés · ${r.j} m.</span></div>`).join("")+
     `</div></div>`;
 
   html+=`</div>`;
@@ -2351,7 +2358,12 @@ function trouverDivParPoule(p){
 function htmlClassement(p){
   if(!equipesDeLaPoule(p).length) return `<div class="empty">Choisis les équipes dans les matchs pour voir le classement.</div>`;
   const lieu=curCltLieu[p.id]||"";
-  const arr=classement(p, lieu);
+  const officiel=classement(p, lieu);
+  // le rang officiel reste affiche (et les couleurs de montee/descente le suivent),
+  // meme quand Joris trie le tableau par une autre colonne
+  const rangOff={}; officiel.forEach((r,i)=>rangOff[r.c]=i+1);
+  const tri=curTri[p.id];
+  const arr = tri ? [...officiel].sort((a,b)=>(a[tri.col]-b[tri.col])*tri.sens || rangOff[a.c]-rangOff[b.c]) : officiel;
   const choixLieu=`<div class="clt-lieu">
     <button class="chip ${lieu===''?'on':''}" data-cltlieu="" data-p="${p.id}">📊 Général</button>
     <button class="chip ${lieu==='dom'?'on':''}" data-cltlieu="dom" data-p="${p.id}" title="Seulement les matchs joués à la maison">🏠 Domicile</button>
@@ -2383,10 +2395,17 @@ function htmlClassement(p){
     if(rank>n-z.descentes-z.brgDescente) return "z-brgd";
     return "";
   }
-  let html=choixLieu + (lieu ? `<p class="hint">${lieu==='dom'?'🏠 Seulement les matchs joués à domicile.':'✈️ Seulement les matchs joués à l\'extérieur.'} Les montées et descentes se décident au classement général.</p>` : '')
-    + `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Diff</th>${p.champs.pen?'<th>Pén.</th>':''}${p.champs.forf?'<th>Forf.</th>':''}</tr></thead><tbody>`;
+  const COLS=[['pts','Pts'],['j','J'],['g','G'],['n','N'],['p','P'],['bp','BP'],['bc','BC'],['dif','Diff']];
+  const entete=COLS.map(([k,t])=>{
+    const on=tri && tri.col===k;
+    const fl = on ? (tri.sens<0 ? '▼' : '▲') : '⇅';
+    return `<th class="tri${on?' on':''}" data-tri="${k}" data-p="${p.id}" title="Trier par cette colonne">${t}<span class="fl">${fl}</span></th>`;
+  }).join('');
+  const nomCol=Object.fromEntries(COLS);
+  let html=choixLieu + (tri ? `<div class="tri-info">Trié par <b>${nomCol[tri.col]}</b> ${tri.sens<0?'(du plus grand au plus petit)':'(du plus petit au plus grand)'} · <button class="mini" data-tri="" data-p="${p.id}">↺ Classement normal</button></div>` : '') + (lieu ? `<p class="hint">${lieu==='dom'?'🏠 Seulement les matchs joués à domicile.':'✈️ Seulement les matchs joués à l\'extérieur.'} Les montées et descentes se décident au classement général.</p>` : '')
+    + `<table class="rank"><thead><tr><th>#</th><th style="text-align:left">Équipe</th>${entete}${p.champs.pen?'<th>Pén.</th>':''}${p.champs.forf?'<th>Forf.</th>':''}</tr></thead><tbody>`;
   arr.forEach((r,i)=>{
-    const rank=i+1;
+    const rank=rangOff[r.c];
     const cls=zoneDuRang(rank);
     const fav=isFav(r.c)?" row-fav":"";
     const star=isFav(r.c)?"⭐ ":"";
@@ -3512,6 +3531,16 @@ function brancherBody(){
   // sous-onglets
   box.querySelectorAll('[data-vue]').forEach(b=>b.addEventListener('click',()=>{
     curVue[b.dataset.p]=b.dataset.vue; buildBody();
+  }));
+  // fleches de tri du classement : 1er clic = le meilleur en haut, 2e clic = l'inverse
+  box.querySelectorAll('[data-tri]').forEach(b=>b.addEventListener('click',()=>{
+    const pid=b.dataset.p, col=b.dataset.tri;
+    if(!col){ delete curTri[pid]; buildBody(); return; }
+    const MOINS_EST_MIEUX={p:1, bc:1};   // defaites et buts encaisses : le plus petit d'abord
+    const t=curTri[pid];
+    if(t && t.col===col) t.sens=-t.sens;
+    else curTri[pid]={col, sens: MOINS_EST_MIEUX[col] ? 1 : -1};
+    buildBody();
   }));
   box.querySelectorAll('[data-cltlieu]').forEach(b=>b.addEventListener('click',()=>{
     curCltLieu[b.dataset.p]=b.dataset.cltlieu; buildBody();

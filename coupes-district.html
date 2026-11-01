@@ -488,7 +488,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 28 oct · 7e et 8e tours 🏆</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · stats complètes 📊</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -1049,14 +1049,19 @@ function htmlStatsCoupe(c){
   const noms=Object.keys(eq);
   if(!noms.length) return `<div class="card"><div class="empty">Joue des matchs pour voir les stats.</div></div>`;
   const parVict=[...noms].sort((a,b)=>eq[b].g-eq[a].g || eq[b].bp-eq[a].bp || a.localeCompare(b));
-  const parButs=[...noms].sort((a,b)=>eq[b].bp-eq[a].bp || a.localeCompare(b));
+  // classements complets (idee de Joris) : toutes les equipes de la coupe
+  const parButs=[...noms].sort((a,b)=>eq[b].bp-eq[a].bp || eq[a].j-eq[b].j || a.localeCompare(b));
+  const parDef=[...noms].sort((a,b)=>eq[a].bc-eq[b].bc || eq[b].j-eq[a].j || a.localeCompare(b));
 
   let html=`<div class="card"><div class="stats-wrap">`;
   html+=`<div class="stat-card"><h4>🏆 Meilleurs parcours (victoires)</h4><div class="stat-liste">`+
     parVict.slice(0,8).map((n,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(n,20)}<span class="sr-nom">${esc(n)}</span><span class="sr-val">${eq[n].g} v. · ${eq[n].j} m.</span></div>`).join("")+
     `</div></div>`;
   html+=`<div class="stat-card"><h4>⚔️ Meilleures attaques</h4><div class="stat-liste">`+
-    parButs.slice(0,8).map((n,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(n,20)}<span class="sr-nom">${esc(n)}</span><span class="sr-val">${eq[n].bp} buts</span></div>`).join("")+
+    parButs.map((n,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(n,20)}<span class="sr-nom">${esc(n)}</span><span class="sr-val">${eq[n].bp} buts · ${eq[n].j} m.</span></div>`).join("")+
+    `</div></div>`;
+  html+=`<div class="stat-card"><h4>🛡️ Meilleures défenses</h4><div class="stat-liste">`+
+    parDef.map((n,i)=>`<div class="stat-row"><span class="sr-rank">${i+1}</span>${htmlLogo(n,20)}<span class="sr-nom">${esc(n)}</span><span class="sr-val">${eq[n].bc} encaissés · ${eq[n].j} m.</span></div>`).join("")+
     `</div></div>`;
   html+=`</div></div>`;
   return html;
