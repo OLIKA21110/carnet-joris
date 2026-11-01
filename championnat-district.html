@@ -34,6 +34,11 @@
   .divtabs button.add{background:var(--or);color:var(--noir)}
   .divtabs button.coupe{background:#fff;color:#8a6d3b}
   .divtabs button.coupe.active{background:#8a6d3b;color:#fff}
+  /* barre des niveaux : National / Regional / District */
+  .niv-bar{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;padding-bottom:8px;margin-bottom:2px;border-bottom:1px dashed rgba(255,255,255,.25)}
+  .divtabs .niv-bar button{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35);padding:6px 14px;font-size:.85rem}
+  .divtabs .niv-bar button.on{background:var(--or);color:var(--noir);border-color:var(--or)}
+  .divtabs .niv-bar .nb{opacity:.7;font-weight:normal;margin-left:4px}
   .tabsep{width:100%;height:0}
   .match .team.win{color:#1a7a1a}
   .match .delm{margin-left:4px}
@@ -623,7 +628,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · flèches de tri ⇅</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · niveaux 🇫🇷🟦📍</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -661,6 +666,12 @@
     <p class="hint" id="divModalHint">Donne-lui un nom.</p>
     <label for="divName">Nom de la division</label>
     <input type="text" id="divName" placeholder="ex. D1" maxlength="80">
+    <label for="divNiveau">Niveau</label>
+    <select id="divNiveau">
+      <option value="national">🇫🇷 National (Ligue 1, Ligue 2, National…)</option>
+      <option value="regional">🟦 Régional Bourgogne-Franche-Comté (R1, R2, R3…)</option>
+      <option value="district">📍 District</option>
+    </select>
     <div style="margin-top:14px;text-align:right">
       <button class="act grey" id="divCancel">Annuler</button>
       <button class="act" id="divSave">Enregistrer</button>
@@ -1214,16 +1225,53 @@ function fairplayPoule(poule){
 }
 
 /* ===== Onglets (divisions + coupes) ===== */
+/* ===== Niveaux : National / Regional BFC / District =====
+   Joris suit en meme temps la Ligue 1, le regional et le district. Avec tout dans une
+   seule barre d'onglets il ne s'y retrouvait plus et effacait le district pour faire
+   de la place. Chaque championnat a donc un niveau (division.niveau, « district » par
+   defaut pour tous les championnats deja crees), et une barre choisit lequel afficher. */
+const NIVEAUX=[
+  {k:'national', ic:'🇫🇷', nom:'National'},
+  {k:'regional', ic:'🟦', nom:'Régional BFC'},
+  {k:'district', ic:'📍', nom:'District'}
+];
+function niveauDe(d){ return (d && NIVEAUX.some(n=>n.k===d.niveau)) ? d.niveau : 'district'; }
+/* Le niveau affiche est une preference de l'appareil, pas une donnee du carnet. */
+let curNiveau = (()=>{ try{ return localStorage.getItem('champ_niveau_vue') || 'tous'; }catch(e){ return 'tous'; } })();
+function choisirNiveau(k){
+  curNiveau=k;
+  try{ localStorage.setItem('champ_niveau_vue', k); }catch(e){}
+  const visibles=state.divisions.filter(d=>k==='tous' || niveauDe(d)===k);
+  if(curOnglet && curOnglet.startsWith('div:') && !visibles.some(d=>'div:'+d.id===curOnglet))
+    curOnglet = visibles.length ? 'div:'+visibles[0].id : 'avoir';
+  buildDivTabs(); buildBody();
+}
+/* Devine le niveau d'apres le nom, pour un nouveau championnat. */
+function devinerNiveau(nom){
+  const n=(nom||'').toUpperCase();
+  if(/LIGUE\s*[12]\b|NATIONAL|\bN[123]\b|PREMIER LEAGUE|SERIE A|LIGA|BUNDESLIGA/.test(n)) return 'national';
+  if(/R[ÉE]GIONAL|\bR[123]\b|BOURGOGNE|FRANCHE|\bBFC\b/.test(n)) return 'regional';
+  return null;
+}
 function buildDivTabs(){
   const nav=document.getElementById('divTabs');
   let html="";
-  state.divisions.forEach(d=>{
+  // la barre des niveaux n'apparait qu'a partir du moment ou on en utilise plus d'un
+  const utilises=new Set(state.divisions.map(niveauDe));
+  if(utilises.size>1 || curNiveau!=='tous'){
+    const nb=k=>state.divisions.filter(d=>k==='tous'||niveauDe(d)===k).length;
+    html+=`<div class="niv-bar">`
+      + NIVEAUX.map(n=>`<button class="${curNiveau===n.k?'on':''}" data-niveau="${n.k}">${n.ic} ${n.nom}<span class="nb">${nb(n.k)}</span></button>`).join('')
+      + `<button class="${curNiveau==='tous'?'on':''}" data-niveau="tous">Tous<span class="nb">${nb('tous')}</span></button></div>`;
+  }
+  state.divisions.filter(d=>curNiveau==='tous' || niveauDe(d)===curNiveau).forEach(d=>{
     html+=`<button class="${curOnglet==='div:'+d.id?'active':''}" data-go="div:${d.id}">${esc(d.nom)}</button>`;
   });
   html+=`<button class="${curOnglet==='avoir'?'active':''}" data-go="avoir">📅 À voir</button>`;
   html+=`<button class="${curOnglet==='autre'?'active':''}" data-go="autre">🏆 Les coupes</button>`;
   html+=`<button class="add" id="btnAddDiv">+ Ajouter un championnat</button>`;
   nav.innerHTML=html;
+  nav.querySelectorAll('[data-niveau]').forEach(b=>b.addEventListener('click',()=>choisirNiveau(b.dataset.niveau)));
   nav.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>{
     curOnglet=b.dataset.go; buildDivTabs(); buildBody();
   }));
@@ -1406,7 +1454,7 @@ function buildBodyInterne(){
     <div class="poule-head">
       <h2>${esc(d.nom)}</h2>
       <div>
-        <button class="mini" data-editdiv="${d.id}">✎ Renommer</button>
+        <button class="mini" data-editdiv="${d.id}" title="Changer le nom ou le niveau">✎ Nom et niveau</button>
         <button class="ordre-fl" data-monter="${d.id}" title="Remonter ce championnat dans la liste" ${state.divisions.indexOf(d)<=0?'disabled':''}>▲</button>
         <button class="ordre-fl" data-descendre="${d.id}" title="Descendre ce championnat dans la liste" ${state.divisions.indexOf(d)>=state.divisions.length-1?'disabled':''}>▼</button>
         <button class="mini" data-zonesdiv="${d.id}">🏆 Réglages</button>
@@ -3770,22 +3818,38 @@ function brancherBody(){
 let divEnCours=null;
 function ouvrirDivModal(id){
   divEnCours=id;
-  document.getElementById('divModalTitle').textContent = id ? "Renommer le championnat" : "Nouveau championnat";
+  document.getElementById('divModalTitle').textContent = id ? "Modifier le championnat" : "Nouveau championnat";
+  const sel=document.getElementById('divNiveau');
+  sel.value = id ? niveauDe(getDiv(id)) : (curNiveau!=='tous' ? curNiveau : 'district');
+  sel.dataset.touche = id ? '1' : '';
   document.getElementById('divModalHint').textContent = "Donne un nom à ton championnat (D1, D2, D3, D4…).";
   document.getElementById('divName').value = id ? getDiv(id).nom : "";
   document.getElementById('divName').placeholder = "ex. D1";
   document.getElementById('divModal').hidden=false;
   document.getElementById('divName').focus();
 }
+// tant que Joris n'a pas choisi le niveau lui-meme, on le devine d'apres le nom tape
+document.getElementById('divNiveau').addEventListener('change',e=>{ e.target.dataset.touche='1'; });
+document.getElementById('divName').addEventListener('input',e=>{
+  const sel=document.getElementById('divNiveau');
+  if(sel.dataset.touche) return;
+  const n=devinerNiveau(e.target.value);
+  if(n) sel.value=n;
+});
 document.getElementById('divSave').addEventListener('click',()=>{
   const nom=document.getElementById('divName').value.trim();
+  const niveau=document.getElementById('divNiveau').value;
   if(!nom){ alert("Écris un nom."); return; }
-  if(divEnCours){ getDiv(divEnCours).nom=nom; }
+  let d;
+  if(divEnCours){ d=getDiv(divEnCours); d.nom=nom; }
   else{
-    const d={id:uid(),nom,poules:[]};
+    d={id:uid(),nom,poules:[]};
     state.divisions.push(d); curOnglet='div:'+d.id;
   }
+  d.niveau=niveau;
   save(); document.getElementById('divModal').hidden=true;
+  // on montre le niveau du championnat qu'on vient d'enregistrer
+  if(curNiveau!=='tous' && curNiveau!==niveau){ choisirNiveau(niveau); return; }
   buildDivTabs(); buildBody();
 });
 document.getElementById('divCancel').addEventListener('click',()=>document.getElementById('divModal').hidden=true);

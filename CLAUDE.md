@@ -277,10 +277,10 @@ moissonnent les archives (3 saisons récoltées, bloqué depuis).
 
 ## 8. Ce qui reste ouvert
 
-- **Étages FFF / Ligue / District** : une barre pour choisir le niveau, avec la liste
-  des 18 ligues et des 101 départements rangés par ligue. Développé et testé fin
-  septembre, puis **mis de côté à la demande de Joris** — et la branche qui le gardait
-  a été perdue avec le conteneur de la session. **À refaire si le sujet revient.**
+- **Niveaux National / Régional BFC / District** : refait en version simple le 1er novembre
+  2026 (`division.niveau`, `NIVEAUX`, `curNiveau` gardé sur l'appareil), à la demande de Joris
+  qui effaçait le district pour suivre la Ligue 1. La barre n'apparaît qu'avec plus d'un niveau.
+  Pas (encore) pour les coupes, ni la liste des 18 ligues / 101 départements de septembre.
 - **Championnats internationaux** (Coupe du monde, Euro, Ligue des champions) :
   évoqué, repoussé.
 - Cinq clubs (ententes) ne peuvent pas être reliés à la Fédération : ils n'y existent plus.
