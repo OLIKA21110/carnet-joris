@@ -280,7 +280,9 @@ moissonnent les archives (3 saisons récoltées, bloqué depuis).
 - **Niveaux National / Régional BFC / District** : refait en version simple le 1er novembre
   2026 (`division.niveau`, `NIVEAUX`, `curNiveau` gardé sur l'appareil), à la demande de Joris
   qui effaçait le district pour suivre la Ligue 1. La barre n'apparaît qu'avec plus d'un niveau.
-  Pas (encore) pour les coupes, ni la liste des 18 ligues / 101 départements de septembre.
+  Étendu aux coupes le 2 novembre (idées n°10 et 11), avec les mots de Joris : **FFF / Ligue
+  BFC / District** (clés `national` / `regional` / `district`). Sans niveau choisi, `niveauDe()`
+  le devine d'après le nom (Coupe de France, Gambardella → FFF…). Pas la liste des 18 ligues.
 - **Championnats internationaux** (Coupe du monde, Euro, Ligue des champions) :
   évoqué, repoussé.
 - Cinq clubs (ententes) ne peuvent pas être reliés à la Fédération : ils n'y existent plus.

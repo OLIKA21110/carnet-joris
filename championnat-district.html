@@ -628,7 +628,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · niveaux 🇫🇷🟦📍</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 2 nov · FFF · Ligue · District 🇫🇷🟦📍</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -668,8 +668,8 @@
     <input type="text" id="divName" placeholder="ex. D1" maxlength="80">
     <label for="divNiveau">Niveau</label>
     <select id="divNiveau">
-      <option value="national">🇫🇷 National (Ligue 1, Ligue 2, National…)</option>
-      <option value="regional">🟦 Régional Bourgogne-Franche-Comté (R1, R2, R3…)</option>
+      <option value="national">🇫🇷 FFF (Ligue 1, Ligue 2, National…)</option>
+      <option value="regional">🟦 Ligue Bourgogne-Franche-Comté (R1, R2, R3…)</option>
       <option value="district">📍 District</option>
     </select>
     <div style="margin-top:14px;text-align:right">
@@ -1231,11 +1231,14 @@ function fairplayPoule(poule){
    de la place. Chaque championnat a donc un niveau (division.niveau, « district » par
    defaut pour tous les championnats deja crees), et une barre choisit lequel afficher. */
 const NIVEAUX=[
-  {k:'national', ic:'🇫🇷', nom:'National'},
-  {k:'regional', ic:'🟦', nom:'Régional BFC'},
+  {k:'national', ic:'🇫🇷', nom:'FFF'},
+  {k:'regional', ic:'🟦', nom:'Ligue BFC'},
   {k:'district', ic:'📍', nom:'District'}
 ];
-function niveauDe(d){ return (d && NIVEAUX.some(n=>n.k===d.niveau)) ? d.niveau : 'district'; }
+function niveauDe(d){
+  if(d && NIVEAUX.some(n=>n.k===d.niveau)) return d.niveau;
+  return (d && devinerNiveau(d.nom)) || 'district';   // pas encore choisi : d'apres le nom
+}
 /* Le niveau affiche est une preference de l'appareil, pas une donnee du carnet. */
 let curNiveau = (()=>{ try{ return localStorage.getItem('champ_niveau_vue') || 'tous'; }catch(e){ return 'tous'; } })();
 function choisirNiveau(k){
