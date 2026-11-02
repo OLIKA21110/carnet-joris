@@ -401,6 +401,36 @@
   .modal label{display:block;font-size:.82rem;font-weight:bold;color:#555;margin:10px 0 3px}
   .modal input[type=text],.modal textarea,.modal select{width:100%;border:1.5px solid #d4d4da;border-radius:8px;padding:8px;font-family:inherit;font-size:.9rem}
   .modal textarea{min-height:150px;resize:vertical}
+  /* tirage au sort avec boules numerotees */
+  .modal.tirage-modal{max-width:660px}
+  .tg-liste{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .tg-eq{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #ddd;border-radius:14px;padding:3px 8px;font-size:.82rem;font-weight:700}
+  .tg-eq button{border:0;background:none;color:#c0392b;cursor:pointer;font-weight:bold}
+  .tg-ajout{display:flex;gap:6px;margin:8px 0}
+  .tg-ajout input{flex:1}
+  .tg-scene{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:center;margin:12px 0}
+  .tg-pot{position:relative;width:220px;height:220px;border-radius:50%;flex:0 0 auto;overflow:hidden;
+    background:radial-gradient(circle at 35% 28%,rgba(255,255,255,.95),rgba(205,222,255,.45) 45%,rgba(120,150,205,.45));
+    border:3px solid rgba(255,255,255,.9);box-shadow:inset 0 -14px 30px rgba(0,0,0,.18),0 8px 18px rgba(0,0,0,.25)}
+  .tg-boule{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-weight:900;font-size:.78rem;color:#111;background:radial-gradient(circle at 35% 30%,#fff 0 18%,#ffd54a 19% 60%,#c8962b);
+    box-shadow:0 2px 3px rgba(0,0,0,.35);animation:tgFlotte 2.4s ease-in-out infinite}
+  .tg-pot.brasse .tg-boule{animation:tgBrasse .32s linear infinite}
+  @keyframes tgFlotte{0%,100%{transform:translate(0,0)}50%{transform:translate(2px,-3px)}}
+  @keyframes tgBrasse{0%{transform:translate(0,0) rotate(0)}25%{transform:translate(10px,-8px) rotate(90deg)}50%{transform:translate(-7px,9px) rotate(180deg)}75%{transform:translate(-10px,-6px) rotate(270deg)}100%{transform:translate(0,0) rotate(360deg)}}
+  .tg-sortie{min-width:190px;text-align:center}
+  .tg-grosse{width:92px;height:92px;margin:0 auto 8px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:2.3rem;font-weight:900;color:#111;background:radial-gradient(circle at 35% 30%,#fff 0 15%,#ffd54a 16% 60%,#c8962b);
+    box-shadow:0 6px 14px rgba(0,0,0,.35);animation:tgSort .6s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes tgSort{0%{transform:scale(.2) translateY(-70px);opacity:0}100%{transform:scale(1) translateY(0);opacity:1}}
+  .tg-nom{font-weight:900;font-size:1.05rem}
+  .tg-role{font-size:.8rem;color:#666;margin-top:2px}
+  .tg-btns{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:6px 0}
+  .tg-matchs{margin:10px 0;padding-left:24px}
+  .tg-matchs li{margin:5px 0;font-weight:700}
+  .tg-num{display:inline-block;min-width:22px;height:22px;line-height:22px;border-radius:50%;background:#ffd54a;text-align:center;font-size:.72rem;margin:0 3px;color:#111}
+  .tg-attente{color:#999;font-weight:normal}
+  @media(prefers-reduced-motion:reduce){.tg-boule,.tg-pot.brasse .tg-boule,.tg-grosse{animation:none}}
   .act{border:none;border-radius:20px;padding:8px 16px;font-family:inherit;font-weight:bold;cursor:pointer;background:var(--rouge);color:#fff}
   .act.grey{background:#888}
 
@@ -493,7 +523,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 2 nov · tour de cadrage 🏆</span></h1>
+    <h1>COUPES DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 2 nov · tirage au sort 🎱</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -588,6 +618,15 @@
 </div>
 
 <!-- Modale : ajouter un match de coupe -->
+<!-- Modale : tirage au sort avec boules -->
+<div class="modal-back" id="tirageModal" hidden>
+  <div class="modal tirage-modal">
+    <button class="modal-x" id="tirageClose">✕</button>
+    <h2 id="tirageTitre">🎱 Tirage au sort</h2>
+    <div id="tirageCorps"></div>
+  </div>
+</div>
+
 <div class="modal-back" id="matchModal" hidden>
   <div class="modal">
     <button class="modal-x" id="matchClose">✕</button>
@@ -1417,6 +1456,7 @@ function htmlTour(c,t){
       <h3>${esc(t.nom)} <span class="hint" style="display:inline">· ${t.matchs.length} match${t.matchs.length>1?'s':''}</span></h3>
       <div>
         <button class="mini" data-addmatch="${t.id}">+ Ajouter un match</button>
+        <button class="mini gold" data-tirage="${t.id}" title="Tirer les matchs au sort avec des boules numérotées">🎱 Tirage au sort</button>
         <button class="mini" data-addexempt="${t.id}" title="Une équipe qualifiée sans jouer ce tour">😴 + Exempt</button>
         <button class="mini" data-edittour="${t.id}">✎ Renommer</button>
         <button class="mini danger" data-deltour="${t.id}">🗑 Supprimer</button>
@@ -1556,6 +1596,156 @@ ${htmlRepMatch(m)}${htmlArrMatch(m)}${htmlResvMatch(m)}${htmlFaceAFace(m)}${html
    tour suivant (souvent les équipes de plus haut niveau, ou pour équilibrer le tableau).
    tour.exempts = ["Équipe A", …] */
 function exemptsTour(t){ return Array.isArray(t.exempts) ? t.exempts : []; }
+
+/* ===== Tirage au sort avec boules numerotees (idee de Joris, novembre 2026) =====
+   Comme a la television : chaque equipe a une boule numerotee, le pot se secoue, une
+   boule sort. La 1re boule recoit, la 2e se deplace ; s'il reste une boule seule a la
+   fin, l'equipe est exempte. Rien n'est enregistre tant que Joris n'a pas clique sur
+   « Creer les matchs » : le tirage vit en memoire (variable tirage). */
+let tirage=null;   // {tourId, equipes:[noms], pot:[{num,nom,x,y,d}], sortis:[{num,nom}], enCours}
+/* Un nombre au hasard entre 0 et n-1, avec le hasard du navigateur (plus juste que Math.random) */
+function hasardTirage(n){
+  try{ const a=new Uint32Array(1); crypto.getRandomValues(a); return a[0]%n; }
+  catch(e){ return Math.floor(Math.random()*n); }
+}
+/* Les qualifies du tour precedent (vainqueurs + exempts), sans ceux deja places dans ce tour */
+function candidatsTirage(c, t){
+  const i=c.tours.findIndex(x=>x.id===t.id);
+  const prec = i>0 ? c.tours[i-1] : null;
+  const qual=[];
+  if(prec){
+    prec.matchs.forEach(m=>{ const v=vainqueurCoupe(m,c); if(v) qual.push(v); });
+    exemptsTour(prec).forEach(e=>qual.push(e));
+  }
+  const deja=new Set(exemptsTour(t));
+  t.matchs.forEach(m=>{ if(m.dom) deja.add(m.dom); if(m.ext) deja.add(m.ext); });
+  return {prec, equipes:[...new Set(qual)].filter(n=>!deja.has(n))};
+}
+function ouvrirTirage(tourId){
+  const t=getTour(tourId), c=coupeDuTour(tourId);
+  if(!t || !c) return;
+  const {prec, equipes}=candidatsTirage(c, t);
+  tirage={tourId, prec: prec ? prec.nom : '', equipes, pot:null, sortis:[], enCours:false};
+  document.getElementById('tirageTitre').textContent = `🎱 Tirage au sort · ${t.nom}`;
+  dessinerTirage();
+  document.getElementById('tirageModal').hidden=false;
+}
+function remplirPot(){
+  // chaque boule a une place au hasard dans le pot (un disque de 220 px)
+  tirage.pot = tirage.equipes.map((nom,i)=>{
+    // racine carree : les boules se repartissent dans tout le pot au lieu de s'entasser au centre
+    const ang=hasardTirage(360)*Math.PI/180, r=88*Math.sqrt(hasardTirage(1000)/1000);
+    return {num:i+1, nom, x:110+Math.cos(ang)*r, y:120+Math.sin(ang)*r*0.8, d:(hasardTirage(24)/10).toFixed(1)};
+  });
+  tirage.sortis=[];
+}
+function htmlBouleSortie(){
+  const b=tirage.sortis[tirage.sortis.length-1];
+  if(!b) return `<div class="tg-role">Clique sur « 🎱 Tirer une boule »</div>`;
+  const recoit = tirage.sortis.length%2===1;
+  const seule = recoit && !tirage.pot.length;
+  return `<div class="tg-grosse">${b.num}</div>
+    <div class="tg-nom">${htmlLogo(b.nom,22)}${esc(b.nom)}</div>
+    <div class="tg-role">${seule ? '😴 dernière boule : exempte' : (recoit ? '🏠 reçoit' : '✈️ se déplace')}</div>`;
+}
+function dessinerTirage(){
+  const box=document.getElementById('tirageCorps');
+  const t=getTour(tirage.tourId);
+  if(!tirage.pot){
+    // 1) preparation du pot
+    box.innerHTML=`<p class="hint">${tirage.prec
+        ? `Les qualifiés du « ${esc(tirage.prec)} » sont déjà dans le pot. Enlève ou ajoute des équipes si besoin.`
+        : 'Ajoute les équipes qui participent au tirage.'}</p>
+      <div class="tg-liste">${tirage.equipes.map((n,i)=>`<span class="tg-eq">${htmlLogo(n,18)}${esc(n)}<button type="button" data-tgdel="${i}" title="Enlever">✕</button></span>`).join('') || '<span class="hint">Aucune équipe pour l\'instant.</span>'}</div>
+      <div class="tg-ajout"><input type="text" id="tgNom" list="tgSugg" placeholder="Ajouter une équipe…" autocomplete="off">
+        <button type="button" class="act grey" id="tgAjout">+ Ajouter</button></div>
+      <datalist id="tgSugg">${toutesEquipes().map(n=>`<option value="${esc(n)}">`).join('')}</datalist>
+      <div class="tg-btns"><button type="button" class="act" id="tgGo" ${tirage.equipes.length<2?'disabled':''}>🎱 Mettre les ${tirage.equipes.length} boules dans le pot</button></div>`;
+    box.querySelectorAll('[data-tgdel]').forEach(b=>b.addEventListener('click',()=>{ tirage.equipes.splice(+b.dataset.tgdel,1); dessinerTirage(); }));
+    const ajouter=()=>{
+      const n=document.getElementById('tgNom').value.trim();
+      if(!n) return;
+      if(tirage.equipes.includes(n)){ alert("Cette équipe est déjà dans le pot."); return; }
+      tirage.equipes.push(n); dessinerTirage();
+      const inp=document.getElementById('tgNom'); if(inp) inp.focus();
+    };
+    document.getElementById('tgAjout').addEventListener('click',ajouter);
+    document.getElementById('tgNom').addEventListener('keydown',e=>{ if(e.key==='Enter') ajouter(); });
+    document.getElementById('tgGo').addEventListener('click',()=>{ remplirPot(); dessinerTirage(); });
+    return;
+  }
+  // 2) le tirage
+  const s=tirage.sortis, fini=!tirage.pot.length;
+  let lignes='';
+  for(let i=0;i<s.length;i+=2){
+    const a=s[i], b=s[i+1];
+    if(b) lignes+=`<li><span class="tg-num">${a.num}</span>${esc(a.nom)} <span class="tg-attente">contre</span> <span class="tg-num">${b.num}</span>${esc(b.nom)}</li>`;
+    else lignes+= fini ? `<li>😴 <span class="tg-num">${a.num}</span>${esc(a.nom)} <span class="tg-attente">est exempte</span></li>`
+                       : `<li><span class="tg-num">${a.num}</span>${esc(a.nom)} <span class="tg-attente">contre… (boule suivante)</span></li>`;
+  }
+  const nbMatchs=Math.floor(s.length/2), exempt = fini && s.length%2===1;
+  box.innerHTML=`<div class="tg-scene">
+      <div class="tg-pot" id="tgPot">${tirage.pot.map(b=>`<span class="tg-boule" style="left:${b.x}px;top:${b.y}px;animation-delay:-${b.d}s">${b.num}</span>`).join('')}</div>
+      <div class="tg-sortie" id="tgSortie">${htmlBouleSortie()}</div>
+    </div>
+    <div class="tg-btns">${fini ? '' : `<button type="button" class="act" id="tgTirer" ${tirage.enCours?'disabled':''}>🎱 Tirer une boule</button>
+      <button type="button" class="act grey" id="tgTout" ${tirage.enCours?'disabled':''}>⏩ Tout tirer</button>`}
+      <button type="button" class="act grey" id="tgRecommencer" ${tirage.enCours?'disabled':''}>↺ Recommencer</button></div>
+    ${lignes ? `<ol class="tg-matchs">${lignes}</ol>` : ''}
+    ${fini ? `<div class="tg-btns"><button type="button" class="act" id="tgCreer">✅ Créer ${nbMatchs} match${nbMatchs>1?'s':''}${exempt?' et 1 exempt':''} dans « ${esc(t?t.nom:'')} »</button></div>` : ''}`;
+  if(!fini){
+    document.getElementById('tgTirer').addEventListener('click',tirerUneBoule);
+    document.getElementById('tgTout').addEventListener('click',()=>{
+      while(tirage.pot.length) tirage.sortis.push(tirage.pot.splice(hasardTirage(tirage.pot.length),1)[0]);
+      dessinerTirage();
+    });
+  }else{
+    document.getElementById('tgCreer').addEventListener('click',creerMatchsTirage);
+  }
+  document.getElementById('tgRecommencer').addEventListener('click',()=>{
+    if(s.length && !confirm("Remettre toutes les boules dans le pot et recommencer ?")) return;
+    remplirPot(); dessinerTirage();
+  });
+}
+function tirerUneBoule(){
+  if(tirage.enCours || !tirage.pot.length) return;
+  tirage.enCours=true;
+  const pot=document.getElementById('tgPot');
+  if(pot) pot.classList.add('brasse');
+  document.querySelectorAll('#tgTirer,#tgTout,#tgRecommencer').forEach(b=>b.disabled=true);
+  const attente = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 1100;
+  setTimeout(()=>{
+    tirage.sortis.push(tirage.pot.splice(hasardTirage(tirage.pot.length),1)[0]);
+    tirage.enCours=false;
+    dessinerTirage();
+  }, attente);
+}
+function creerMatchsTirage(){
+  const t=getTour(tirage.tourId); if(!t) return;
+  const s=tirage.sortis;
+  let n=0;
+  for(let i=0;i+1<s.length;i+=2){
+    const m={id:uid(), dom:s[i].nom, ext:s[i+1].nom};
+    // le club qui recoit : on reprend sa ville et son stade depuis Mes equipes
+    const infoDom=biblio.equipes[clubDeNom(m.dom)];
+    if(infoDom){ ['ville','cp','stade'].forEach(k=>{ if(infoDom[k]) m[k]=infoDom[k]; }); }
+    t.matchs.push(m); n++;
+  }
+  if(s.length%2===1){
+    const e=s[s.length-1].nom;
+    if(!exemptsTour(t).includes(e)) t.exempts=[...exemptsTour(t), e];
+  }
+  save(); alimenterBiblio();
+  document.getElementById('tirageModal').hidden=true;
+  tirage=null;
+  buildBody();
+  alert(`✅ ${n} match${n>1?'s':''} ajouté${n>1?'s':''} au « ${t.nom} »${s.length%2===1?', et 1 équipe exempte':''}. Bon tirage !`);
+}
+function fermerTirage(){
+  if(tirage && tirage.sortis.length && !confirm("Fermer sans créer les matchs ? Le tirage sera perdu.")) return;
+  document.getElementById('tirageModal').hidden=true;
+  tirage=null;
+}
 function htmlExemptsTour(t){
   const ex=exemptsTour(t);
   if(!ex.length) return '';
@@ -2744,6 +2934,7 @@ function brancherBody(){
   }));
   box.querySelectorAll('[data-deltour]').forEach(b=>b.addEventListener('click',()=>supprimerTour(b.dataset.deltour)));
   box.querySelectorAll('[data-addexempt]').forEach(b=>b.addEventListener('click',()=>ouvrirExemptModal(b.dataset.addexempt)));
+  box.querySelectorAll('[data-tirage]').forEach(b=>b.addEventListener('click',()=>ouvrirTirage(b.dataset.tirage)));
   box.querySelectorAll('[data-exdel]').forEach(b=>b.addEventListener('click',()=>{
     const t=getTour(b.dataset.exdel); if(!t) return;
     t.exempts=exemptsTour(t).filter(e=>e!==b.dataset.e);
@@ -3475,6 +3666,7 @@ document.getElementById('matchSave').addEventListener('click',()=>{
   save(); alimenterBiblio(); document.getElementById('matchModal').hidden=true; buildBody();
 });
 document.getElementById('matchCancel').addEventListener('click',()=>document.getElementById('matchModal').hidden=true);
+document.getElementById('tirageClose').addEventListener('click',fermerTirage);
 document.getElementById('matchClose').addEventListener('click',()=>document.getElementById('matchModal').hidden=true);
 
 function supprimerMatchCoupe(mid){

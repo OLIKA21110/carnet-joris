@@ -204,6 +204,11 @@ ne compte que ce côté de chaque match (pénalités et forfaits compris) ; bout
 classement (`curCltLieu`, en mémoire). Pas de zones de montée/descente ni d'alerte de forfait
 général hors du classement général. Domicile + extérieur = général, vérifié sur les 34 poules.
 
+**Tirage au sort (coupes)** : bouton « 🎱 Tirage au sort » sur chaque tour. Le pot reprend les
+qualifiés du tour précédent (vainqueurs + exempts), boules numérotées, `hasardTirage()` (crypto),
+1re boule reçoit, 2e se déplace, boule seule à la fin = exempte. Rien n'est enregistré avant
+« Créer les matchs » (variable `tirage` en mémoire).
+
 **Récap des journées** (onglet « 📅 Journées ») : par journée, les dates, l'état, et
 le détail de ce qui manque. Un match est « en retard » si sa date est passée et que
 le score est vide. Un bandeau en haut de page résume toutes poules confondues.
