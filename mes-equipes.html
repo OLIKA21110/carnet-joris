@@ -114,6 +114,10 @@
   .hist-b{border:none;background:var(--or);color:#fff;border-radius:8px;padding:5px 11px;font-family:inherit;font-size:.74rem;font-weight:bold;cursor:pointer}
   .hist-b:hover{filter:brightness(1.07)}
   .hist-vide{font-size:.82rem;color:#888;padding:10px 2px}
+  .st-club{font-size:.8rem;font-weight:bold;color:var(--noir);margin:10px 0 3px}
+  .st-ligne{display:flex;align-items:flex-start;gap:8px;padding:6px 10px;border-radius:8px;background:#fbfaf8;margin-bottom:4px;font-size:.8rem;cursor:pointer}
+  .st-ligne small{color:#999}
+  .st-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .eq-dept select{max-width:230px;border:1px solid #dcd9d4;border-radius:6px;padding:4px 8px;font-family:inherit;font-size:.8rem;background:#fff}
   .eq-dept select:focus{outline:none;border-color:var(--rouge)}
   .eq-fff{display:flex;align-items:center;gap:7px;margin:0 0 8px}
@@ -198,11 +202,12 @@
     <button id="btnExport">↓ Exporter</button>
     <button id="btnImport">↑ Importer</button>
     <button id="btnHist">🕐 Versions précédentes</button>
+    <button id="btnStades">🏟️ Stades effacés</button>
     <input type="file" id="fileImport" accept="application/json" hidden>
   </div>
 
   <div class="card">
-    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 1er nov · catégories gardées 🏷️</span></h2>
+    <h2>🎽 Tous mes clubs <span style="font-size:.6rem;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 11 nov · stades retrouvés 🏟️</span></h2>
     <p class="hint">Ici tu gères tes équipes et leurs logos <strong>une seule fois</strong> : ils apparaîtront dans ton championnat ET dans tes coupes. Les équipes que tu utilises dans tes matchs arrivent ici toutes seules.</p>
 
     <div class="eq-add">
@@ -448,6 +453,111 @@ function restaurerHistorique(s){
   sauverBiblio(); buildListe();
   document.getElementById('histModal').hidden=true;
   alert(`R\u00e9cup\u00e9ration termin\u00e9e !\n\n${nc} club(s)\n${ne} \u00e9quipe(s)\n${nl} type(s)/cat\u00e9gorie(s)`);
+}
+/* ===== Remettre les stades effaces (idee de Joris n°12, novembre 2026) =====
+   Des terrains ont disparu de fiches de clubs sans que Joris les efface : souvent le
+   deuxieme terrain, parfois le seul. Les sauvegardes de la nuit (dossier sauvegardes/,
+   meme adresse que la page, donc lisibles sans cle) les ont gardes. On les y relit et on
+   propose, club par club, de remettre ceux qui manquent. Regles :
+   - seulement pour les clubs encore dans la liste (un club efface ne revient pas ici) ;
+   - on n'efface ni ne modifie aucun terrain existant, on ajoute ;
+   - Joris decoche ce qu'il avait efface expres, et rien n'est ecrit avant son clic. */
+const STADES_DOSSIER='sauvegardes/';
+let stadesTrouves=[];      // [{club, lieu:{ville,cp,stade}, jour}]
+/* « COMPLEXE SPORTIF  ÉPIREY 2 » et « Complexe sportif Epirey 2 » sont le meme terrain */
+function stadeCle(s){
+  return (s||'').toString().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^A-Z0-9]+/g,' ').trim();
+}
+function stadesDuClub(inf){
+  const cles=new Set();
+  ((inf && inf.lieux)||[]).forEach(l=>{ const k=stadeCle(l && l.stade); if(k) cles.add(k); });
+  const k=stadeCle(inf && inf.stade); if(k) cles.add(k);
+  return cles;
+}
+async function stadesJoursSauves(){
+  try{
+    const r=await fetch(STADES_DOSSIER+'index.json',{cache:'no-store'});
+    if(r.ok){ const l=await r.json(); if(Array.isArray(l)) return l.filter(j=>/^\d{4}-\d\d-\d\d$/.test(j)).sort().reverse(); }
+  }catch(e){}
+  return [];
+}
+function ouvrirStades(){
+  stadesTrouves=[];
+  document.getElementById('stadesItems').innerHTML=
+    '<p class="hist-vide">Le carnet va fouiller les sauvegardes de chaque nuit pour retrouver '
+    + 'les stades qui ont disparu de tes clubs. \u00c7a peut prendre une minute (mieux en wifi).</p>'
+    + '<div class="st-actions"><button class="hist-b" id="stadesChercher">\ud83d\udd0d Chercher</button></div>';
+  document.getElementById('stadesChercher').addEventListener('click',chercherStades);
+  document.getElementById('stadesModal').hidden=false;
+}
+async function chercherStades(){
+  const box=document.getElementById('stadesItems');
+  const jours=await stadesJoursSauves();
+  if(!jours.length){ box.innerHTML='<p class="hist-vide">Je n\'arrive pas \u00e0 lire les sauvegardes. V\u00e9rifie Internet et r\u00e9essaie.</p>'; return; }
+  const trouves=new Map();   // club|cle -> trouve (la sauvegarde la plus recente gagne)
+  let lus=0;
+  for(const jour of jours){
+    box.innerHTML=`<p class="hist-vide">Je fouille la sauvegarde du ${esc(jour.split('-').reverse().join('/'))}\u2026 (${lus+1} sur ${jours.length})</p>`;
+    let lignes=null;
+    try{ const r=await fetch(STADES_DOSSIER+'carnets_'+jour+'.json',{cache:'no-store'}); if(r.ok) lignes=await r.json(); }catch(e){}
+    lus++;
+    const x=(Array.isArray(lignes)?lignes:[]).find(y=>y && y.id==='equipes_district');
+    let d=x && x.data; if(typeof d==='string'){ try{ d=JSON.parse(d); }catch(e){ d=null; } }
+    const src=(d && d.equipes)||{};
+    Object.keys(src).forEach(club=>{
+      const inf=biblio.equipes[club];
+      if(!inf) return;                                   // club efface : on n'y touche pas
+      const deja=stadesDuClub(inf), v=src[club]||{};
+      const lieux=(Array.isArray(v.lieux) && v.lieux.length) ? v.lieux : [v];
+      lieux.forEach(l=>{
+        const k=stadeCle(l && l.stade);
+        if(!k || deja.has(k) || trouves.has(club+'|'+k)) return;
+        trouves.set(club+'|'+k, {club, jour, lieu:{ville:l.ville||'', cp:l.cp||'', stade:(l.stade||'').trim()}});
+      });
+    });
+  }
+  stadesTrouves=[...trouves.values()].sort((a,b)=>a.club.localeCompare(b.club)||a.lieu.stade.localeCompare(b.lieu.stade));
+  afficherStades();
+}
+function afficherStades(){
+  const box=document.getElementById('stadesItems');
+  if(!stadesTrouves.length){
+    box.innerHTML='<p class="hist-vide">Bonne nouvelle : aucun stade ne manque, tous ceux des sauvegardes sont d\u00e9j\u00e0 dans tes clubs. \u2705</p>';
+    return;
+  }
+  let html=`<p class="hint">J'ai retrouv\u00e9 <b>${stadesTrouves.length} stade${stadesTrouves.length>1?'s':''}</b> qui ne sont plus dans tes clubs. `
+    + `D\u00e9coche ceux que tu avais effac\u00e9s expr\u00e8s, puis clique sur \u00ab Remettre \u00bb. Rien de ce que tu as aujourd'hui ne sera effac\u00e9.</p>`;
+  let club='';
+  stadesTrouves.forEach((t,i)=>{
+    if(t.club!==club){ club=t.club; html+=`<div class="st-club">${esc(club)}</div>`; }
+    const ou=[t.lieu.cp, t.lieu.ville].filter(Boolean).join(' ');
+    html+=`<label class="st-ligne"><input type="checkbox" data-stade="${i}" checked>`
+      + `<span>\ud83c\udfdf\ufe0f ${esc(t.lieu.stade)}${ou?` <small>\u00b7 ${esc(ou)}</small>`:''}</span></label>`;
+  });
+  html+='<div class="st-actions"><button class="hist-b" id="stadesRemettre">\u267b\ufe0f Remettre les stades coch\u00e9s</button></div>';
+  box.innerHTML=html;
+  document.getElementById('stadesRemettre').addEventListener('click',remettreStades);
+}
+function remettreStades(){
+  const choisis=[...document.querySelectorAll('#stadesItems [data-stade]')].filter(c=>c.checked).map(c=>stadesTrouves[+c.dataset.stade]).filter(Boolean);
+  if(!choisis.length){ alert('Coche au moins un stade.'); return; }
+  let n=0;
+  choisis.forEach(t=>{
+    const inf=biblio.equipes[t.club]; if(!inf) return;
+    if(stadesDuClub(inf).has(stadeCle(t.lieu.stade))) return;
+    const lieux=assurerLieux(inf);
+    // le terrain principal est vide (club sans aucun stade) : on le remplit plutot
+    // que d'en ajouter un deuxieme a cote d'une case vide
+    const vide=lieux.find(l=>!l.stade && !l.ville && !l.cp);
+    if(vide) Object.assign(vide, t.lieu);
+    else lieux.push(Object.assign({id:uid()}, t.lieu));
+    majLieuPrincipal(inf);
+    n++;
+  });
+  sauverBiblio(); buildListe();
+  document.getElementById('stadesModal').hidden=true;
+  alert(`C'est fait ! ${n} stade${n>1?'s':''} remis dans tes clubs. \ud83c\udfdf\ufe0f`);
 }
 /* ===== Ne jamais ecraser ce qui a ete ajoute ailleurs =====
    sauverBiblio() renvoie la bibliotheque ENTIERE. Si le championnat, les coupes ou
@@ -1314,6 +1424,8 @@ function brancherModaleListes(){
   document.getElementById('listeAdd').addEventListener('click',()=>ajouterValeurListe(false));
   document.getElementById('listeNouveau').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('listeAdd').click(); });
   document.getElementById('btnHist').addEventListener('click',ouvrirHistorique);
+  document.getElementById('btnStades').addEventListener('click',ouvrirStades);
+  document.getElementById('stadesClose').addEventListener('click',()=>document.getElementById('stadesModal').hidden=true);
   document.getElementById('histClose').addEventListener('click',()=>document.getElementById('histModal').hidden=true);
   document.getElementById('listeClose').addEventListener('click',()=>{
     // Ce qui est tapé sans avoir cliqué sur « + Ajouter » était perdu en silence :
@@ -1975,6 +2087,13 @@ if(document.readyState==='loading'){
   </div>
 </div>
 
+<div class="modal-back" id="stadesModal" hidden>
+  <div class="modal-box">
+    <button class="modal-x" id="stadesClose">✕</button>
+    <h2>🏟️ Stades effacés</h2>
+    <div id="stadesItems"></div>
+  </div>
+</div>
 <div class="modal-back" id="histModal" hidden>
   <div class="modal-box">
     <button class="modal-x" id="histClose">✕</button>
