@@ -39,6 +39,7 @@
   .divtabs .niv-bar button{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.35);padding:6px 14px;font-size:.85rem}
   .divtabs .niv-bar button.on{background:var(--or);color:var(--noir);border-color:var(--or)}
   .divtabs .niv-bar .nb{opacity:.7;font-weight:normal;margin-left:4px}
+  .divtabs .dist-bar button{padding:4px 11px;font-size:.78rem}
   .tabsep{width:100%;height:0}
   .match .team.win{color:#1a7a1a}
   .match .delm{margin-left:4px}
@@ -628,7 +629,7 @@
 <div class="wrap">
   <header>
     <span class="badge">DFCO</span>
-    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 2 nov · FFF · Ligue · District 🇫🇷🟦📍</span></h1>
+    <h1>CHAMPIONNAT DE DISTRICT · <span data-saison-titre>2026-2027</span> <span style="font-size:.5em;background:#2ea043;color:#fff;padding:2px 8px;border-radius:10px;vertical-align:middle">version 16 nov · les 7 districts 📍</span></h1>
     <div class="sub">Aux couleurs des Rouges de Dijon</div>
     <a class="home" href="index.html">↩ Accueil</a>
     <div class="stripes"><i></i><i></i><i></i></div>
@@ -672,6 +673,18 @@
       <option value="regional">🟦 Ligue Bourgogne-Franche-Comté (R1, R2, R3…)</option>
       <option value="district">📍 District</option>
     </select>
+    <div id="divDistrictBloc">
+    <label for="divDistrict">Quel district ?</label>
+    <select id="divDistrict">
+      <option value="cote-dor">Côte-d'Or</option>
+      <option value="doubs-belfort">Doubs-Territoire de Belfort</option>
+      <option value="haute-saone">Haute-Saône</option>
+      <option value="jura">Jura</option>
+      <option value="nievre">Nièvre</option>
+      <option value="saone-et-loire">Saône-et-Loire</option>
+      <option value="yonne">Yonne</option>
+    </select>
+    </div>
     <div style="margin-top:14px;text-align:right">
       <button class="act grey" id="divCancel">Annuler</button>
       <button class="act" id="divSave">Enregistrer</button>
@@ -1244,7 +1257,7 @@ let curNiveau = (()=>{ try{ return localStorage.getItem('champ_niveau_vue') || '
 function choisirNiveau(k){
   curNiveau=k;
   try{ localStorage.setItem('champ_niveau_vue', k); }catch(e){}
-  const visibles=state.divisions.filter(d=>k==='tous' || niveauDe(d)===k);
+  const visibles=state.divisions.filter(estVisible);
   if(curOnglet && curOnglet.startsWith('div:') && !visibles.some(d=>'div:'+d.id===curOnglet))
     curOnglet = visibles.length ? 'div:'+visibles[0].id : 'avoir';
   buildDivTabs(); buildBody();
@@ -1255,6 +1268,56 @@ function devinerNiveau(nom){
   if(/LIGUE\s*[12]\b|NATIONAL|\bN[123]\b|PREMIER LEAGUE|SERIE A|LIGA|BUNDESLIGA/.test(n)) return 'national';
   if(/R[ÉE]GIONAL|\bR[123]\b|BOURGOGNE|FRANCHE|\bBFC\b/.test(n)) return 'regional';
   return null;
+}
+/* ===== Les districts de la Ligue Bourgogne-Franche-Comte =====
+   Idee de Joris n°15 (novembre 2026) : dans l'onglet District, choisir LE district.
+   Il y en a 7 : le Doubs et le Territoire de Belfort n'en font qu'un (ticket n°14).
+   Chaque element garde son district (.district) ; sans choix, on le devine d'apres le
+   nom, sinon Cote-d'Or (le district de Joris, celui de tous les carnets d'avant). */
+const DISTRICTS=[
+  {k:'cote-dor',       nom:"C\u00f4te-d'Or"},
+  {k:'doubs-belfort',  nom:'Doubs-Territoire de Belfort'},
+  {k:'haute-saone',    nom:'Haute-Sa\u00f4ne'},
+  {k:'jura',           nom:'Jura'},
+  {k:'nievre',         nom:'Ni\u00e8vre'},
+  {k:'saone-et-loire', nom:'Sa\u00f4ne-et-Loire'},
+  {k:'yonne',          nom:'Yonne'}
+];
+function devinerDistrict(nom){
+  const n=(nom||'').normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  if(/DOUBS|BELFORT/.test(n)) return 'doubs-belfort';
+  if(/HAUTE.?SAONE/.test(n)) return 'haute-saone';
+  if(/SAONE.?ET.?LOIRE/.test(n)) return 'saone-et-loire';
+  if(/JURA/.test(n)) return 'jura';
+  if(/NIEVRE/.test(n)) return 'nievre';
+  if(/YONNE/.test(n)) return 'yonne';
+  if(/COTE.?D.?OR/.test(n)) return 'cote-dor';
+  return null;
+}
+function districtDe(x){
+  if(x && DISTRICTS.some(t=>t.k===x.district)) return x.district;
+  return (x && devinerDistrict(x.nom)) || 'cote-dor';
+}
+/* Le district affiche est, comme le niveau, une preference de l'appareil. */
+let curDistrict = (()=>{ try{ return localStorage.getItem('champ_district_vue') || 'tous'; }catch(e){ return 'tous'; } })();
+/* La barre des districts se montre dans l'onglet District, ou quand tout est du district
+   (la barre des niveaux est alors cachee). */
+function voitDistricts(){
+  const utilises=new Set(state.divisions.map(niveauDe));
+  return curNiveau==='district' || (curNiveau==='tous' && utilises.size===1 && utilises.has('district'));
+}
+function estVisible(x){
+  if(curNiveau!=='tous' && niveauDe(x)!==curNiveau) return false;
+  if(curDistrict==='tous' || niveauDe(x)!=='district' || !voitDistricts()) return true;
+  return districtDe(x)===curDistrict;
+}
+function choisirDistrict(k){
+  curDistrict=k;
+  try{ localStorage.setItem('champ_district_vue', k); }catch(e){}
+  const visibles=state.divisions.filter(estVisible);
+  if(curOnglet && curOnglet.startsWith('div:') && !visibles.some(x=>'div:'+x.id===curOnglet))
+    curOnglet = visibles.length ? 'div:'+visibles[0].id : 'avoir';
+  buildDivTabs(); buildBody();
 }
 function buildDivTabs(){
   const nav=document.getElementById('divTabs');
@@ -1267,7 +1330,14 @@ function buildDivTabs(){
       + NIVEAUX.map(n=>`<button class="${curNiveau===n.k?'on':''}" data-niveau="${n.k}">${n.ic} ${n.nom}<span class="nb">${nb(n.k)}</span></button>`).join('')
       + `<button class="${curNiveau==='tous'?'on':''}" data-niveau="tous">Tous<span class="nb">${nb('tous')}</span></button></div>`;
   }
-  state.divisions.filter(d=>curNiveau==='tous' || niveauDe(d)===curNiveau).forEach(d=>{
+  if(voitDistricts()){
+    const dist=state.divisions.filter(x=>niveauDe(x)==='district');
+    const nbD=k=>dist.filter(x=>k==='tous'||districtDe(x)===k).length;
+    html+=`<div class="niv-bar dist-bar">`
+      + DISTRICTS.map(t=>`<button class="${curDistrict===t.k?'on':''}" data-district="${t.k}">${esc(t.nom)}<span class="nb">${nbD(t.k)}</span></button>`).join('')
+      + `<button class="${curDistrict==='tous'?'on':''}" data-district="tous">Tous les districts<span class="nb">${nbD('tous')}</span></button></div>`;
+  }
+  state.divisions.filter(estVisible).forEach(d=>{
     html+=`<button class="${curOnglet==='div:'+d.id?'active':''}" data-go="div:${d.id}">${esc(d.nom)}</button>`;
   });
   html+=`<button class="${curOnglet==='avoir'?'active':''}" data-go="avoir">📅 À voir</button>`;
@@ -1275,6 +1345,7 @@ function buildDivTabs(){
   html+=`<button class="add" id="btnAddDiv">+ Ajouter un championnat</button>`;
   nav.innerHTML=html;
   nav.querySelectorAll('[data-niveau]').forEach(b=>b.addEventListener('click',()=>choisirNiveau(b.dataset.niveau)));
+  nav.querySelectorAll('[data-district]').forEach(b=>b.addEventListener('click',()=>choisirDistrict(b.dataset.district)));
   nav.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>{
     curOnglet=b.dataset.go; buildDivTabs(); buildBody();
   }));
@@ -3825,6 +3896,10 @@ function ouvrirDivModal(id){
   const sel=document.getElementById('divNiveau');
   sel.value = id ? niveauDe(getDiv(id)) : (curNiveau!=='tous' ? curNiveau : 'district');
   sel.dataset.touche = id ? '1' : '';
+  const selD=document.getElementById('divDistrict');
+  selD.value = id ? districtDe(getDiv(id)) : (curDistrict!=='tous' ? curDistrict : 'cote-dor');
+  selD.dataset.touche = id ? '1' : '';
+  montrerChoixDistrict();
   document.getElementById('divModalHint').textContent = "Donne un nom à ton championnat (D1, D2, D3, D4…).";
   document.getElementById('divName').value = id ? getDiv(id).nom : "";
   document.getElementById('divName').placeholder = "ex. D1";
@@ -3832,12 +3907,19 @@ function ouvrirDivModal(id){
   document.getElementById('divName').focus();
 }
 // tant que Joris n'a pas choisi le niveau lui-meme, on le devine d'apres le nom tape
-document.getElementById('divNiveau').addEventListener('change',e=>{ e.target.dataset.touche='1'; });
+document.getElementById('divNiveau').addEventListener('change',e=>{ e.target.dataset.touche='1'; montrerChoixDistrict(); });
+document.getElementById('divDistrict').addEventListener('change',e=>{ e.target.dataset.touche='1'; });
+/* la liste des districts n'a de sens que pour le niveau District */
+function montrerChoixDistrict(){
+  document.getElementById('divDistrictBloc').hidden = document.getElementById('divNiveau').value!=='district';
+}
 document.getElementById('divName').addEventListener('input',e=>{
   const sel=document.getElementById('divNiveau');
-  if(sel.dataset.touche) return;
-  const n=devinerNiveau(e.target.value);
+  const n=sel.dataset.touche ? null : devinerNiveau(e.target.value);
   if(n) sel.value=n;
+  const selD=document.getElementById('divDistrict'), dd=devinerDistrict(e.target.value);
+  if(dd && !selD.dataset.touche) selD.value=dd;
+  montrerChoixDistrict();
 });
 document.getElementById('divSave').addEventListener('click',()=>{
   const nom=document.getElementById('divName').value.trim();
@@ -3850,9 +3932,13 @@ document.getElementById('divSave').addEventListener('click',()=>{
     state.divisions.push(d); curOnglet='div:'+d.id;
   }
   d.niveau=niveau;
+  const district=document.getElementById('divDistrict').value;
+  if(niveau==='district') d.district=district;
   save(); document.getElementById('divModal').hidden=true;
   // on montre le niveau du championnat qu'on vient d'enregistrer
   if(curNiveau!=='tous' && curNiveau!==niveau){ choisirNiveau(niveau); return; }
+  // ... et son district
+  if(niveau==='district' && curDistrict!=='tous' && curDistrict!==district){ choisirDistrict(district); return; }
   buildDivTabs(); buildBody();
 });
 document.getElementById('divCancel').addEventListener('click',()=>document.getElementById('divModal').hidden=true);
